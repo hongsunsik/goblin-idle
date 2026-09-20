@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>고블린 키우기</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="game">
+    <header class="top">
+      <h1 class="top__title">👺 고블린 키우기</h1>
+      <div class="top__stats">
+        <span class="chip" title="골드">💰 <b id="gold">0</b></span>
+        <span class="chip" title="왕의 증표: 공격력·골드 +25%씩">🏅 <b id="tokens">0</b></span>
+      </div>
+    </header>
+
+    <section class="arena" id="arena" aria-label="전투">
+      <div class="arena__stage">
+        <span id="stageLabel">스테이지 1</span>
+        <span id="stageProgress" class="arena__progress">0 / 5</span>
+      </div>
+
+      <div class="fighters">
+        <div class="fighter" id="goblinBox">
+          <div class="fighter__sprite" id="goblin">👺</div>
+          <div class="fighter__name" id="goblinName">새끼 고블린</div>
+          <div class="bar bar--hp"><i id="goblinHpBar"></i></div>
+          <div class="bar__text" id="goblinHpText"></div>
+        </div>
+
+        <div class="vs" aria-hidden="true">⚔️</div>
+
+        <div class="fighter" id="monsterBox">
+          <div class="fighter__sprite" id="monster">🐀</div>
+          <div class="fighter__name" id="monsterName">몬스터</div>
+          <div class="bar bar--mon"><i id="monsterHpBar"></i></div>
+          <div class="bar__text" id="monsterHpText"></div>
+        </div>
+      </div>
+
+      <div class="float-layer" id="floatLayer" aria-hidden="true"></div>
+      <div class="arena__down" id="downBanner" hidden>😵 기절했다! 부활 중...</div>
+    </section>
+
+    <button class="hit" id="hitBtn" type="button">👊 직접 때리기</button>
+
+    <section class="panel">
+      <div class="panel__head">
+        <span class="panel__title">Lv.<b id="level">1</b></span>
+        <span class="panel__sub" id="expText"></span>
+      </div>
+      <div class="bar bar--exp"><i id="expBar"></i></div>
+      <dl class="stats">
+        <div><dt>공격력</dt><dd id="statDmg">0</dd></div>
+        <div><dt>초당 공격</dt><dd id="statAps">0</dd></div>
+        <div><dt>동료 DPS</dt><dd id="statComp">0</dd></div>
+        <div><dt>총 DPS</dt><dd id="statDps">0</dd></div>
+      </dl>
+    </section>
+
+    <section class="panel">
+      <h2 class="panel__title">강화</h2>
+      <ul class="upgrades" id="upgrades"></ul>
+    </section>
+
+    <section class="panel panel--prestige">
+      <h2 class="panel__title">👑 환생</h2>
+      <p class="hint" id="prestigeHint"></p>
+      <button class="prestige" id="prestigeBtn" type="button">환생하기</button>
+    </section>
+
+    <section class="panel">
+      <h2 class="panel__title">기록</h2>
+      <ul class="log" id="log" aria-live="off"></ul>
+    </section>
+
+    <footer class="foot">
+      <span id="saveInfo">자동 저장됨</span>
+      <button class="link" id="resetBtn" type="button">처음부터 다시</button>
+    </footer>
+  </main>
+
+  <div class="modal" id="offlineModal" hidden>
+    <div class="modal__box" role="dialog" aria-modal="true" aria-labelledby="offlineTitle">
+      <h2 id="offlineTitle">😴 자리를 비운 사이에...</h2>
+      <p id="offlineBody"></p>
+      <button class="prestige" id="offlineOk" type="button">확인</button>
+    </div>
+  </div>
+
+  <script src="game.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
