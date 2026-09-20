@@ -2,95 +2,141 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0d1a24">
   <title>고블린 키우기</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <main class="game">
-    <header class="top">
-      <h1 class="top__title">👺 고블린 키우기</h1>
-      <div class="top__stats">
-        <span class="chip" title="골드">💰 <b id="gold">0</b></span>
-        <span class="chip" title="왕의 증표: 공격력·골드 +25%씩">🏅 <b id="tokens">0</b></span>
+  <div class="app">
+
+    <!-- 상단: 영웅 정보 + 재화 -->
+    <header class="hud">
+      <div class="hud__hero">
+        <div class="avatar" id="avatar"></div>
+        <div class="hud__info">
+          <div class="hud__row">
+            <span class="hud__title" id="heroTitle">견습 고블린</span>
+            <span class="lvbadge">Lv.<b id="level">1</b></span>
+          </div>
+          <div class="bar bar--exp"><i id="expBar"></i><span class="bar__label" id="expText"></span></div>
+        </div>
+      </div>
+      <div class="hud__cur">
+        <div class="cur" title="골드"><span class="ico ico--coin"></span><b id="gold">0</b></div>
+        <div class="cur cur--token" title="왕의 증표: 공격력·골드 +25%씩"><span class="ico ico--crown"></span><b id="tokens">0</b></div>
       </div>
     </header>
 
-    <section class="arena" id="arena" aria-label="전투">
-      <div class="arena__stage">
-        <span id="stageLabel">스테이지 1</span>
-        <span id="stageProgress" class="arena__progress">0 / 5</span>
+    <!-- 전투 장면: 화면을 눌러 공격 -->
+    <section class="scene" id="scene" data-biome="0" aria-label="전투 장면">
+      <div class="scene__sky"></div>
+      <div class="scene__sun"></div>
+      <div class="scene__clouds"><i></i><i></i><i></i></div>
+      <svg class="scene__hills scene__hills--far" viewBox="0 0 400 140" preserveAspectRatio="none" aria-hidden="true"><path d="M0 140 L0 78 Q40 34 92 66 T196 58 T300 66 T400 40 L400 140 Z"/></svg>
+      <svg class="scene__hills scene__hills--near" viewBox="0 0 400 140" preserveAspectRatio="none" aria-hidden="true"><path d="M0 140 L0 92 Q60 60 120 88 T240 82 T340 92 T400 74 L400 140 Z"/></svg>
+      <div class="scene__trees" aria-hidden="true">
+        <svg viewBox="0 0 60 80"><path class="tree-trunk" d="M27 56 H33 V78 H27 Z"/><path class="tree-leaf" d="M30 4 L52 34 H40 L56 58 H4 L20 34 H8 Z"/></svg>
+        <svg viewBox="0 0 60 80"><path class="tree-trunk" d="M27 56 H33 V78 H27 Z"/><path class="tree-leaf" d="M30 4 L52 34 H40 L56 58 H4 L20 34 H8 Z"/></svg>
+      </div>
+      <div class="scene__ground"></div>
+
+      <!-- 스테이지 안내 -->
+      <div class="stagebar">
+        <div class="stagebar__biome" id="biomeName">고블린 숲</div>
+        <div class="stagebar__main">
+          <span class="stagebar__no" id="stageLabel">STAGE 1</span>
+          <div class="pips" id="pips"></div>
+        </div>
       </div>
 
-      <div class="fighters">
-        <div class="fighter" id="goblinBox">
-          <div class="fighter__sprite" id="goblin">👺</div>
-          <div class="fighter__name" id="goblinName">새끼 고블린</div>
+      <!-- 등장인물 -->
+      <div class="actor actor--hero" id="heroBox">
+        <div class="tag">
+          <div class="tag__name" id="heroTag">견습 고블린</div>
           <div class="bar bar--hp"><i id="goblinHpBar"></i></div>
-          <div class="bar__text" id="goblinHpText"></div>
+          <div class="tag__hp" id="goblinHpText"></div>
         </div>
+        <div class="actor__sprite" id="hero"></div>
+      </div>
 
-        <div class="vs" aria-hidden="true">⚔️</div>
-
-        <div class="fighter" id="monsterBox">
-          <div class="fighter__sprite" id="monster">🐀</div>
-          <div class="fighter__name" id="monsterName">몬스터</div>
+      <div class="actor actor--enemy" id="enemyBox">
+        <div class="tag">
+          <div class="tag__name" id="monsterName">몬스터</div>
           <div class="bar bar--mon"><i id="monsterHpBar"></i></div>
-          <div class="bar__text" id="monsterHpText"></div>
+          <div class="tag__hp" id="monsterHpText"></div>
         </div>
+        <div class="actor__sprite" id="monster">🐀</div>
       </div>
 
       <div class="float-layer" id="floatLayer" aria-hidden="true"></div>
-      <div class="arena__down" id="downBanner" hidden>😵 기절했다! 부활 중...</div>
+      <div class="tap-hint" id="tapHint">👆 화면을 눌러 공격!</div>
+      <div class="down" id="downBanner" hidden>😵 기절했다! 곧 일어난다...</div>
     </section>
 
-    <button class="hit" id="hitBtn" type="button">👊 직접 때리기</button>
+    <!-- 능력치 요약 -->
+    <div class="statbar">
+      <div class="stat"><span>⚔️</span><small>공격력</small><b id="statDmg">0</b></div>
+      <div class="stat"><span>⚡</span><small>공격 속도</small><b id="statAps">0</b></div>
+      <div class="stat"><span>👥</span><small>동료</small><b id="statComp">0</b></div>
+      <div class="stat stat--dps"><span>💥</span><small>초당 피해</small><b id="statDps">0</b></div>
+    </div>
 
-    <section class="panel">
-      <div class="panel__head">
-        <span class="panel__title">Lv.<b id="level">1</b></span>
-        <span class="panel__sub" id="expText"></span>
-      </div>
-      <div class="bar bar--exp"><i id="expBar"></i></div>
-      <dl class="stats">
-        <div><dt>공격력</dt><dd id="statDmg">0</dd></div>
-        <div><dt>초당 공격</dt><dd id="statAps">0</dd></div>
-        <div><dt>동료 DPS</dt><dd id="statComp">0</dd></div>
-        <div><dt>총 DPS</dt><dd id="statDps">0</dd></div>
-      </dl>
-    </section>
+    <!-- 탭 내용 -->
+    <main class="tabs">
+      <section class="tab" id="tab-upgrade" data-tab="upgrade">
+        <ul class="upgrades" id="upgrades"></ul>
+      </section>
 
-    <section class="panel">
-      <h2 class="panel__title">강화</h2>
-      <ul class="upgrades" id="upgrades"></ul>
-    </section>
+      <section class="tab" id="tab-class" data-tab="class" hidden>
+        <div class="classcard classcard--now" id="classNow"></div>
+        <div id="classChoice"></div>
+        <h3 class="sect">📖 직업 도감 <small id="codexBonus"></small></h3>
+        <div class="codex" id="codex"></div>
+      </section>
 
-    <section class="panel panel--prestige">
-      <h2 class="panel__title">👑 환생</h2>
-      <p class="hint" id="prestigeHint"></p>
-      <button class="prestige" id="prestigeBtn" type="button">환생하기</button>
-    </section>
+      <section class="tab" id="tab-prestige" data-tab="prestige" hidden>
+        <div class="prestige-card">
+          <div class="prestige-card__crown"></div>
+          <h3>왕의 증표</h3>
+          <p class="hint" id="prestigeHint"></p>
+          <div class="prestige-stats">
+            <div><small>보유 증표</small><b id="pTokens">0</b></div>
+            <div><small>현재 보너스</small><b id="pBonus">+0%</b></div>
+            <div><small>최고 기록</small><b id="pBest">1</b></div>
+          </div>
+          <button class="btn btn--gold btn--wide" id="prestigeBtn" type="button">환생하기</button>
+        </div>
+      </section>
 
-    <section class="panel">
-      <h2 class="panel__title">기록</h2>
-      <ul class="log" id="log" aria-live="off"></ul>
-    </section>
+      <section class="tab" id="tab-log" data-tab="log" hidden>
+        <ul class="log" id="log" aria-live="off"></ul>
+        <div class="foot">
+          <span id="saveInfo">자동 저장됨</span>
+          <button class="link" id="resetBtn" type="button">처음부터 다시</button>
+        </div>
+      </section>
+    </main>
 
-    <footer class="foot">
-      <span id="saveInfo">자동 저장됨</span>
-      <button class="link" id="resetBtn" type="button">처음부터 다시</button>
-    </footer>
-  </main>
+    <!-- 하단 메뉴 -->
+    <nav class="nav" id="nav" aria-label="메뉴">
+      <button class="nav__btn is-on" data-go="upgrade" type="button"><span class="nav__ico">⚒️</span><span>강화</span><i class="dot" hidden></i></button>
+      <button class="nav__btn" data-go="class" type="button"><span class="nav__ico">🎓</span><span>전직</span><i class="dot" hidden></i></button>
+      <button class="nav__btn" data-go="prestige" type="button"><span class="nav__ico">👑</span><span>환생</span><i class="dot" hidden></i></button>
+      <button class="nav__btn" data-go="log" type="button"><span class="nav__ico">📜</span><span>기록</span></button>
+    </nav>
+  </div>
 
-  <div class="modal" id="offlineModal" hidden>
-    <div class="modal__box" role="dialog" aria-modal="true" aria-labelledby="offlineTitle">
-      <h2 id="offlineTitle">😴 자리를 비운 사이에...</h2>
-      <p id="offlineBody"></p>
-      <button class="prestige" id="offlineOk" type="button">확인</button>
+  <div class="modal" id="modal" hidden>
+    <div class="modal__box" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <h2 id="modalTitle"></h2>
+      <div class="modal__body" id="modalBody"></div>
+      <div class="modal__actions" id="modalActions"></div>
     </div>
   </div>
 
+  <script src="art.js"></script>
   <script src="game.js"></script>
   <script src="app.js"></script>
 </body>

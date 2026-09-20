@@ -24,17 +24,56 @@
   };
   const UPGRADE_KEYS = Object.keys(UPGRADES);
 
-  // 고블린 진화 단계 (레벨 기준)
-  const TIERS = [
-    { level: 1,  name: '새끼 고블린',  scale: 1.0, extra: '' },
-    { level: 5,  name: '고블린',       scale: 1.15, extra: '🪓' },
-    { level: 10, name: '고블린 전사',  scale: 1.3, extra: '⚔️' },
-    { level: 20, name: '고블린 대장',  scale: 1.45, extra: '🏴‍☠️' },
-    { level: 35, name: '고블린 왕',    scale: 1.6, extra: '👑' },
-  ];
+  // ---- 직업 ----
+  // 1차 전직은 Lv.10, 2차 전직은 Lv.20부터 가능. 환생하면 직업이 초기화된다.
+  // mult 항목: dmg 공격력, hp 최대 체력, aps 공격 속도, gold 골드, comp 동료 공격, regen 체력 회복, click 직접 때리기
+  const PROMO_LEVEL = { base: 10, adv: 20 };
+  const CLASSES = {
+    warrior: { name: '전사',   desc: '튼튼한 체력과 빠른 회복. 오래 버티는 싸움이 특기.',
+               mult: { hp: 1.5, regen: 1.3 }, adv: ['knight', 'berserker'] },
+    archer:  { name: '궁수',   desc: '빠른 연사로 꾸준히 피해를 준다.',
+               mult: { aps: 1.3 }, adv: ['sniper', 'ranger'] },
+    mage:    { name: '마법사', desc: '강력한 마법 공격. 대신 체력이 약하다.',
+               mult: { dmg: 1.35, hp: 0.85 }, adv: ['pyromancer', 'necromancer'] },
+    rogue:   { name: '도적',   desc: '재빠른 손놀림으로 골드를 더 많이 훔친다.',
+               mult: { gold: 1.4, dmg: 1.1 }, adv: ['assassin', 'pirate'] },
+  };
+  const ADVANCED = {
+    knight:      { name: '기사',     parent: 'warrior', desc: '철벽 방어. 체력과 회복이 크게 늘지만 공격은 조금 약해진다.',
+                   mult: { hp: 1.6, regen: 1.5, dmg: 0.9 } },
+    berserker:   { name: '광전사',   parent: 'warrior', desc: '분노의 일격. 공격력이 크게 오르는 대신 체력이 줄어든다.',
+                   mult: { dmg: 1.6, hp: 0.85 } },
+    sniper:      { name: '저격수',   parent: 'archer',  desc: '한 방이 강력하다. 연사는 조금 느려진다.',
+                   mult: { dmg: 1.6, aps: 0.9 } },
+    ranger:      { name: '레인저',   parent: 'archer',  desc: '더 빠른 연사와 강해진 동료 공격.',
+                   mult: { aps: 1.3, comp: 1.5 } },
+    pyromancer:  { name: '화염술사', parent: 'mage',    desc: '불꽃 마법. 공격력이 오르고 직접 때리기가 두 배로 강해진다.',
+                   mult: { dmg: 1.5, click: 2 } },
+    necromancer: { name: '사령술사', parent: 'mage',    desc: '언데드를 부린다. 동료의 공격이 2배 이상 강해진다.',
+                   mult: { comp: 2.2, dmg: 0.9 } },
+    assassin:    { name: '암살자',   parent: 'rogue',   desc: '급소를 노린다. 공격력이 크게 오르고 골드도 조금 더 번다.',
+                   mult: { dmg: 1.5, gold: 1.1 } },
+    pirate:      { name: '해적',     parent: 'rogue',   desc: '보물 사냥꾼. 골드를 엄청나게 벌고 동료도 조금 강해진다.',
+                   mult: { gold: 1.7, comp: 1.2 } },
+  };
+  const MASTERY_BONUS = 0.05;   // 2차 전직을 달성한 직업 1개당 공격력·골드 +5% (환생해도 유지)
 
-  const MONSTERS = ['🐀', '🦇', '🐍', '🕷️', '🐺', '🐗', '🧟', '👻'];
-  const BOSSES = ['🦂', '🐻', '🧌', '🐲', '👹', '💀'];
+  // 지역은 10스테이지마다 바뀌고, 지역마다 나오는 몬스터와 보스가 다르다.
+  const BIOME_COUNT = 6;
+  const MONSTER_TABLE = [
+    { normals: [['🐀', '들쥐'], ['🐗', '멧돼지'], ['🐺', '늑대'], ['🐍', '독뱀'], ['🕷️', '숲거미']],
+      bosses:  [['🐻', '광폭 곰'], ['🧌', '숲의 트롤']] },
+    { normals: [['🦇', '박쥐'], ['🕷️', '동굴거미'], ['🐍', '지하뱀'], ['🧟', '광부 좀비'], ['👻', '동굴 유령']],
+      bosses:  [['🦂', '전갈 대왕'], ['🧌', '동굴 트롤']] },
+    { normals: [['🦂', '전갈'], ['🐍', '사막뱀'], ['🦎', '도마뱀'], ['🦅', '독수리'], ['🧟', '미라']],
+      bosses:  [['🐲', '모래 용'], ['👹', '사막 오거']] },
+    { normals: [['🐺', '서리늑대'], ['🦌', '설원 순록'], ['⛄', '눈사람'], ['🐧', '펭귄 전사'], ['🐻', '설원 곰']],
+      bosses:  [['🐲', '얼음 용'], ['🧌', '설인']] },
+    { normals: [['🔥', '불꽃 정령'], ['🦎', '화염 도마뱀'], ['🐍', '용암뱀'], ['🦂', '불전갈'], ['👹', '꼬마 도깨비']],
+      bosses:  [['🐲', '화염 용'], ['👹', '마왕']] },
+    { normals: [['🧟', '좀비'], ['👻', '유령'], ['🦇', '흡혈 박쥐'], ['💀', '해골 병사'], ['🧛', '뱀파이어']],
+      bosses:  [['💀', '해골 군주'], ['🐲', '뼈 용']] },
+  ];
 
   // ---- 상태 ----
   function createState(now) {
@@ -51,6 +90,9 @@
       upgrades: { weapon: 0, armor: 0, speed: 0, companion: 0, loot: 0 },
       tokens: 0,         // 환생으로 얻은 왕의 증표 (공격력·골드 +25%씩)
       prestiges: 0,
+      cls: null,         // 1차 직업 (전사·궁수·마법사·도적)
+      adv: null,         // 2차 직업
+      mastered: {},      // 2차 전직을 달성한 직업 도감 (환생해도 유지)
       hp: 0,
       monsterHp: 0,
       monsterMax: 0,
@@ -67,12 +109,21 @@
 
   // ---- 능력치 계산 ----
   const tokenMult = (s) => 1 + 0.25 * s.tokens;
+  const masteryMult = (s) => 1 + MASTERY_BONUS * Object.keys(s.mastered).length;
+  // 1차·2차 직업의 배율을 곱한 값 (해당 항목이 없으면 1)
+  function statMult(s, key) {
+    const b = s.cls && CLASSES[s.cls];
+    const a = s.adv && ADVANCED[s.adv];
+    return ((b && b.mult[key]) || 1) * ((a && a.mult[key]) || 1);
+  }
   const baseDmg = (s) => 3 + 1.5 * (s.level - 1);
-  const maxHp = (s) => (50 + 12 * (s.level - 1)) * (1 + 0.25 * s.upgrades.armor);
-  const hitDmg = (s) => baseDmg(s) * (1 + 0.25 * s.upgrades.weapon) * tokenMult(s);
-  const attacksPerSec = (s) => 1 + 0.1 * s.upgrades.speed;
-  const companionDps = (s) => s.upgrades.companion * hitDmg(s) * 0.35;
-  const goldMult = (s) => (1 + 0.15 * s.upgrades.loot) * tokenMult(s);
+  const maxHp = (s) => (50 + 12 * (s.level - 1)) * (1 + 0.25 * s.upgrades.armor) * statMult(s, 'hp');
+  const hitDmg = (s) =>
+    baseDmg(s) * (1 + 0.25 * s.upgrades.weapon) * tokenMult(s) * masteryMult(s) * statMult(s, 'dmg');
+  const attacksPerSec = (s) => (1 + 0.1 * s.upgrades.speed) * statMult(s, 'aps');
+  const companionDps = (s) => s.upgrades.companion * hitDmg(s) * 0.35 * statMult(s, 'comp');
+  const goldMult = (s) =>
+    (1 + 0.15 * s.upgrades.loot) * tokenMult(s) * masteryMult(s) * statMult(s, 'gold');
   const totalDps = (s) => hitDmg(s) * attacksPerSec(s) + companionDps(s);
   const expNeeded = (s) => Math.ceil(15 * Math.pow(1.3, s.level - 1));
 
@@ -86,15 +137,42 @@
   const monsterExp = (stage) =>
     Math.ceil(3 * Math.pow(1.15, stage - 1)) * (isBossStage(stage) ? 4 : 1);
 
-  function monsterEmoji(stage) {
-    if (isBossStage(stage)) return BOSSES[(stage / BOSS_EVERY - 1) % BOSSES.length];
-    return MONSTERS[(stage - 1) % MONSTERS.length];
+  const biomeOf = (stage) => Math.floor((stage - 1) / 10) % BIOME_COUNT;
+
+  // 이 스테이지에 나오는 몬스터 { emoji, name }
+  function monsterInfo(stage) {
+    const t = MONSTER_TABLE[biomeOf(stage)];
+    const pick = isBossStage(stage)
+      ? t.bosses[(stage / BOSS_EVERY - 1) % t.bosses.length]
+      : t.normals[(stage - 1) % t.normals.length];
+    return { emoji: pick[0], name: pick[1] };
   }
 
-  function tierOf(level) {
-    let t = TIERS[0];
-    for (const x of TIERS) if (level >= x.level) t = x;
-    return t;
+  // 화면에 그릴 고블린 종류 (2차 직업 > 1차 직업 > 견습)
+  const lookId = (s) => s.adv || s.cls || 'novice';
+  const classTitle = (s) =>
+    (s.adv && ADVANCED[s.adv].name) || (s.cls && CLASSES[s.cls].name) || '견습 고블린';
+
+  // ---- 전직 ----
+  // 지금 할 수 있는 전직 단계: 'base' | 'adv' | null
+  function promoStage(s) {
+    if (!s.cls) return s.level >= PROMO_LEVEL.base ? 'base' : null;
+    if (!s.adv) return s.level >= PROMO_LEVEL.adv ? 'adv' : null;
+    return null;
+  }
+  function promoOptions(s) {
+    const st = promoStage(s);
+    if (st === 'base') return Object.keys(CLASSES);
+    if (st === 'adv') return CLASSES[s.cls].adv.slice();
+    return [];
+  }
+  function promote(s, id) {
+    if (promoOptions(s).indexOf(id) < 0) return false;
+    const oldMax = maxHp(s);
+    if (promoStage(s) === 'base') s.cls = id;
+    else { s.adv = id; s.mastered[id] = true; }
+    s.hp = Math.min(maxHp(s), s.hp + Math.max(0, maxHp(s) - oldMax));   // 늘어난 체력만큼 회복
+    return true;
   }
 
   // ---- 강화 ----
@@ -127,12 +205,12 @@
     s.exp += amount;
     while (s.exp >= expNeeded(s)) {
       s.exp -= expNeeded(s);
-      const oldTier = tierOf(s.level).name;
       s.level += 1;
       s.hp += 12;   // 레벨업 시 늘어난 기본 체력만큼 회복
       ev.push({ type: 'levelup', level: s.level });
-      const newTier = tierOf(s.level).name;
-      if (newTier !== oldTier) ev.push({ type: 'evolve', name: newTier });
+      if ((s.level === PROMO_LEVEL.base && !s.cls) || (s.level === PROMO_LEVEL.adv && s.cls && !s.adv)) {
+        ev.push({ type: 'promoReady', stage: promoStage(s) });
+      }
     }
   }
 
@@ -180,7 +258,7 @@
     }
 
     const max = maxHp(s);
-    s.hp = Math.min(max, s.hp + max * 0.02 * dt);   // 초당 최대 체력의 2% 회복
+    s.hp = Math.min(max, s.hp + max * 0.02 * statMult(s, 'regen') * dt);   // 초당 최대 체력의 2% 회복
     s.hp -= monsterAtk(s.stage) * dt;
 
     if (s.hp <= 0) {
@@ -200,7 +278,7 @@
   function clickAttack(s) {
     if (s.downT > 0) return { dmg: 0, events: [] };
     const ev = [];
-    const dmg = hitDmg(s) * CLICK_MULT;
+    const dmg = hitDmg(s) * CLICK_MULT * statMult(s, 'click');
     dealDamage(s, dmg, ev);
     return { dmg, events: ev };
   }
@@ -253,6 +331,8 @@
     s.killsInStage = 0;
     s.runBest = 1;
     s.upgrades = { weapon: 0, armor: 0, speed: 0, companion: 0, loot: 0 };
+    s.cls = null;   // 직업은 초기화 (도감은 유지)
+    s.adv = null;
     s.downT = 0;
     s.atkT = 0;
     s.hp = maxHp(s);
@@ -290,6 +370,10 @@
       const lv = clamp(Math.floor(num(o.upgrades && o.upgrades[k], 0)), 0, 9999);
       s.upgrades[k] = Math.min(lv, UPGRADES[k].max);
     }
+    s.cls = typeof o.cls === 'string' && CLASSES[o.cls] ? o.cls : null;
+    s.adv = s.cls && typeof o.adv === 'string' && ADVANCED[o.adv] && ADVANCED[o.adv].parent === s.cls ? o.adv : null;
+    for (const k of Object.keys(ADVANCED)) if (o.mastered && o.mastered[k] === true) s.mastered[k] = true;
+    if (s.adv) s.mastered[s.adv] = true;
     s.hp = Math.min(maxHp(s), Math.max(1, num(o.hp, maxHp(s))));
     spawnMonster(s);
     s.monsterHp = Math.min(s.monsterMax, Math.max(1, num(o.monsterHp, s.monsterMax)));
@@ -317,13 +401,14 @@
   }
 
   const api = {
-    UPGRADES, UPGRADE_KEYS, TIERS, KILLS_PER_STAGE, DOWN_TIME, PRESTIGE_MIN_STAGE, OFFLINE_CAP,
+    UPGRADES, UPGRADE_KEYS, CLASSES, ADVANCED, PROMO_LEVEL, MASTERY_BONUS, KILLS_PER_STAGE, DOWN_TIME, PRESTIGE_MIN_STAGE, OFFLINE_CAP,
     createState, tick, simulate, clickAttack, applyOffline,
     upgradeCost, canBuy, buy,
     prestigeGain, canPrestige, prestige,
     serialize, deserialize,
     maxHp, hitDmg, attacksPerSec, companionDps, totalDps, goldMult, expNeeded, tokenMult,
-    monsterAtk, monsterGold, monsterEmoji, isBossStage, tierOf,
+    monsterAtk, monsterGold, monsterInfo, biomeOf, isBossStage, lookId, classTitle,
+    promoStage, promoOptions, promote, statMult, masteryMult,
     fmt, fmtTime,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
