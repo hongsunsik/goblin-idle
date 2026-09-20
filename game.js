@@ -10,17 +10,21 @@
   const CLICK_MULT = 3;           // 직접 때리기는 한 번에 공격력의 3배
 
   // 강화 목록. cost(lv) = base * growth^lv (lv는 현재 레벨 = 다음 레벨업 비용)
+  // 무기·갑옷·동료·약탈은 10레벨마다 효과가 1.5배가 된다 (마일스톤).
+  const MILESTONE_EVERY = 10;
+  const MILESTONE_MULT = 1.5;
+  const mile = (lv) => Math.pow(MILESTONE_MULT, Math.floor(lv / MILESTONE_EVERY));
   const UPGRADES = {
-    weapon:    { name: '무기',      icon: '🗡️', base: 10, growth: 1.30, max: Infinity,
-                 effect: (lv) => `공격력 +${lv * 25}%` },
-    armor:     { name: '갑옷',      icon: '🛡️', base: 10, growth: 1.30, max: Infinity,
-                 effect: (lv) => `최대 체력 +${lv * 25}%` },
-    speed:     { name: '재빠른 손', icon: '⚡', base: 40, growth: 1.50, max: 30,
+    weapon:    { name: '무기',        icon: 'sword',  base: 10, growth: 1.30, max: Infinity, mile: true,
+                 effect: (lv) => `공격력 ×${(( 1 + 0.25 * lv) * mile(lv)).toFixed(2)}` },
+    armor:     { name: '갑옷',        icon: 'shield', base: 10, growth: 1.30, max: Infinity, mile: true,
+                 effect: (lv) => `최대 체력 ×${((1 + 0.25 * lv) * mile(lv)).toFixed(2)}` },
+    speed:     { name: '재빠른 손',   icon: 'boots',  base: 40, growth: 1.50, max: 30, mile: false,
                  effect: (lv) => `초당 공격 ${(1 + lv * 0.1).toFixed(1)}회` },
-    companion: { name: '동료 고블린', icon: '👥', base: 60, growth: 1.55, max: Infinity,
-                 effect: (lv) => `동료 ${lv}마리가 자동 공격` },
-    loot:      { name: '약탈 솜씨', icon: '💰', base: 40, growth: 1.45, max: Infinity,
-                 effect: (lv) => `골드 획득 +${lv * 15}%` },
+    companion: { name: '동료 고블린', icon: 'party',  base: 60, growth: 1.55, max: Infinity, mile: true,
+                 effect: (lv) => `동료 ${lv}마리 (공격 ×${mile(lv).toFixed(2)})` },
+    loot:      { name: '약탈 솜씨',   icon: 'pouch',  base: 40, growth: 1.45, max: Infinity, mile: true,
+                 effect: (lv) => `골드 획득 ×${((1 + 0.15 * lv) * mile(lv)).toFixed(2)}` },
   };
   const UPGRADE_KEYS = Object.keys(UPGRADES);
 
@@ -58,21 +62,21 @@
   };
   const MASTERY_BONUS = 0.05;   // 2차 전직을 달성한 직업 1개당 공격력·골드 +5% (환생해도 유지)
 
-  // 지역은 10스테이지마다 바뀌고, 지역마다 나오는 몬스터와 보스가 다르다.
+  // 지역은 10스테이지마다 바뀌고, 지역마다 나오는 몬스터와 보스가 다르다. [그림 종류, 이름]
   const BIOME_COUNT = 6;
   const MONSTER_TABLE = [
-    { normals: [['🐀', '들쥐'], ['🐗', '멧돼지'], ['🐺', '늑대'], ['🐍', '독뱀'], ['🕷️', '숲거미']],
-      bosses:  [['🐻', '광폭 곰'], ['🧌', '숲의 트롤']] },
-    { normals: [['🦇', '박쥐'], ['🕷️', '동굴거미'], ['🐍', '지하뱀'], ['🧟', '광부 좀비'], ['👻', '동굴 유령']],
-      bosses:  [['🦂', '전갈 대왕'], ['🧌', '동굴 트롤']] },
-    { normals: [['🦂', '전갈'], ['🐍', '사막뱀'], ['🦎', '도마뱀'], ['🦅', '독수리'], ['🧟', '미라']],
-      bosses:  [['🐲', '모래 용'], ['👹', '사막 오거']] },
-    { normals: [['🐺', '서리늑대'], ['🦌', '설원 순록'], ['⛄', '눈사람'], ['🐧', '펭귄 전사'], ['🐻', '설원 곰']],
-      bosses:  [['🐲', '얼음 용'], ['🧌', '설인']] },
-    { normals: [['🔥', '불꽃 정령'], ['🦎', '화염 도마뱀'], ['🐍', '용암뱀'], ['🦂', '불전갈'], ['👹', '꼬마 도깨비']],
-      bosses:  [['🐲', '화염 용'], ['👹', '마왕']] },
-    { normals: [['🧟', '좀비'], ['👻', '유령'], ['🦇', '흡혈 박쥐'], ['💀', '해골 병사'], ['🧛', '뱀파이어']],
-      bosses:  [['💀', '해골 군주'], ['🐲', '뼈 용']] },
+    { normals: [['slime', '숲 슬라임'], ['wolf', '늑대'], ['boar', '멧돼지'], ['spider', '숲거미'], ['snake', '독뱀']],
+      bosses:  [['ogre', '숲의 트롤'], ['golem', '고목 골렘']] },
+    { normals: [['bat', '박쥐'], ['spider', '동굴거미'], ['slime', '동굴 슬라임'], ['skeleton', '광부 해골'], ['ghost', '동굴 유령']],
+      bosses:  [['spider', '거미 여왕'], ['golem', '수정 골렘']] },
+    { normals: [['scorpion', '전갈'], ['snake', '사막뱀'], ['golem', '모래 골렘'], ['slime', '모래 슬라임'], ['bat', '사막 박쥐']],
+      bosses:  [['scorpion', '전갈 대왕'], ['dragon', '모래 용']] },
+    { normals: [['wolf', '서리늑대'], ['slime', '얼음 슬라임'], ['golem', '얼음 골렘'], ['bat', '서리박쥐'], ['ghost', '설원 유령']],
+      bosses:  [['ogre', '설인'], ['dragon', '얼음 용']] },
+    { normals: [['imp', '꼬마 악마'], ['slime', '용암 슬라임'], ['golem', '용암 골렘'], ['scorpion', '불전갈'], ['bat', '화염 박쥐']],
+      bosses:  [['dragon', '화염 용'], ['imp', '마왕']] },
+    { normals: [['skeleton', '해골 병사'], ['ghost', '유령'], ['bat', '흡혈 박쥐'], ['imp', '가고일'], ['spider', '저주 거미']],
+      bosses:  [['skeleton', '해골 군주'], ['dragon', '뼈 용']] },
   ];
 
   // ---- 상태 ----
@@ -117,35 +121,35 @@
     return ((b && b.mult[key]) || 1) * ((a && a.mult[key]) || 1);
   }
   const baseDmg = (s) => 3 + 1.5 * (s.level - 1);
-  const maxHp = (s) => (50 + 12 * (s.level - 1)) * (1 + 0.25 * s.upgrades.armor) * statMult(s, 'hp');
+  const maxHp = (s) => (50 + 12 * (s.level - 1)) * (1 + 0.25 * s.upgrades.armor) * mile(s.upgrades.armor) * statMult(s, 'hp');
   const hitDmg = (s) =>
-    baseDmg(s) * (1 + 0.25 * s.upgrades.weapon) * tokenMult(s) * masteryMult(s) * statMult(s, 'dmg');
+    baseDmg(s) * (1 + 0.25 * s.upgrades.weapon) * mile(s.upgrades.weapon) * tokenMult(s) * masteryMult(s) * statMult(s, 'dmg');
   const attacksPerSec = (s) => (1 + 0.1 * s.upgrades.speed) * statMult(s, 'aps');
-  const companionDps = (s) => s.upgrades.companion * hitDmg(s) * 0.35 * statMult(s, 'comp');
+  const companionDps = (s) => s.upgrades.companion * mile(s.upgrades.companion) * hitDmg(s) * 0.35 * statMult(s, 'comp');
   const goldMult = (s) =>
-    (1 + 0.15 * s.upgrades.loot) * tokenMult(s) * masteryMult(s) * statMult(s, 'gold');
+    (1 + 0.15 * s.upgrades.loot) * mile(s.upgrades.loot) * tokenMult(s) * masteryMult(s) * statMult(s, 'gold');
   const totalDps = (s) => hitDmg(s) * attacksPerSec(s) + companionDps(s);
   const expNeeded = (s) => Math.ceil(15 * Math.pow(1.3, s.level - 1));
 
   const isBossStage = (stage) => stage % BOSS_EVERY === 0;
   const monsterMaxHp = (stage) =>
-    Math.round(12 * Math.pow(1.28, stage - 1)) * (isBossStage(stage) ? 6 : 1);
+    Math.round(24 * Math.pow(1.30, stage - 1)) * (isBossStage(stage) ? 6 : 1);
   const monsterAtk = (stage) =>
-    2 * Math.pow(1.2, stage - 1) * (isBossStage(stage) ? 1.5 : 1);
+    2 * Math.pow(1.22, stage - 1) * (isBossStage(stage) ? 1.5 : 1);
   const monsterGold = (stage) =>
-    Math.ceil(4 * Math.pow(1.22, stage - 1)) * (isBossStage(stage) ? 5 : 1);
+    Math.ceil(4 * Math.pow(1.21, stage - 1)) * (isBossStage(stage) ? 5 : 1);
   const monsterExp = (stage) =>
     Math.ceil(3 * Math.pow(1.15, stage - 1)) * (isBossStage(stage) ? 4 : 1);
 
   const biomeOf = (stage) => Math.floor((stage - 1) / 10) % BIOME_COUNT;
 
-  // 이 스테이지에 나오는 몬스터 { emoji, name }
+  // 이 스테이지에 나오는 몬스터 { kind(그림 종류), name, boss, biome }
   function monsterInfo(stage) {
     const t = MONSTER_TABLE[biomeOf(stage)];
     const pick = isBossStage(stage)
       ? t.bosses[(stage / BOSS_EVERY - 1) % t.bosses.length]
       : t.normals[(stage - 1) % t.normals.length];
-    return { emoji: pick[0], name: pick[1] };
+    return { kind: pick[0], name: pick[1], boss: isBossStage(stage), biome: biomeOf(stage) };
   }
 
   // 화면에 그릴 고블린 종류 (2차 직업 > 1차 직업 > 견습)
@@ -401,7 +405,7 @@
   }
 
   const api = {
-    UPGRADES, UPGRADE_KEYS, CLASSES, ADVANCED, PROMO_LEVEL, MASTERY_BONUS, KILLS_PER_STAGE, DOWN_TIME, PRESTIGE_MIN_STAGE, OFFLINE_CAP,
+    UPGRADES, UPGRADE_KEYS, MILESTONE_EVERY, MILESTONE_MULT, mile, CLASSES, ADVANCED, PROMO_LEVEL, MASTERY_BONUS, KILLS_PER_STAGE, DOWN_TIME, PRESTIGE_MIN_STAGE, OFFLINE_CAP,
     createState, tick, simulate, clickAttack, applyOffline,
     upgradeCost, canBuy, buy,
     prestigeGain, canPrestige, prestige,

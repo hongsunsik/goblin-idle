@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#0d1a24">
+  <meta name="theme-color" content="#070d1c">
   <title>고블린 키우기</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css">
   <link rel="stylesheet" href="style.css">
@@ -11,45 +11,62 @@
 <body>
   <div class="app">
 
-    <!-- 상단: 영웅 정보 + 재화 -->
-    <header class="hud">
-      <div class="hud__hero">
-        <div class="avatar" id="avatar"></div>
-        <div class="hud__info">
-          <div class="hud__row">
-            <span class="hud__title" id="heroTitle">견습 고블린</span>
-            <span class="lvbadge">Lv.<b id="level">1</b></span>
+    <!-- ===== 전투 장면 (화면을 누르면 공격) ===== -->
+    <section class="stage" id="scene" data-biome="0" aria-label="전투 장면">
+      <div class="stage__sky"></div>
+      <div class="stage__rays"></div>
+      <div class="stage__sun"></div>
+
+      <svg class="stage__art" viewBox="0 0 400 300" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
+        <defs>
+          <g id="tuft"><path d="M0 0 L3 -22 L6 0 L10 -30 L14 0 L19 -18 L22 0 Z"/></g>
+          <g id="pine"><path d="M0 -34 L13 -10 H7 L18 10 H-18 L-7 -10 H-13 Z"/><rect x="-3" y="10" width="6" height="12"/></g>
+        </defs>
+        <g class="isle" transform="translate(316 66)">
+          <path class="isle-rock" d="M-38 6 Q-34 44 0 62 Q34 44 38 6 Z"/>
+          <path class="isle-top" d="M-42 8 Q-40 -6 -16 -8 Q0 -18 16 -8 Q40 -6 42 8 Q0 22 -42 8 Z"/>
+          <path class="c-tree" d="M-12 -6 L0 -34 L12 -6 Z"/><path class="c-tree" d="M8 -4 L18 -24 L28 -4 Z"/>
+        </g>
+        <g class="isle" transform="translate(62 44) scale(.62)">
+          <path class="isle-rock" d="M-38 6 Q-34 44 0 62 Q34 44 38 6 Z"/>
+          <path class="isle-top" d="M-42 8 Q-40 -6 -16 -8 Q0 -18 16 -8 Q40 -6 42 8 Q0 22 -42 8 Z"/>
+          <path class="c-tree" d="M-10 -6 L0 -32 L10 -6 Z"/>
+        </g>
+        <g class="cloud cloud--a" transform="translate(70 92)"><ellipse class="c-cloud-s" cx="0" cy="6" rx="42" ry="11"/><ellipse class="c-cloud" cx="-18" cy="-4" rx="20" ry="13"/><ellipse class="c-cloud" cx="8" cy="-10" rx="26" ry="16"/><ellipse class="c-cloud" cx="30" cy="0" rx="20" ry="11"/></g>
+        <g class="cloud cloud--b" transform="translate(250 120)"><ellipse class="c-cloud-s" cx="0" cy="5" rx="34" ry="9"/><ellipse class="c-cloud" cx="-12" cy="-3" rx="16" ry="11"/><ellipse class="c-cloud" cx="8" cy="-8" rx="20" ry="13"/></g>
+        <path class="c-far" d="M0 196 L0 150 L36 112 L64 140 L106 84 L148 138 L186 104 L232 150 L282 96 L330 146 L368 114 L400 138 V196 Z"/>
+        <path class="c-cap" d="M106 84 L92 102 L102 98 L110 106 L118 98 L124 102 Z M282 96 L268 114 L278 110 L286 118 L294 110 L300 114 Z"/>
+        <path class="c-mid" d="M0 214 Q60 164 132 192 T262 182 T400 176 V240 H0 Z"/>
+        <g class="c-tree"><use href="#pine" transform="translate(28 214) scale(1.15)"/><use href="#pine" transform="translate(58 220) scale(.85)"/><use href="#pine" transform="translate(342 208) scale(1.2)"/><use href="#pine" transform="translate(372 218) scale(.9)"/><use href="#pine" transform="translate(318 222) scale(.7)"/></g>
+        <path class="c-ground" d="M0 238 Q100 224 200 234 T400 230 V300 H0 Z"/>
+        <path class="c-ground-top" d="M0 238 Q100 224 200 234 T400 230" fill="none"/>
+        <g class="c-grass"><use href="#tuft" transform="translate(4 300) scale(1.3)"/><use href="#tuft" transform="translate(40 300)"/><use href="#tuft" transform="translate(318 300) scale(1.2)"/><use href="#tuft" transform="translate(358 300) scale(1.5)"/><use href="#tuft" transform="translate(170 300) scale(.8)"/></g>
+      </svg>
+      <div class="stage__fx" id="fx" aria-hidden="true"></div>
+
+      <!-- 왼쪽 위: 영웅 상태 창 -->
+      <div class="hud">
+        <div class="win hud__hero">
+          <div class="avatar" id="avatar"></div>
+          <div class="hud__info">
+            <div class="hud__row"><span class="hud__title" id="heroTitle">견습 고블린</span></div>
+            <div class="hud__row"><span class="lvbadge">Lv.<b id="level">1</b></span>
+              <div class="bar bar--exp"><i id="expBar"></i></div></div>
+            <div class="hud__exp" id="expText"></div>
           </div>
-          <div class="bar bar--exp"><i id="expBar"></i><span class="bar__label" id="expText"></span></div>
+        </div>
+        <div class="hud__cur">
+          <div class="plate" title="골드"><svg class="ic"><use href="#i-coin"/></svg><b id="gold">0</b></div>
+          <div class="plate plate--token" title="왕의 증표: 공격력·골드 +25%씩"><svg class="ic"><use href="#i-crown"/></svg><b id="tokens">0</b></div>
         </div>
       </div>
-      <div class="hud__cur">
-        <div class="cur" title="골드"><span class="ico ico--coin"></span><b id="gold">0</b></div>
-        <div class="cur cur--token" title="왕의 증표: 공격력·골드 +25%씩"><span class="ico ico--crown"></span><b id="tokens">0</b></div>
-      </div>
-    </header>
 
-    <!-- 전투 장면: 화면을 눌러 공격 -->
-    <section class="scene" id="scene" data-biome="0" aria-label="전투 장면">
-      <div class="scene__sky"></div>
-      <div class="scene__sun"></div>
-      <div class="scene__clouds"><i></i><i></i><i></i></div>
-      <svg class="scene__hills scene__hills--far" viewBox="0 0 400 140" preserveAspectRatio="none" aria-hidden="true"><path d="M0 140 L0 78 Q40 34 92 66 T196 58 T300 66 T400 40 L400 140 Z"/></svg>
-      <svg class="scene__hills scene__hills--near" viewBox="0 0 400 140" preserveAspectRatio="none" aria-hidden="true"><path d="M0 140 L0 92 Q60 60 120 88 T240 82 T340 92 T400 74 L400 140 Z"/></svg>
-      <div class="scene__trees" aria-hidden="true">
-        <svg viewBox="0 0 60 80"><path class="tree-trunk" d="M27 56 H33 V78 H27 Z"/><path class="tree-leaf" d="M30 4 L52 34 H40 L56 58 H4 L20 34 H8 Z"/></svg>
-        <svg viewBox="0 0 60 80"><path class="tree-trunk" d="M27 56 H33 V78 H27 Z"/><path class="tree-leaf" d="M30 4 L52 34 H40 L56 58 H4 L20 34 H8 Z"/></svg>
-      </div>
-      <div class="scene__ground"></div>
-
-      <!-- 스테이지 안내 -->
-      <div class="stagebar">
-        <div class="stagebar__biome" id="biomeName">고블린 숲</div>
-        <div class="stagebar__main">
-          <span class="stagebar__no" id="stageLabel">STAGE 1</span>
-          <div class="pips" id="pips"></div>
-        </div>
-      </div>
+      <!-- 스테이지 표시 -->
+      <div class="ribbon"><div class="ribbon__in">
+        <span class="ribbon__biome" id="biomeName">고블린 숲</span>
+        <span class="ribbon__no" id="stageLabel">STAGE 1</span>
+        <div class="pips" id="pips"></div>
+      </div></div>
 
       <!-- 등장인물 -->
       <div class="actor actor--hero" id="heroBox">
@@ -67,69 +84,70 @@
           <div class="bar bar--mon"><i id="monsterHpBar"></i></div>
           <div class="tag__hp" id="monsterHpText"></div>
         </div>
-        <div class="actor__sprite" id="monster">🐀</div>
+        <div class="actor__sprite" id="monster"></div>
       </div>
 
       <div class="float-layer" id="floatLayer" aria-hidden="true"></div>
-      <div class="tap-hint" id="tapHint">👆 화면을 눌러 공격!</div>
-      <div class="down" id="downBanner" hidden>😵 기절했다! 곧 일어난다...</div>
+      <div class="tap-hint" id="tapHint"><svg class="ic"><use href="#i-hand"/></svg>화면을 눌러 공격!</div>
+      <div class="down" id="downBanner" hidden>기절했다! 곧 일어난다...</div>
+
+      <!-- 능력치 -->
+      <div class="statbar">
+        <div class="stat"><svg class="ic"><use href="#i-sword"/></svg><span><small>공격력</small><b id="statDmg">0</b></span></div>
+        <div class="stat"><svg class="ic"><use href="#i-bolt"/></svg><span><small>공격 속도</small><b id="statAps">0</b></span></div>
+        <div class="stat"><svg class="ic"><use href="#i-party"/></svg><span><small>동료</small><b id="statComp">0</b></span></div>
+        <div class="stat stat--dps"><svg class="ic"><use href="#i-burst"/></svg><span><small>초당 피해</small><b id="statDps">0</b></span></div>
+      </div>
     </section>
 
-    <!-- 능력치 요약 -->
-    <div class="statbar">
-      <div class="stat"><span>⚔️</span><small>공격력</small><b id="statDmg">0</b></div>
-      <div class="stat"><span>⚡</span><small>공격 속도</small><b id="statAps">0</b></div>
-      <div class="stat"><span>👥</span><small>동료</small><b id="statComp">0</b></div>
-      <div class="stat stat--dps"><span>💥</span><small>초당 피해</small><b id="statDps">0</b></div>
-    </div>
+    <!-- ===== 아래: 스테이터스 창 ===== -->
+    <section class="panel">
+      <nav class="tabnav" id="nav" aria-label="메뉴">
+        <button class="tabnav__btn is-on" data-go="upgrade" type="button"><svg class="ic"><use href="#i-anvil"/></svg><span>강화</span><i class="dot" hidden></i></button>
+        <button class="tabnav__btn" data-go="class" type="button"><svg class="ic"><use href="#i-cap"/></svg><span>전직</span><i class="dot" hidden></i></button>
+        <button class="tabnav__btn" data-go="prestige" type="button"><svg class="ic"><use href="#i-crown"/></svg><span>환생</span><i class="dot" hidden></i></button>
+        <button class="tabnav__btn" data-go="log" type="button"><svg class="ic"><use href="#i-scroll"/></svg><span>기록</span></button>
+      </nav>
 
-    <!-- 탭 내용 -->
-    <main class="tabs">
-      <section class="tab" id="tab-upgrade" data-tab="upgrade">
-        <ul class="upgrades" id="upgrades"></ul>
-      </section>
+      <main class="tabs">
+        <section class="tab" data-tab="upgrade">
+          <ul class="upgrades" id="upgrades"></ul>
+        </section>
 
-      <section class="tab" id="tab-class" data-tab="class" hidden>
-        <div class="classcard classcard--now" id="classNow"></div>
-        <div id="classChoice"></div>
-        <h3 class="sect">📖 직업 도감 <small id="codexBonus"></small></h3>
-        <div class="codex" id="codex"></div>
-      </section>
+        <section class="tab" data-tab="class" hidden>
+          <div class="card classcard classcard--now" id="classNow"></div>
+          <div id="classChoice"></div>
+          <h3 class="sect"><svg class="ic"><use href="#i-book"/></svg>직업 도감 <small id="codexBonus"></small></h3>
+          <div class="codex" id="codex"></div>
+        </section>
 
-      <section class="tab" id="tab-prestige" data-tab="prestige" hidden>
-        <div class="prestige-card">
-          <div class="prestige-card__crown"></div>
-          <h3>왕의 증표</h3>
-          <p class="hint" id="prestigeHint"></p>
-          <div class="prestige-stats">
-            <div><small>보유 증표</small><b id="pTokens">0</b></div>
-            <div><small>현재 보너스</small><b id="pBonus">+0%</b></div>
-            <div><small>최고 기록</small><b id="pBest">1</b></div>
+        <section class="tab" data-tab="prestige" hidden>
+          <div class="card prestige-card">
+            <svg class="ic ic--xl"><use href="#i-crown"/></svg>
+            <h3>왕의 증표</h3>
+            <p class="hint" id="prestigeHint"></p>
+            <div class="prestige-stats">
+              <div><small>보유 증표</small><b id="pTokens">0</b></div>
+              <div><small>현재 보너스</small><b id="pBonus">+0%</b></div>
+              <div><small>최고 기록</small><b id="pBest">1</b></div>
+            </div>
+            <button class="btn btn--gold btn--wide" id="prestigeBtn" type="button">환생하기</button>
           </div>
-          <button class="btn btn--gold btn--wide" id="prestigeBtn" type="button">환생하기</button>
-        </div>
-      </section>
+        </section>
 
-      <section class="tab" id="tab-log" data-tab="log" hidden>
-        <ul class="log" id="log" aria-live="off"></ul>
-        <div class="foot">
-          <span id="saveInfo">자동 저장됨</span>
-          <button class="link" id="resetBtn" type="button">처음부터 다시</button>
-        </div>
-      </section>
-    </main>
-
-    <!-- 하단 메뉴 -->
-    <nav class="nav" id="nav" aria-label="메뉴">
-      <button class="nav__btn is-on" data-go="upgrade" type="button"><span class="nav__ico">⚒️</span><span>강화</span><i class="dot" hidden></i></button>
-      <button class="nav__btn" data-go="class" type="button"><span class="nav__ico">🎓</span><span>전직</span><i class="dot" hidden></i></button>
-      <button class="nav__btn" data-go="prestige" type="button"><span class="nav__ico">👑</span><span>환생</span><i class="dot" hidden></i></button>
-      <button class="nav__btn" data-go="log" type="button"><span class="nav__ico">📜</span><span>기록</span></button>
-    </nav>
+        <section class="tab" data-tab="log" hidden>
+          <ul class="log" id="log" aria-live="off"></ul>
+          <div class="foot">
+            <span id="saveInfo">자동 저장됨</span>
+            <button class="link" id="resetBtn" type="button">처음부터 다시</button>
+          </div>
+        </section>
+      </main>
+    </section>
   </div>
 
   <div class="modal" id="modal" hidden>
-    <div class="modal__box" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal__box win" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
       <h2 id="modalTitle"></h2>
       <div class="modal__body" id="modalBody"></div>
       <div class="modal__actions" id="modalActions"></div>

@@ -4,9 +4,12 @@
   const SAVE_KEY = 'goblin-idle-save-v1';
   const $ = (id) => document.getElementById(id);
 
+  // 아이콘 스프라이트를 페이지에 한 번 넣어 두면 <use href="#i-이름">으로 어디서든 쓸 수 있다
+  document.body.insertAdjacentHTML('afterbegin', A.sprite());
+
   const BIOMES = ['고블린 숲', '어둠의 동굴', '불타는 사막', '얼음 산맥', '화산 지대', '저주받은 성'];
   const STAT_LABEL = { dmg: '공격력', hp: '체력', aps: '공격 속도', gold: '골드', comp: '동료', regen: '회복', click: '직접 공격' };
-  const COIN = '<i class="ico ico--coin"></i>';
+  const COIN = A.icon('coin');
 
   // ---- 저장소 (막혀 있어도 게임은 동작해야 하므로 전부 try/catch) ----
   function loadSave() {
@@ -44,17 +47,20 @@
     $(id).style.width = v;
   }
 
-  // ---- 기록 ----
+  // ---- 기록 (종류마다 아이콘) ----
   const logs = [];
-  function addLog(text, cls) {
-    logs.unshift({ text, cls });
+  function addLog(text, cls, icon) {
+    logs.unshift({ text, cls, icon });
     if (logs.length > 10) logs.pop();
     const ul = $('log');
     ul.innerHTML = '';
     for (const l of logs) {
       const li = document.createElement('li');
-      li.textContent = l.text;
       if (l.cls) li.className = l.cls;
+      li.innerHTML = A.icon(l.icon || 'scroll');
+      const span = document.createElement('span');
+      span.textContent = l.text;
+      li.appendChild(span);
       ul.appendChild(li);
     }
   }
@@ -66,9 +72,9 @@
     const el = document.createElement('div');
     el.className = 'float ' + cls;
     el.textContent = text;
-    const x = where === 'hero' ? 18 : where === 'center' ? 34 : 62;
+    const x = where === 'hero' ? 16 : where === 'center' ? 34 : 60;
     el.style.left = x + Math.random() * 16 + '%';
-    el.style.top = (where === 'center' ? 26 : 36) + Math.random() * 14 + '%';
+    el.style.top = (where === 'center' ? 34 : 40) + Math.random() * 14 + '%';
     layer.appendChild(el);
     setTimeout(() => el.remove(), 950);
   }
@@ -78,6 +84,20 @@
     void el.offsetWidth;   // 애니메이션을 처음부터 다시 시작
     el.classList.add('shake');
   }
+
+  // ---- 배경에 떠다니는 빛 입자 (지역마다 색이 다르다) ----
+  (function buildFx() {
+    let html = '';
+    for (let i = 0; i < 14; i++) {
+      const x = (5 + Math.random() * 90).toFixed(0);
+      const s = (3 + Math.random() * 4).toFixed(1);
+      const d = (5 + Math.random() * 6).toFixed(1);
+      const dl = (-Math.random() * 10).toFixed(1);
+      const dx = (Math.random() * 60 - 30).toFixed(0);
+      html += `<i style="--x:${x}%;--s:${s}px;--d:${d}s;--dl:${dl}s;--dx:${dx}px"></i>`;
+    }
+    $('fx').innerHTML = html;
+  })();
 
   // ---- 창(모달) ----
   function openModal(title, bodyHtml, buttons) {
@@ -97,17 +117,17 @@
   }
   function closeModal() { $('modal').hidden = true; }
 
-  // ---- 하단 메뉴 ----
+  // ---- 메뉴 ----
   let currentTab = 'upgrade';
   function goTab(name) {
     currentTab = name;
     document.querySelectorAll('.tab').forEach((t) => { t.hidden = t.dataset.tab !== name; });
-    document.querySelectorAll('.nav__btn').forEach((b) => b.classList.toggle('is-on', b.dataset.go === name));
+    document.querySelectorAll('.tabnav__btn').forEach((b) => b.classList.toggle('is-on', b.dataset.go === name));
     document.querySelector('.tabs').scrollTop = 0;
     if (name === 'class') renderClass(true);
   }
   $('nav').addEventListener('click', (e) => {
-    const b = e.target.closest('.nav__btn');
+    const b = e.target.closest('.tabnav__btn');
     if (b) goTab(b.dataset.go);
   });
 
@@ -118,15 +138,16 @@
     for (const key of G.UPGRADE_KEYS) {
       const u = G.UPGRADES[key];
       const li = document.createElement('li');
-      li.className = 'up';
+      li.className = 'card up';
       li.dataset.key = key;
       li.innerHTML =
-        `<div class="up__ico">${u.icon}</div>` +
-        '<div><div class="up__name"></div><div class="up__desc"></div></div>' +
-        '<button class="btn btn--gold up__btn" type="button"></button>';
+        `<div class="up__tile">${A.icon(u.icon)}</div>` +
+        '<div><div class="up__name"></div><div class="up__desc"></div><div class="mile" hidden></div></div>' +
+        '<button class="btn up__btn" type="button"></button>';
       const refs = {
         name: li.querySelector('.up__name'),
         desc: li.querySelector('.up__desc'),
+        mile: li.querySelector('.mile'),
         btn: li.querySelector('.up__btn'),
         last: '',
       };
@@ -162,8 +183,8 @@
         { text: '취소' },
         { text: '전직하기', cls: 'btn--gold', onClick: () => {
           if (!G.promote(state, id)) return;
-          addLog(`🎓 ${info.name}(으)로 전직했다!`, 'is-good');
-          floatText('🎓 전직!', 'float--big', 'center');
+          addLog(`${info.name}(으)로 전직했다!`, 'is-good', 'cap');
+          floatText('전직!', 'float--big', 'center');
           writeSave();
           render();
           renderClass(true);
@@ -199,17 +220,17 @@
       html += `<div class="choice__title">${isAdv ? '2차' : '1차'} 전직 (Lv.${need}) ${ready ? '· 지금 선택할 수 있어요!' : ''}</div><div class="choices">`;
       for (const cid of ids) {
         const info = isAdv ? G.ADVANCED[cid] : G.CLASSES[cid];
-        html += `<div class="choice ${ready ? 'is-ready' : 'is-locked'}">` +
+        html += `<div class="card choice ${ready ? 'is-ready' : 'is-locked'}">` +
           `<div class="choice__art">${A.goblin(cid)}</div>` +
           `<div class="choice__name">${info.name}</div>` +
           `<div class="choice__desc">${info.desc}</div>` +
           `<div class="chips" style="justify-content:center">${chipsFor(info.mult)}</div>` +
-          `<button class="btn ${ready ? 'btn--gold' : ''}" type="button" data-pick="${cid}" data-adv="${isAdv ? 1 : 0}" ${ready ? '' : 'disabled'}>${ready ? '전직하기' : `Lv.${need} 필요`}</button>` +
+          `<button class="btn ${ready ? '' : 'btn--gray'}" type="button" data-pick="${cid}" data-adv="${isAdv ? 1 : 0}" ${ready ? '' : 'disabled'}>${ready ? '전직하기' : `Lv.${need} 필요`}</button>` +
           '</div>';
       }
       html += '</div>';
     } else {
-      html = '<div class="notice">🎉 모든 전직을 마쳤어요!<br>환생하면 직업이 초기화되어 다른 직업을 골라 볼 수 있어요.</div>';
+      html = '<div class="notice">모든 전직을 마쳤어요!<br>환생하면 직업이 초기화되어 다른 직업을 골라 볼 수 있어요.</div>';
     }
     box.innerHTML = html;
 
@@ -235,16 +256,16 @@
     for (const e of events) {
       if (e.type === 'kill') {
         gold += e.gold;
-        if (e.boss) addLog(`👹 보스를 쓰러뜨렸다! +${G.fmt(e.gold)} 골드`, 'is-gold');
+        if (e.boss) addLog(`보스를 쓰러뜨렸다! +${G.fmt(e.gold)} 골드`, 'is-gold', 'skull');
       } else if (e.type === 'stage') {
-        addLog(`⭐ 스테이지 ${e.stage} 도전!`, 'is-good');
+        addLog(`스테이지 ${e.stage} 도전!`, 'is-good', 'star');
       } else if (e.type === 'levelup') {
-        addLog(`🆙 레벨 ${e.level} 달성!`, 'is-good');
+        addLog(`레벨 ${e.level} 달성!`, 'is-good', 'arrowup');
       } else if (e.type === 'promoReady') {
-        addLog(`🎓 ${e.stage === 'base' ? '1차' : '2차'} 전직이 가능해요! 아래 '전직' 메뉴를 확인하세요`, 'is-gold');
-        floatText('🎓 전직 가능!', 'float--big', 'center');
+        addLog(`${e.stage === 'base' ? '1차' : '2차'} 전직이 가능해요! '전직' 메뉴를 확인하세요`, 'is-gold', 'cap');
+        floatText('전직 가능!', 'float--big', 'center');
       } else if (e.type === 'down') {
-        addLog(`😵 쓰러졌다... 스테이지 ${e.to}로 후퇴`, 'is-bad');
+        addLog(`쓰러졌다... 스테이지 ${e.to}로 후퇴`, 'is-bad', 'skull');
       }
     }
     return gold;
@@ -261,7 +282,7 @@
     const mode = boss ? 'boss' : 'normal';
     if (mode !== lastPipMode) {
       lastPipMode = mode;
-      box.innerHTML = boss ? '<i class="boss">👹</i>' : '<i></i>'.repeat(G.KILLS_PER_STAGE);
+      box.innerHTML = boss ? '<i class="boss"></i>' : '<i></i>'.repeat(G.KILLS_PER_STAGE);
     }
     if (!boss) {
       const pips = box.children;
@@ -295,7 +316,7 @@
     // 장면
     const boss = G.isBossStage(s.stage);
     const scene = $('scene');
-    scene.classList.toggle('scene--boss', boss);
+    scene.classList.toggle('stage--boss', boss);
     scene.classList.toggle('is-down', s.downT > 0);
     const biome = G.biomeOf(s.stage);
     if (scene.dataset.biome !== String(biome)) scene.dataset.biome = String(biome);
@@ -310,11 +331,12 @@
     if (cache.dur !== dur) { cache.dur = dur; $('heroBox').style.setProperty('--atk', dur); }
 
     const mon = G.monsterInfo(s.stage);
-    if (mon.name !== lastMonster) {
-      lastMonster = mon.name;
-      $('monster').textContent = mon.emoji;
-      setText('monsterName', mon.name);
+    const monKey = mon.kind + '|' + mon.biome + '|' + mon.boss;
+    if (monKey !== lastMonster) {
+      lastMonster = monKey;
+      $('monster').innerHTML = A.monster(mon.kind, mon.biome, mon.boss);
     }
+    setText('monsterName', mon.name);
     const max = G.maxHp(s);
     setWidth('goblinHpBar', (s.hp / max) * 100);
     setText('goblinHpText', `${G.fmt(Math.max(0, s.hp))} / ${G.fmt(max)}`);
@@ -341,6 +363,13 @@
       r.last = sig;
       r.name.innerHTML = `${u.name} <span class="lv">Lv.${lv}${maxed ? ' MAX' : ''}</span>`;
       r.desc.innerHTML = maxed ? u.effect(lv) : `${u.effect(lv)} → <em>${u.effect(lv + 1)}</em>`;
+      if (u.mile && !maxed) {
+        const next = (Math.floor(lv / G.MILESTONE_EVERY) + 1) * G.MILESTONE_EVERY;
+        r.mile.hidden = false;
+        r.mile.innerHTML = `<span>Lv.${next} 달성 시 효과 ×${G.MILESTONE_MULT}</span><div class="bar"><i style="width:${((lv % G.MILESTONE_EVERY) / G.MILESTONE_EVERY) * 100}%"></i></div>`;
+      } else {
+        r.mile.hidden = true;
+      }
       r.btn.innerHTML = maxed ? 'MAX' : `<small>강화</small><span>${COIN}${G.fmt(G.upgradeCost(s, key))}</span>`;
       r.btn.disabled = maxed || !can;
     }
@@ -361,7 +390,7 @@
       : `스테이지 ${G.PRESTIGE_MIN_STAGE}에 도달하면 환생할 수 있어요. 환생하면 왕의 증표를 얻어 영구히 강해지고, 다른 직업으로 다시 시작해 볼 수 있어요.`);
 
     // 메뉴 알림 점
-    const dots = document.querySelectorAll('.nav__btn .dot');
+    const dots = document.querySelectorAll('.tabnav__btn .dot');
     const want = [anyBuy && currentTab !== 'upgrade', G.promoStage(s) !== null && currentTab !== 'class', gain > 0 && currentTab !== 'prestige'];
     dots.forEach((d, i) => { if (d.hidden === want[i]) d.hidden = !want[i]; });
   }
@@ -390,14 +419,14 @@
     const gain = G.prestigeGain(state);
     if (gain <= 0) return;
     openModal('환생할까요?',
-      `왕의 증표 <b>${gain}개</b>를 얻고<br>골드·레벨·강화·스테이지·직업이 처음으로 돌아가요.<br><small>직업 도감은 그대로 남아요.</small>`,
+      `${A.icon('crown')}왕의 증표 <b>${gain}개</b>를 얻고<br>골드·레벨·강화·스테이지·직업이 처음으로 돌아가요.<br><small>직업 도감은 그대로 남아요.</small>`,
       [
         { text: '취소' },
         { text: '환생하기', cls: 'btn--gold', onClick: () => {
           G.prestige(state);
           logs.length = 0;
           lastLook = '';
-          addLog(`👑 환생했다! 왕의 증표 +${gain} (총 ${state.tokens}개)`, 'is-gold');
+          addLog(`환생했다! 왕의 증표 +${gain} (총 ${state.tokens}개)`, 'is-gold', 'crown');
           writeSave();
           render();
           goTab('class');
@@ -414,7 +443,7 @@
         logs.length = 0;
         lastLook = '';
         lastMonster = '';
-        addLog('🌱 새로운 고블린이 태어났다!', 'is-good');
+        addLog('새로운 고블린이 태어났다!', 'is-good', 'sword');
         writeSave();
         render();
         goTab('upgrade');
@@ -424,14 +453,14 @@
 
   function showOffline(r) {
     const stage = r.stageTo === r.stageFrom ? `스테이지 ${r.stageTo}에서 계속 싸웠어요` : `스테이지 ${r.stageFrom} → ${r.stageTo}`;
-    openModal('😴 자리를 비운 사이에...',
+    openModal('자리를 비운 사이에...',
       `${G.fmtTime(r.seconds)} 동안 고블린이 열심히 싸웠어요.<br>` +
       `${COIN} 골드 +${G.fmt(r.gold)}<br>` +
-      `⚔️ 몬스터 ${G.fmt(r.kills)}마리 처치<br>` +
-      `🆙 레벨 ${r.levelFrom} → ${r.levelTo}<br>` +
-      `⭐ ${stage}` +
+      `${A.icon('sword')} 몬스터 ${G.fmt(r.kills)}마리 처치<br>` +
+      `${A.icon('arrowup')} 레벨 ${r.levelFrom} → ${r.levelTo}<br>` +
+      `${A.icon('star')} ${stage}` +
       (r.seconds >= G.OFFLINE_CAP ? '<br><small>(오프라인 보상은 최대 8시간까지예요)</small>' : ''),
-      [{ text: '받기', cls: 'btn--gold' }]);
+      [{ text: '받기', cls: '' }]);
   }
 
   // ---- 시작: 자리를 비운 동안의 보상 ----
@@ -439,9 +468,9 @@
   const offline = G.applyOffline(state, Date.now());
   if (offline) {
     showOffline(offline);
-    addLog(`😴 ${G.fmtTime(offline.seconds)} 동안 자리를 비웠어요`, 'is-gold');
+    addLog(`${G.fmtTime(offline.seconds)} 동안 자리를 비웠어요`, 'is-gold', 'coin');
   } else {
-    addLog('🌱 고블린이 모험을 시작했다!', 'is-good');
+    addLog('고블린이 모험을 시작했다!', 'is-good', 'sword');
   }
   render();
 
