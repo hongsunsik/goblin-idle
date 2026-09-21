@@ -546,7 +546,7 @@ svg { display: block; }
 .acct__btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .acct__btns .btn { display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 13px; padding: 9px 6px 7px; }
 .btn--google { background: linear-gradient(180deg, #ffffff, #dfe6ee); color: #26303c; border-bottom-color: #9aa6b4; text-shadow: none; }
-.btn--apple { background: linear-gradient(180deg, #2c2f36, #0c0d10); color: #fff; border-bottom-color: #000; text-shadow: none; }
+.acct__btns--one { grid-template-columns: 1fr; }
 .acct__user { display: flex; align-items: center; gap: 10px; }
 .acct__photo { width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(180deg, #2a5a9a, #14284e); border: 2px solid var(--gold); display: grid; place-items: center; font-weight: 900; overflow: hidden; flex: none; }
 .acct__photo img { width: 100%; height: 100%; object-fit: cover; }

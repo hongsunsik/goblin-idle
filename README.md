@@ -95,13 +95,13 @@
 
 ### 로그인·클라우드 저장
 
-**Google·Apple 계정으로 로그인**하면 진행 상황이 클라우드(Firebase)에 저장돼서 기기를 바꿔도 이어서 할 수 있습니다. 기록 탭의 계정 카드에서 로그인합니다.
+**Google 계정을 연동**하면 진행 상황이 클라우드(Firebase)에 저장돼서 기기를 바꿔도 이어서 할 수 있습니다. 화면 오른쪽 위 **⚙ 설정 → 계정 연동**에서 연동합니다.
 
 - 새 기기에서 로그인하면 클라우드 저장을 바로 이어받습니다.
 - 이 기기와 클라우드가 **모두 진행됐으면 어느 쪽으로 계속할지 묻고**, 진행이 더 앞선 쪽을 추천합니다.
 - 다른 기기가 먼저 저장했다면 **덮어쓰지 않고 물어봅니다.** 저장마다 번호를 붙여 앱과 서버 규칙 양쪽에서 확인합니다.
 - 환생·전직·상점 구매 뒤, 평소에는 3분마다 저장하고, **바뀐 게 없으면 서버에 쓰지 않습니다.**
-- 설정이 없으면 이 기능은 꺼지고 게임은 이 기기에만 저장합니다. **Firebase 프로젝트를 직접 만들어 설정해야 켜집니다.** → [설정 방법](docs/FIREBASE-SETUP.md)
+- Firebase 설정(`firebase-config.js`)이 없으면 이 기능은 꺼지고 게임은 이 기기에만 저장합니다. 다른 Firebase 프로젝트로 바꾸려면 [설정 방법](docs/FIREBASE-SETUP.md)을 보세요.
 
 ### 그 밖에
 
@@ -163,7 +163,7 @@
 | `classes.js` | 3차·4차 직업 데이터 (48종의 이름·설명·능력치 배율) |
 | `sync.js` | 클라우드 저장 판단 로직 (이 기기와 클라우드 중 무엇을 쓸지) |
 | `cloud.js` | 클라우드 동기화 흐름 (로그인 상태, 업로드·내려받기·충돌 선택, 자동 저장) |
-| `cloud-firebase.js` | Firebase 어댑터 (Google·Apple 로그인, Firestore 저장) |
+| `cloud-firebase.js` | Firebase 어댑터 (Google 로그인, Firestore 저장) |
 | `firebase-config.js` | Firebase 설정 값 자리 (비어 있으면 로그인 기능이 꺼짐) |
 | `firestore.rules` | Firestore 보안 규칙 (본인 문서만, 크기 제한, 덮어쓰기 방지) |
 | `app.js` | 버튼 입력, 화면 갱신, 자동 저장 |
@@ -172,6 +172,7 @@
 | `tools/make-manifest.js` | `images/` 폴더를 훑어 `manifest.js`를 만드는 스크립트 |
 | `tools/generate-images.py` | 이미지 생성 (Pollinations API, 키는 저장소 밖 파일에서 읽음) |
 | `tools/ui-check.js` | 실제 브라우저에서 눌러 보는 점검 (탭 공격 모션, 강화·상점 구매, 3·4차 전직과 도감, 장비 창, 전설 드롭 연출, 클라우드 로그인·충돌 선택, 브라우저 오류) |
+| `tools/firebase-check.js` | 실제 Firebase에 붙어서 설정·SDK 로딩·Google 로그인 창까지 확인하는 진단 |
 | `tools/test.js` | 게임 로직 테스트 (업적, 저장, 환생, 오프라인 보상, 진행 속도) |
 | `tools/simulate.js` | 밸런스 시뮬레이터 (봇이 30분·환생 반복을 씨앗별로 플레이해 평균 성장 곡선 출력) |
 | `tools/screenshot.js` | 진행된 저장 데이터를 넣고 헤드리스 Chrome으로 `docs/` 스크린샷을 찍음 |

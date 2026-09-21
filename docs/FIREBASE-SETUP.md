@@ -1,12 +1,16 @@
-# Firebase 설정 방법 (Google·Apple 로그인 + 클라우드 저장)
+# Firebase 설정 방법 (Google 로그인 + 클라우드 저장)
 
-게임에는 로그인과 클라우드 저장 기능이 들어 있지만, **Firebase 프로젝트를 직접 만들어서 설정 값을 넣어야 켜집니다.** 설정을 비워 두면(지금 상태) 기능이 꺼지고 게임은 예전처럼 이 기기에만 저장합니다.
+게임에는 로그인과 클라우드 저장 기능이 들어 있고, **Firebase 프로젝트 설정 값(`firebase-config.js`)이 들어 있어야 켜집니다.** 설정 값을 비우면(`null`) 기능이 꺼지고 게임은 이 기기에만 저장합니다.
 
 > 아래는 Firebase 공식 문서를 바탕으로 정리한 절차입니다. 콘솔 화면의 글자나 위치는 바뀔 수 있으니, 다르면 [공식 문서](https://firebase.google.com/docs)를 함께 보세요. 요금은 무료 등급(Spark)으로 시작할 수 있습니다.
 
+## 현재 연결된 프로젝트
+
+이 저장소는 Firebase 프로젝트 `goblin-ff157`에 연결되어 있고(`firebase-config.js`), Google 로그인과 Firestore 보안 규칙(`firestore.rules`)이 설정되어 있습니다. 승인된 도메인에는 `hongsunsik.github.io`가 들어 있습니다. 아래 절차는 **다른 프로젝트로 새로 설정할 때** 보세요.
+
 ## 어떻게 동작하나요
 
-- 로그인: Firebase Authentication (Google, Apple)
+- 로그인: Firebase Authentication (Google)
 - 저장: Firestore의 `saves/{내 계정 ID}` 문서 하나에 게임 저장 데이터(JSON)를 넣습니다.
 - 로그인하면 이 기기의 저장과 클라우드의 저장을 비교해서 알아서 맞춥니다.
   - 새 기기이면 클라우드 저장을 그대로 이어받습니다.
@@ -41,7 +45,9 @@ window.FIREBASE_CONFIG = {
 
 1. **Google**을 눌러 사용 설정하고, 프로젝트 지원 이메일을 고른 뒤 저장합니다.
 
-### Apple (선택, 유료)
+### Apple (선택, 유료, 현재 게임 화면에는 버튼이 없음)
+
+> 지금 게임에는 Apple 연동 버튼이 **없습니다.** Firebase 어댑터 코드는 Apple 제공자를 지원하므로, 나중에 버튼을 붙이면 아래 설정으로 쓸 수 있습니다.
 
 Apple 로그인은 **Apple Developer Program 가입(연 99달러)** 이 있어야 합니다. 가입되어 있다면:
 
@@ -49,7 +55,7 @@ Apple 로그인은 **Apple Developer Program 가입(연 99달러)** 이 있어�
 2. Services ID의 웹 설정에 도메인 `내프로젝트.firebaseapp.com` 과 반환 URL `https://내프로젝트.firebaseapp.com/__/auth/handler` 를 등록합니다.
 3. Firebase 콘솔의 **Apple** 제공업체에서 Services ID, Apple 팀 ID, 키 ID, 비공개 키 내용을 입력하고 저장합니다.
 
-자세한 순서는 공식 문서 [Apple로 인증](https://firebase.google.com/docs/auth/web/apple)을 따르세요. Apple을 설정하지 않으면 'Apple로 로그인'을 눌렀을 때 "이 로그인 방식이 아직 켜져 있지 않아요"라고 안내됩니다. (Google만 써도 됩니다.)
+자세한 순서는 공식 문서 [Apple로 인증](https://firebase.google.com/docs/auth/web/apple)을 따르세요. Apple을 설정하지 않은 채 Apple 로그인을 시도하면 "이 로그인 방식이 아직 켜져 있지 않아요"라고 안내됩니다. (Google만 써도 됩니다.)
 
 ## 3. 승인된 도메인 추가
 
@@ -92,7 +98,7 @@ Apple 로그인은 **Apple Developer Program 가입(연 99달러)** 이 있어�
 python3 -m http.server 8000
 ```
 
-그다음 브라우저에서 <http://localhost:8000> 을 열고 **기록 탭 → 클라우드 저장 → Google로 로그인**을 눌러 보세요.
+그다음 브라우저에서 <http://localhost:8000> 을 열고 **⚙ 설정 → 계정 연동 → Google 계정 연동하기**를 눌러 보세요. 연결 상태를 자동으로 확인하려면 `node tools/firebase-check.js`를 쓰세요(구글 계정 선택 화면까지 가는지 봅니다).
 
 ## 무료 한도
 
@@ -102,7 +108,8 @@ Spark(무료) 등급의 Firestore는 하루 쓰기 2만 회, 읽기 5만 회 정
 
 | 증상 | 원인과 해결 |
 |---|---|
-| 기록 탭에 "이 기기에만 저장돼요"만 보인다 | `firebase-config.js`가 아직 `null`입니다. 1번을 하세요. |
+| 설정 창에 "준비 중"이 보인다 | `firebase-config.js`가 `null`입니다. 1번을 하세요. |
+| "이 프로젝트의 로그인 기능이 아직 시작되지 않았어요" | 콘솔에서 Authentication → **시작하기**를 누르세요. (2번) |
 | "이 주소는 Firebase에서 허용되지 않았어요" | 3번 승인된 도메인에 주소를 추가하세요. |
 | "이 로그인 방식이 아직 켜져 있지 않아요" | 2번에서 해당 제공업체를 사용 설정하세요. |
 | "로그인 창이 막혔어요" | 브라우저의 팝업 차단을 풀고 다시 누르세요. (일부 모바일 브라우저는 자동으로 페이지 이동 방식으로 바뀝니다.) |
@@ -113,4 +120,4 @@ Spark(무료) 등급의 Firestore는 하루 쓰기 2만 회, 읽기 5만 회 정
 
 - 게임 계산이 브라우저에서 돌아가기 때문에, 저장 데이터를 직접 고쳐서 올리는 **부정행위는 막을 수 없습니다.** 보안 규칙은 "남의 데이터에 접근 못 함", "크기 제한", "덮어쓰기 방지"까지만 보장합니다. 순위표처럼 남과 비교하는 기능을 만든다면 서버에서 검증하는 구조(Cloud Functions 등)가 따로 필요합니다.
 - 저장에는 게임 진행 데이터와 로그인 계정의 ID가 들어갑니다. 이메일·이름은 화면에만 보여 주고 저장 문서에는 넣지 않습니다.
-- **로그인 흐름과 실제 Firestore 규칙은 프로젝트 설정이 끝난 뒤에야 실제로 확인할 수 있습니다.** 이 저장소의 자동 점검(`node tools/test.js`, `node tools/ui-check.js`)은 가짜 서버와 가짜 Firebase SDK로 동작을 확인한 것이며, 실제 Google·Apple 로그인과 규칙 게시 결과를 대신하지는 않습니다.
+- **자동 점검이 확인하는 범위:** `node tools/test.js`와 `node tools/ui-check.js`는 가짜 서버와 가짜 Firebase SDK로 동작을 확인합니다. `node tools/firebase-check.js`는 실제 Firebase에 붙어서 Google 계정 선택 화면까지 가는지 확인합니다. **계정을 고른 뒤 실제로 저장이 올라가는 부분은 사람이 직접 로그인해 봐야 확인됩니다.**

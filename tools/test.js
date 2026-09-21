@@ -837,6 +837,7 @@ test('오류 문구: 창을 스스로 닫은 것은 알리지 않고 주소·설
   assert.ok(Cloud.friendlyError({ code: 'auth/popup-blocked' }).includes('팝업'));
   assert.ok(Cloud.friendlyError({ code: 'auth/unauthorized-domain' }).includes('FIREBASE-SETUP'));
   assert.ok(Cloud.friendlyError({ code: 'auth/operation-not-allowed' }).includes('켜져'));
+  assert.ok(Cloud.friendlyError({ code: 'auth/configuration-not-found' }).includes('시작하기'));
   assert.ok(Cloud.friendlyError({ code: 'permission-denied' }).includes('규칙'));
   assert.ok(Cloud.friendlyError(new Error('뭔가 잘못됨')).includes('뭔가'));
 });

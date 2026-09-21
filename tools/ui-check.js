@@ -54,6 +54,7 @@ const FAKE_CLOUD = `(() => {
     const check = (name, ok, extra = '') => { console.log((ok ? '  통과  ' : '  실패  ') + name + (ok ? '' : '  ' + extra)); if (!ok) fails.push(name); };
 
     await send('Runtime.enable'); await send('Page.enable');
+    await send('Page.addScriptToEvaluateOnNewDocument', { source: 'window.CLOUD_ADAPTER = null;' });   // 클라우드 기능을 끄고 시작 (가짜 서버는 아래 계정 구역에서 따로 넣는다)
     await send('Emulation.setDeviceMetricsOverride', { width: 420, height: 900, deviceScaleFactor: 1, mobile: true });
 
     // 저장 데이터: 스테이지 20 근처, 증표 20개, 골드 넉넉히
@@ -239,8 +240,8 @@ const FAKE_CLOUD = `(() => {
     check('설정 창에서 "처음부터 다시"가 초기화 확인 창으로 이어진다', await ev(`(() => { document.getElementById('resetBtn2').click(); return document.getElementById('settings').hidden && document.getElementById('modalTitle').textContent.includes('처음부터'); })()`));
     await ev(`document.querySelector('#modalActions .btn').click()`); await sleep(200);   // 취소
     await ev(`document.getElementById('settingsBtn').click()`); await sleep(300);
-    check('서버가 연결되지 않아도 계정 연동 버튼 두 개와 "준비 중" 표시가 보인다',
-      (await ev(`document.getElementById('acct').textContent`)).includes('준비 중') && (await ev(`document.querySelectorAll('[data-login]').length`)) === 2);
+    check('서버가 연결되지 않아도 계정 연동 버튼과 "준비 중" 표시가 보인다',
+      (await ev(`document.getElementById('acct').textContent`)).includes('준비 중') && (await ev(`document.querySelectorAll('[data-login]').length`)) === 1);
     await ev(`document.querySelector('[data-login="google"]').click()`); await sleep(300);
     check('준비 중일 때 버튼을 누르면 안내 창이 뜨고 로그인 시도는 하지 않는다',
       (await ev(`document.getElementById('modalTitle').textContent`)) === '준비 중이에요' && (await ev(`document.getElementById('acct').textContent`)).includes('준비 중'));
@@ -252,7 +253,7 @@ const FAKE_CLOUD = `(() => {
     await send('Page.navigate', { url: 'file://' + ROOT + '/index.html' }); await sleep(1500);
     await ev(`Game.setRandom(() => 0.999)`);
     await ev(`document.getElementById('settingsBtn').click()`); await sleep(300);
-    check('로그인 전에는 Google·Apple 버튼이 보인다', (await ev(`document.querySelectorAll('[data-login]').length`)) === 2);
+    check('로그인 전에는 Google 연동 버튼 하나만 보인다 (Apple 버튼은 없다)', (await ev(`document.querySelectorAll('[data-login]').length`)) === 1);
     await shot('account-out');
     await ev(`document.querySelector('[data-login="google"]').click()`); await sleep(700);
     check('Google로 로그인하면 이름이 보인다', (await ev(`document.getElementById('acct').textContent`)).includes('테스터'));
@@ -281,14 +282,14 @@ const FAKE_CLOUD = `(() => {
     // 연동 해제
     await ev(`document.querySelector('[data-acct="out"]').click()`); await sleep(300);
     await ev(`document.querySelector('#modalActions .btn--blue').click()`); await sleep(600);
-    check('연동을 해제하면 연동 버튼이 다시 나온다', (await ev(`document.querySelectorAll('[data-login]').length`)) === 2);
+    check('연동을 해제하면 연동 버튼이 다시 나온다', (await ev(`document.querySelectorAll('[data-login]').length`)) === 1);
     // 로그인 실패 안내
     await ev(`window.CLOUD_ADAPTER.signIn = async () => { throw Object.assign(new Error('x'), { code: 'auth/popup-blocked' }); }`);
-    await ev(`document.querySelector('[data-login="apple"]').click()`); await sleep(500);
+    await ev(`document.querySelector('[data-login="google"]').click()`); await sleep(500);
     check('로그인 창이 막히면 팝업 차단 안내가 보인다', (await ev(`document.getElementById('acct').textContent`)).includes('팝업'));
     // 창을 스스로 닫은 것은 오류로 보이지 않는다
     await ev(`window.CLOUD_ADAPTER.signIn = async () => { throw Object.assign(new Error('x'), { code: 'auth/popup-closed-by-user' }); }`);
-    await ev(`document.querySelector('[data-login="apple"]').click()`); await sleep(400);
+    await ev(`document.querySelector('[data-login="google"]').click()`); await sleep(400);
     check('로그인 창을 닫으면 오류 문구가 사라진다', !(await ev(`document.getElementById('acct').textContent`)).includes('팝업'));
     await ev(`document.getElementById('settingsClose').click()`); await sleep(200);
 

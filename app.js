@@ -1092,7 +1092,8 @@
     set: (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* 무시 */ } },
     remove: (k) => { try { localStorage.removeItem(k); } catch (e) { /* 무시 */ } },
   };
-  const cloudAdapter = window.CLOUD_ADAPTER ||
+  // window.CLOUD_ADAPTER가 미리 정해져 있으면(테스트용 가짜 서버, 또는 null로 기능 끄기) 그것을 쓰고, 아니면 Firebase 설정으로 만든다
+  const cloudAdapter = 'CLOUD_ADAPTER' in window ? window.CLOUD_ADAPTER :
     (window.FIREBASE_CONFIG && window.CloudFirebase ? window.CloudFirebase.createFirebaseAdapter(window.FIREBASE_CONFIG) : null);
 
   const esc = (t) => String(t).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -1153,8 +1154,7 @@
       // 서버(Firebase)가 아직 연결되지 않았어도 버튼은 보여 주고, 누르면 준비 중이라고 알려 준다
       box.innerHTML = '<div class="acct__title">☁ 계정 연동 <span class="acct__soon">준비 중</span></div>' +
         '<div class="acct__desc">Google 계정을 연동하면 진행 상황이 클라우드에 저장돼서, 다른 기기에서도 이어서 할 수 있어요. 지금은 이 기기(브라우저)에만 자동 저장돼요.</div>' +
-        '<div class="acct__btns"><button class="btn btn--google is-soon" type="button" data-login="google">Google 계정 연동하기</button>' +
-        '<button class="btn btn--apple is-soon" type="button" data-login="apple">Apple 계정 연동하기</button></div>' +
+        '<div class="acct__btns acct__btns--one"><button class="btn btn--google is-soon" type="button" data-login="google">Google 계정 연동하기</button></div>' +
         '<div class="acct__desc" style="margin:8px 0 0"><small>개발자: docs/FIREBASE-SETUP.md</small></div>';
       return;
     }
@@ -1162,8 +1162,7 @@
     if (!st.user) {
       box.innerHTML = '<div class="acct__title">☁ 계정 연동</div>' +
         '<div class="acct__desc">Google 계정을 연동하면 진행 상황이 클라우드에 저장돼서, 다른 기기에서도 이어서 할 수 있어요.</div>' +
-        '<div class="acct__btns"><button class="btn btn--google" type="button" data-login="google">Google 계정 연동하기</button>' +
-        '<button class="btn btn--apple" type="button" data-login="apple">Apple 계정 연동하기</button></div>' + err;
+        '<div class="acct__btns acct__btns--one"><button class="btn btn--google" type="button" data-login="google">Google 계정 연동하기</button></div>' + err;
       return;
     }
     const u = st.user;
@@ -1180,7 +1179,7 @@
     const login = e.target.closest('button[data-login]');
     if (login) {
       if (!cloud.state().configured) {
-        openModal('준비 중이에요', 'Google·Apple 계정 연동은 아직 서버가 연결되지 않아서 쓸 수 없어요.<br>연결되면 이 버튼으로 연동해서 기기를 바꿔도 이어서 할 수 있어요.<br><small>지금 진행 상황은 이 기기에 자동 저장돼요.</small>', [{ text: '확인' }]);
+        openModal('준비 중이에요', 'Google 계정 연동은 아직 서버가 연결되지 않아서 쓸 수 없어요.<br>연결되면 이 버튼으로 연동해서 기기를 바꿔도 이어서 할 수 있어요.<br><small>지금 진행 상황은 이 기기에 자동 저장돼요.</small>', [{ text: '확인' }]);
         return;
       }
       await cloud.signIn(login.dataset.login); renderAccount(); return;

@@ -148,6 +148,7 @@
     if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') return '';
     if (code === 'auth/popup-blocked') return '로그인 창이 막혔어요. 브라우저의 팝업 차단을 풀고 다시 눌러 주세요.';
     if (code === 'auth/unauthorized-domain') return '이 주소는 Firebase에서 허용되지 않았어요. (설정 방법은 docs/FIREBASE-SETUP.md 참고)';
+    if (code === 'auth/configuration-not-found') return '이 프로젝트의 로그인 기능이 아직 시작되지 않았어요. (Firebase 콘솔 → Authentication → 시작하기)';
     if (code === 'auth/operation-not-allowed') return '이 로그인 방식이 아직 Firebase에서 켜져 있지 않아요.';
     if (code === 'auth/network-request-failed' || code === 'unavailable') return '인터넷 연결을 확인해 주세요.';
     if (code === 'permission-denied') return '저장할 권한이 없어요. Firestore 보안 규칙을 확인해 주세요.';
