@@ -81,6 +81,8 @@
                  per: '동료 공격 +10%', now: (lv) => `동료 공격 +${lv * 10}%` },
     rest:      { name: '든든한 휴식',   icon: 'scroll', tier: 2, max: 4,  base: 2, req: [['greed', 3]],
                  per: '오프라인 보상 한도 +1시간', now: (lv) => `오프라인 보상 최대 ${8 + lv}시간` },
+    luck:      { name: '수집가',        icon: 'gem',    tier: 2, max: 10, base: 2, req: [['greed', 2]],
+                 per: '장비 드롭 확률 +1.5%p', now: (lv) => `장비 드롭 확률 +${(lv * 1.5).toFixed(1)}%p` },
     headstart: { name: '빠른 출발',     icon: 'bolt',   tier: 3, max: 5,  base: 3, req: [['might', 5]],
                  per: '환생 후 무기·갑옷 Lv.+3 상태로 시작', now: (lv) => `무기·갑옷 Lv.${lv * HEADSTART_LV}로 시작` },
     kingly:    { name: '왕의 위엄',     icon: 'crown',  tier: 3, max: 5,  base: 5, req: [['might', 5], ['greed', 5]],
@@ -138,6 +140,148 @@
     return ev;
   }
 
+  // ---- 장비 ----
+  // 몬스터를 잡으면 확률로 떨어진다. 등급이 높을수록 확률이 낮고, 보스는 높은 등급이 훨씬 잘 나온다.
+  // 수치는 드롭된 스테이지(아이템 레벨)가 높을수록 커진다.
+  const RARITIES = [
+    { name: '노말', color: '#b9c2d0', w: 62,  bossW: 0,  gold: 3 },     // w: 일반 몬스터 가중치, bossW: 보스 가중치, gold: 판매가 배율
+    { name: '고급', color: '#6fe06a', w: 25,  bossW: 45, gold: 8 },
+    { name: '희귀', color: '#5aa8ff', w: 9.5, bossW: 35, gold: 25 },
+    { name: '영웅', color: '#c07aff', w: 3,   bossW: 16, gold: 80 },
+    { name: '전설', color: '#ffc93a', w: 0.5, bossW: 4,  gold: 300 },
+  ];
+  const RARITY_PREFIX = ['낡은', '튼튼한', '빛나는', '고귀한', '찬란한'];
+  const DROP_CHANCE = 0.08;        // 일반 몬스터가 장비를 떨어뜨릴 확률
+  const BOSS_DROP_CHANCE = 0.5;    // 보스
+  const LUCK_PER_LV = 0.015;       // 증표 상점 '수집가' 레벨당 드롭 확률 추가(+1.5%p)
+  const BAG_MAX = 24;              // 가방 칸 수. 가득 차면 새로 얻은 장비는 자동으로 팔린다
+  const GEAR_SCALE_STAGE = 40;     // 아이템 레벨이 이만큼 오를 때마다 수치가 기본값만큼 더 붙는다 (스테이지 40 = 2배)
+  // 종류마다 올려 주는 능력(kind)과 등급별 기본 수치(%: 노말·고급·희귀·영웅·전설), 이름에 쓰는 명사
+  const GEAR = {
+    weapon:    { name: '무기',     icon: 'sword',  kinds: {
+      dmg:   { label: '공격력',    base: [4, 7, 11, 17, 26],   nouns: ['몽둥이', '단검', '손도끼', '장검', '지팡이'] } } },
+    armor:     { name: '방어구',   icon: 'shield', kinds: {
+      hp:    { label: '최대 체력', base: [6, 10, 16, 24, 36],  nouns: ['가죽 갑옷', '쇠사슬 갑옷', '판금 갑옷', '로브'] } } },
+    accessory: { name: '액세서리', icon: 'gem',    kinds: {
+      gold:  { label: '골드 획득', base: [6, 10, 15, 23, 34],  nouns: ['황금 반지', '행운의 목걸이'] },
+      aps:   { label: '공격 속도', base: [2, 3.5, 5.5, 8, 12], nouns: ['질풍의 팔찌', '깃털 귀걸이'] },
+      comp:  { label: '동료 공격', base: [5, 9, 14, 21, 32],   nouns: ['동료의 부적', '우정의 반지'] },
+      click: { label: '직접 공격', base: [8, 14, 22, 33, 50],  nouns: ['강타의 장갑', '용사의 완장'] } } },
+  };
+  const SLOT_KEYS = Object.keys(GEAR);
+  const has = (obj, key) => Object.prototype.hasOwnProperty.call(obj, key);   // 'constructor' 같은 이름을 걸러내려고 in/[] 대신 쓴다
+
+  // 테스트에서 드롭을 고정하려고 난수 함수를 바꿀 수 있게 한다
+  let rnd = Math.random;
+  function setRandom(fn) { rnd = fn || Math.random; }
+
+  const kindDef = (it) => GEAR[it.slot].kinds[it.kind];
+  const itemName = (it) => { const nouns = kindDef(it).nouns; return RARITY_PREFIX[it.r] + ' ' + nouns[it.n % nouns.length]; };
+  const round1 = (x) => Math.round(x * 10) / 10;
+  const maxItemVal = (slot, kind, r, ilvl) => round1(GEAR[slot].kinds[kind].base[r] * (1 + ilvl / GEAR_SCALE_STAGE) * 1.15) + 0.1;
+  const sellValue = (it) => Math.ceil(monsterGold(it.ilvl) * RARITIES[it.r].gold);
+
+  function rollRarity(boss) {
+    const key = boss ? 'bossW' : 'w';
+    let total = 0;
+    for (const r of RARITIES) total += r[key];
+    let x = rnd() * total;
+    for (let i = 0; i < RARITIES.length; i++) {
+      x -= RARITIES[i][key];
+      if (x < 0) return i;
+    }
+    return RARITIES.length - 1;
+  }
+
+  // stage에서 얻는 장비 하나를 굴린다
+  function rollItem(s, stage, boss) {
+    const r = rollRarity(boss);
+    const slot = SLOT_KEYS[Math.floor(rnd() * SLOT_KEYS.length)];
+    const kinds = Object.keys(GEAR[slot].kinds);
+    const kind = kinds[Math.floor(rnd() * kinds.length)];
+    const def = GEAR[slot].kinds[kind];
+    const val = round1(def.base[r] * (1 + stage / GEAR_SCALE_STAGE) * (0.85 + rnd() * 0.3));   // ±15% 무작위
+    s.itemSeq += 1;
+    return { id: s.itemSeq, slot, kind, r, ilvl: stage, val, n: Math.floor(rnd() * def.nouns.length) };
+  }
+
+  const dropChance = (s, boss) => (boss ? BOSS_DROP_CHANCE : DROP_CHANCE) + LUCK_PER_LV * perkLv(s, 'luck');
+  // 같은 능력을 올려 주면서 수치가 더 큰 장비이거나, 칸이 비어 있으면 '더 좋은' 장비
+  const isUpgrade = (s, it) => { const cur = s.equip[it.slot]; return !cur || (cur.kind === it.kind && it.val > cur.val); };
+
+  // 장비를 가방에 넣는다. 자동 판매 등급 이하이거나 가방이 가득 차면 판다. 결과: 'bag' | 'sold'
+  function stow(s, it) {
+    if (it.r <= s.autoSell || s.bag.length >= BAG_MAX) {
+      s.gold += sellValue(it);
+      return 'sold';
+    }
+    s.bag.push(it);
+    return 'bag';
+  }
+
+  // 새로 얻은 장비 처리: 자동 장착 → 아니면 가방(또는 판매). drop 사건을 ev에 남긴다.
+  function receiveItem(s, it, ev) {
+    let action, replaced = null;
+    if (s.autoEquip && isUpgrade(s, it)) {
+      const before = maxHp(s);
+      replaced = s.equip[it.slot];
+      s.equip[it.slot] = it;
+      s.hp += Math.max(0, maxHp(s) - before);
+      if (replaced) stow(s, replaced);
+      action = 'equipped';
+    } else {
+      action = stow(s, it);
+    }
+    ev.push({ type: 'drop', item: it, action, gold: action === 'sold' ? sellValue(it) : 0 });
+  }
+
+  function equipItem(s, id) {
+    const i = s.bag.findIndex((x) => x.id === id);
+    if (i < 0) return false;
+    const it = s.bag[i];
+    const before = maxHp(s);
+    const old = s.equip[it.slot];
+    s.bag.splice(i, 1);
+    s.equip[it.slot] = it;
+    if (old) s.bag.push(old);
+    s.hp = Math.min(maxHp(s), s.hp + Math.max(0, maxHp(s) - before));
+    return true;
+  }
+  function unequipItem(s, slot) {
+    const it = s.equip[slot];
+    if (!it || s.bag.length >= BAG_MAX) return false;
+    s.equip[slot] = null;
+    s.bag.push(it);
+    s.hp = Math.min(s.hp, maxHp(s));
+    return true;
+  }
+  // 가방의 장비 하나를 판다. 받은 골드를 돌려준다 (없으면 -1)
+  function sellBagItem(s, id) {
+    const i = s.bag.findIndex((x) => x.id === id);
+    if (i < 0) return -1;
+    const g = sellValue(s.bag[i]);
+    s.gold += g;
+    s.bag.splice(i, 1);
+    return g;
+  }
+  // 가방에서 등급이 maxRarity 이하인 장비를 모두 판다 (장착 중인 것은 그대로)
+  function sellBagUpTo(s, maxRarity) {
+    let n = 0, gold = 0;
+    s.bag = s.bag.filter((it) => {
+      if (it.r > maxRarity) return true;
+      gold += sellValue(it); n += 1;
+      return false;
+    });
+    s.gold += gold;
+    return { n, gold };
+  }
+  // 장착한 장비가 kind 능력에 주는 배율 (1 = 효과 없음)
+  const gearMult = (s, kind) => {
+    let v = 0;
+    for (const slot of SLOT_KEYS) { const it = s.equip[slot]; if (it && it.kind === kind) v += it.val; }
+    return 1 + v / 100;
+  };
+
   // ---- 상태 ----
   function createState(now) {
     const s = {
@@ -159,6 +303,11 @@
       achieved: {},      // 달성한 업적 (환생해도 유지)
       dex: {},           // 도감 기록: 2차 직업별 { best 최고 스테이지, kills 처치 수, runs 전직 횟수 } (환생해도 유지)
       perks: {},         // 증표 상점에서 산 영구 강화 { id: 레벨 } (환생해도 유지)
+      equip: { weapon: null, armor: null, accessory: null },   // 장착한 장비 (환생해도 유지)
+      bag: [],           // 가방 (환생해도 유지)
+      itemSeq: 0,        // 장비 번호를 매기는 카운터
+      autoEquip: true,   // 더 좋은 장비를 얻으면 자동으로 장착
+      autoSell: 0,       // 이 등급 이하는 얻자마자 자동 판매 (-1 없음, 0 노말, 1 고급, 2 희귀)
       hp: 0,
       monsterHp: 0,
       monsterMax: 0,
@@ -224,13 +373,13 @@
     return ((b && b.mult[key]) || 1) * ((a && a.mult[key]) || 1);
   }
   const baseDmg = (s) => 3 + 1.5 * (s.level - 1);
-  const maxHp = (s) => (50 + 12 * (s.level - 1)) * (1 + 0.25 * s.upgrades.armor) * mile(s.upgrades.armor) * statMult(s, 'hp') * (1 + 0.1 * perkLv(s, 'vitality'));
+  const maxHp = (s) => (50 + 12 * (s.level - 1)) * (1 + 0.25 * s.upgrades.armor) * mile(s.upgrades.armor) * statMult(s, 'hp') * (1 + 0.1 * perkLv(s, 'vitality')) * gearMult(s, 'hp');
   const hitDmg = (s) =>
-    baseDmg(s) * (1 + 0.25 * s.upgrades.weapon) * mile(s.upgrades.weapon) * tokenMult(s) * masteryMult(s) * achieveMult(s) * statMult(s, 'dmg') * (1 + 0.1 * perkLv(s, 'might')) * kinglyMult(s);
-  const attacksPerSec = (s) => (1 + 0.1 * s.upgrades.speed) * statMult(s, 'aps');
-  const companionDps = (s) => s.upgrades.companion * mile(s.upgrades.companion) * hitDmg(s) * 0.35 * statMult(s, 'comp') * (1 + 0.1 * perkLv(s, 'bond'));
+    baseDmg(s) * (1 + 0.25 * s.upgrades.weapon) * mile(s.upgrades.weapon) * tokenMult(s) * masteryMult(s) * achieveMult(s) * statMult(s, 'dmg') * (1 + 0.1 * perkLv(s, 'might')) * kinglyMult(s) * gearMult(s, 'dmg');
+  const attacksPerSec = (s) => (1 + 0.1 * s.upgrades.speed) * statMult(s, 'aps') * gearMult(s, 'aps');
+  const companionDps = (s) => s.upgrades.companion * mile(s.upgrades.companion) * hitDmg(s) * 0.35 * statMult(s, 'comp') * (1 + 0.1 * perkLv(s, 'bond')) * gearMult(s, 'comp');
   const goldMult = (s) =>
-    (1 + 0.15 * s.upgrades.loot) * mile(s.upgrades.loot) * tokenMult(s) * masteryMult(s) * achieveMult(s) * statMult(s, 'gold') * (1 + 0.1 * perkLv(s, 'greed')) * kinglyMult(s);
+    (1 + 0.15 * s.upgrades.loot) * mile(s.upgrades.loot) * tokenMult(s) * masteryMult(s) * achieveMult(s) * statMult(s, 'gold') * (1 + 0.1 * perkLv(s, 'greed')) * kinglyMult(s) * gearMult(s, 'gold');
   const totalDps = (s) => hitDmg(s) * attacksPerSec(s) + companionDps(s);
   const expNeeded = (s) => Math.ceil(15 * Math.pow(1.3, s.level - 1));
 
@@ -348,6 +497,7 @@
     if (s.adv) dexEntry(s, s.adv).kills += 1;
     ev.push({ type: 'kill', gold, boss: s.isBoss });
     gainExp(s, monsterExp(s.stage), ev);
+    if (rnd() < dropChance(s, s.isBoss)) receiveItem(s, rollItem(s, s.stage, s.isBoss), ev);
 
     if (s.isBoss || s.killsInStage >= KILLS_PER_STAGE) {
       s.stage += 1;
@@ -408,7 +558,7 @@
   function clickAttack(s) {
     if (s.downT > 0) return { dmg: 0, events: [] };
     const ev = [];
-    const dmg = hitDmg(s) * CLICK_MULT * statMult(s, 'click') * (1 + 0.25 * perkLv(s, 'click'));
+    const dmg = hitDmg(s) * CLICK_MULT * statMult(s, 'click') * (1 + 0.25 * perkLv(s, 'click')) * gearMult(s, 'click');
     dealDamage(s, dmg, ev);
     if (ev.length > 0) checkAchievements(s, ev);
     return { dmg, events: ev };
@@ -433,8 +583,9 @@
     const elapsed = Math.min((now - s.savedAt) / 1000, offlineCap(s));
     if (!(elapsed >= OFFLINE_MIN)) return null;
     const before = { gold: s.gold, kills: s.totalKills, stage: s.stage, level: s.level };
-    simulate(s, elapsed);
+    const ev = simulate(s, elapsed);
     s.dealt = 0;
+    const drops = ev.filter((e) => e.type === 'drop');
     return {
       seconds: Math.floor(elapsed),
       gold: Math.floor(s.gold - before.gold),
@@ -443,6 +594,9 @@
       stageTo: s.stage,
       levelFrom: before.level,
       levelTo: s.level,
+      drops: drops.length,
+      dropsSold: drops.filter((e) => e.action === 'sold').length,
+      dropBest: drops.reduce((m, e) => Math.max(m, e.item.r), -1),
     };
   }
 
@@ -502,8 +656,8 @@
       const lv = clamp(Math.floor(num(o.upgrades && o.upgrades[k], 0)), 0, 9999);
       s.upgrades[k] = Math.min(lv, UPGRADES[k].max);
     }
-    s.cls = typeof o.cls === 'string' && CLASSES[o.cls] ? o.cls : null;
-    s.adv = s.cls && typeof o.adv === 'string' && ADVANCED[o.adv] && ADVANCED[o.adv].parent === s.cls ? o.adv : null;
+    s.cls = typeof o.cls === 'string' && has(CLASSES, o.cls) ? o.cls : null;
+    s.adv = s.cls && typeof o.adv === 'string' && has(ADVANCED, o.adv) && ADVANCED[o.adv].parent === s.cls ? o.adv : null;
     for (const k of Object.keys(ADVANCED)) if (o.mastered && o.mastered[k] === true) s.mastered[k] = true;
     if (s.adv) s.mastered[s.adv] = true;
     for (const a of ACHIEVEMENTS) if (o.achieved && o.achieved[a.id] === true) s.achieved[a.id] = true;
@@ -517,6 +671,27 @@
       const lv = clamp(Math.floor(num(o.perks && o.perks[id], 0)), 0, PERKS[id].max);
       if (lv > 0) s.perks[id] = lv;
     }
+    // 장비: 이름은 저장하지 않고 번호로 다시 만들며, 수치는 그 등급·레벨에서 나올 수 있는 최대치로 제한한다
+    const cleanItem = (x) => {
+      if (!x || typeof x !== 'object' || !has(GEAR, x.slot) || !has(GEAR[x.slot].kinds, x.kind)) return null;
+      const r = Math.floor(num(x.r, -1));
+      if (r < 0 || r >= RARITIES.length) return null;
+      const ilvl = clamp(Math.floor(num(x.ilvl, 1)), 1, 999);
+      return { id: clamp(Math.floor(num(x.id, 0)), 1, 1e12), slot: x.slot, kind: x.kind, r, ilvl,
+               val: clamp(num(x.val, 0), 0, maxItemVal(x.slot, x.kind, r, ilvl)), n: clamp(Math.floor(num(x.n, 0)), 0, 99) };
+    };
+    const seen = {};
+    const fresh = (x) => { const it = cleanItem(x); if (!it || seen[it.id]) return null; seen[it.id] = true; return it; };   // 번호가 겹치는 장비는 버린다
+    for (const slot of SLOT_KEYS) {
+      const it = o.equip && fresh(o.equip[slot]);
+      if (it && it.slot === slot) s.equip[slot] = it;
+    }
+    if (Array.isArray(o.bag)) for (const x of o.bag.slice(0, BAG_MAX)) { const it = fresh(x); if (it) s.bag.push(it); }
+    let maxId = 0;
+    for (const it of [...s.bag, ...SLOT_KEYS.map((k) => s.equip[k]).filter(Boolean)]) maxId = Math.max(maxId, it.id);
+    s.itemSeq = Math.max(maxId, clamp(Math.floor(num(o.itemSeq, 0)), 0, 1e12));
+    s.autoEquip = o.autoEquip !== false;
+    s.autoSell = clamp(Math.floor(num(o.autoSell, 0)), -1, 2);
     if (tokenBalance(s) < 0) s.perks = {};   // 번 것보다 많이 쓴 저장 데이터는 산 강화를 모두 되돌린다
     s.hp = Math.min(maxHp(s), Math.max(1, num(o.hp, maxHp(s))));
     spawnMonster(s);
@@ -555,6 +730,8 @@
     promoStage, promoOptions, promote, statMult, masteryMult,
     ACHIEVEMENTS, ACHIEVE_BONUS, achieveMult, checkAchievements,
     DEX_TIERS, TIER_BONUS, dexRecord, dexTier,
+    RARITIES, GEAR, SLOT_KEYS, BAG_MAX, DROP_CHANCE, BOSS_DROP_CHANCE, LUCK_PER_LV,
+    setRandom, itemName, sellValue, rollItem, dropChance, isUpgrade, receiveItem, equipItem, unequipItem, sellBagItem, sellBagUpTo, gearMult,
     PERKS, PERK_KEYS, HEADSTART_LV, perkLv, perkCost, perkSpent, tokenBalance, perkMissing, perkUnlocked, canBuyPerk, buyPerk, respecPerks, offlineCap,
     fmt, fmtTime,
   };

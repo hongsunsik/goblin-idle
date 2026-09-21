@@ -105,6 +105,7 @@
     <section class="panel">
       <nav class="tabnav" id="nav" aria-label="메뉴">
         <button class="tabnav__btn is-on" data-go="upgrade" type="button"><svg class="ic"><use href="#i-anvil"/></svg><span>강화</span><i class="dot" hidden></i></button>
+        <button class="tabnav__btn" data-go="gear" type="button"><svg class="ic"><use href="#i-shield"/></svg><span>장비</span><i class="dot" hidden></i></button>
         <button class="tabnav__btn" data-go="class" type="button"><svg class="ic"><use href="#i-cap"/></svg><span>전직</span><i class="dot" hidden></i></button>
         <button class="tabnav__btn" data-go="prestige" type="button"><svg class="ic"><use href="#i-crown"/></svg><span>환생</span><i class="dot" hidden></i></button>
         <button class="tabnav__btn" data-go="shop" type="button"><svg class="ic"><use href="#i-gem"/></svg><span>상점</span><i class="dot" hidden></i></button>
@@ -120,6 +121,22 @@
             <button data-n="max" type="button">MAX</button>
           </div>
           <ul class="upgrades" id="upgrades"></ul>
+        </section>
+
+        <section class="tab" data-tab="gear" hidden>
+          <h3 class="sect"><svg class="ic"><use href="#i-shield"/></svg>장착 중 <small id="gearSummary"></small></h3>
+          <div class="slots" id="slots"></div>
+          <div class="gearopts">
+            <label class="check"><input type="checkbox" id="autoEquip"><span>더 좋은 장비 자동 장착</span></label>
+            <label class="sel">자동 판매
+              <select id="autoSell">
+                <option value="-1">안 함</option><option value="0">노말 이하</option><option value="1">고급 이하</option><option value="2">희귀 이하</option>
+              </select>
+            </label>
+          </div>
+          <h3 class="sect"><svg class="ic"><use href="#i-pouch"/></svg>가방 <small id="bagCount"></small><button class="link sect__link" id="sellAllBtn" type="button">일괄 판매</button></h3>
+          <div class="bag" id="bag"></div>
+          <div class="card dropinfo" id="dropInfo"></div>
         </section>
 
         <section class="tab" data-tab="class" hidden>

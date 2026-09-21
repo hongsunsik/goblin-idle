@@ -107,17 +107,18 @@
 
   // ---- 화면에 떠오르는 숫자: 살짝 튀어 오르며 옆으로 흩어진다 ----
   const FLOAT_AREA = { hero: [10, 14, 56, 10], center: [34, 16, 34, 14], enemy: [56, 16, 44, 12], hit: [58, 12, 62, 8], gold: [72, 12, 52, 8], comp: [44, 12, 60, 8] };
-  function floatText(text, cls, where) {
+  function floatText(text, cls, where, color) {
     if (layer.children.length > MAX_FX) return;
     const el = document.createElement('div');
     el.className = 'float ' + cls;
     el.textContent = text;
+    if (color) el.style.color = color;
     // 종류마다 뜨는 자리를 나눠서 숫자끼리 겹치지 않게 한다 [가로 시작%, 가로 폭, 세로 시작%, 세로 폭]
     const [x0, xw, y0, yw] = FLOAT_AREA[where] || FLOAT_AREA.enemy;
     el.style.left = x0 + Math.random() * xw + '%';
     el.style.top = y0 + Math.random() * yw + '%';
     layer.appendChild(el);
-    const big = /float--(tap|lv)/.test(cls);
+    const big = /float--(tap|lv|drop)/.test(cls);
     const dx = rand(-20, 20);
     const a = anim(el, [
       { transform: 'translate(0, 8px) scale(0.55)', opacity: 0 },
@@ -285,6 +286,25 @@
     setTimeout(() => floatText('-' + G.fmt(G.monsterAtk(state.stage) * period), 'float--hurt', 'hero'), 220);
   }
 
+  // 영웅·전설 장비가 떨어지면 등급 색 고리가 퍼지고 (전설은 화면도 번쩍이며 흔들린다)
+  function rareDropFx(rarity) {
+    const color = G.RARITIES[rarity].color;
+    const p = spot($('monsterSprite'), 0.5, 0.5);
+    for (let i = 0; i < 2; i++) {
+      const ring = addFx('fx-ring', p.x, p.y);
+      if (ring) ring.style.borderColor = color;
+      playFx(ring, [{ transform: 'scale(0.3)', opacity: 1 }, { transform: `scale(${3.2 + i * 1.6})`, opacity: 0 }], { duration: 620 + i * 200, delay: i * 120, easing: 'ease-out' });
+    }
+    if (rarity >= 4) {
+      const flash = $('flash');
+      flash.style.background = 'radial-gradient(ellipse at 50% 55%, transparent 30%, rgba(255, 201, 58, 0.7))';
+      const a = anim(flash, [{ opacity: 0 }, { opacity: 1, offset: 0.2 }, { opacity: 0 }], { duration: 800, easing: 'ease-out' });
+      if (a) a.onfinish = () => { flash.style.background = ''; };
+      else flash.style.background = '';
+      shakeScene(4);
+    }
+  }
+
   // 카드가 빛나며 살짝 커졌다 돌아온다 (구매 성공 표시)
   function pulse(el) {
     anim(el, [
@@ -345,11 +365,13 @@
   // ---- 메뉴 ----
   let currentTab = 'upgrade';
   function goTab(name) {
+    if (currentTab === 'gear' && name !== 'gear') gearNew.clear();   // 장비 탭을 떠나면 NEW 표시를 지운다
     currentTab = name;
     document.querySelectorAll('.tab').forEach((t) => { t.hidden = t.dataset.tab !== name; });
     document.querySelectorAll('.tabnav__btn').forEach((b) => b.classList.toggle('is-on', b.dataset.go === name));
     document.querySelector('.tabs').scrollTop = 0;
     if (name === 'class') renderClass(true);
+    if (name === 'gear') renderGear(true);
     if (name === 'shop') renderShop(true);
     if (name === 'log') renderAchieves(true);
     anim(document.querySelector(`.tab[data-tab="${name}"]`), [{ opacity: 0, transform: 'translateY(10px)' }, { opacity: 1, transform: 'none' }], { duration: 220, easing: 'ease-out' });
@@ -621,6 +643,141 @@
     if (b && !b.disabled) askPromote(b.dataset.pick, b.dataset.adv === '1');
   });
 
+  // ---- 장비 ----
+  let gearKey = '';
+  const gearNew = new Set();   // 장비 탭을 열기 전에 새로 얻은 장비 번호 (NEW 표시·알림 점용, 저장하지 않음)
+  const KIND_SHORT = { dmg: '공격력', hp: '체력', gold: '골드', aps: '공속', comp: '동료', click: '직접' };
+  const fmtVal = (v) => (Math.round(v * 10) / 10).toString();
+  const itemStat = (it) => `${G.GEAR[it.slot].kinds[it.kind].label} +${fmtVal(it.val)}%`;
+
+  function gearSummaryText() {
+    const parts = [];
+    for (const slot of G.SLOT_KEYS) {
+      for (const kind of Object.keys(G.GEAR[slot].kinds)) {
+        const m = G.gearMult(state, kind);
+        if (m > 1) parts.push(`${G.GEAR[slot].kinds[kind].label} +${fmtVal((m - 1) * 100)}%`);
+      }
+    }
+    return parts.length ? parts.join(' · ') : '아직 효과 없음';
+  }
+
+  function slotCard(slot, it) {
+    if (!it) {
+      return `<div class="slot is-empty" data-slot="${slot}"><div class="slot__cap">${G.GEAR[slot].name}</div>${A.icon(G.GEAR[slot].icon)}<div class="slot__name" style="color:var(--muted)">비어 있음</div></div>`;
+    }
+    return `<button class="slot r${it.r}" type="button" data-slot="${slot}"><div class="slot__cap">${G.GEAR[slot].name}</div>${A.icon(G.GEAR[slot].icon)}` +
+      `<div class="slot__name">${G.itemName(it)}</div><div class="slot__stat">${itemStat(it)}</div><div class="slot__lv">Lv.${it.ilvl}</div></button>`;
+  }
+
+  // 드롭 확률표: 가중치를 백분율로 바꿔서 보여 준다 (높은 등급일수록 확률이 낮다)
+  function dropInfoHtml() {
+    const sum = (key) => G.RARITIES.reduce((a, r) => a + r[key], 0);
+    const pct = (x, total) => { const v = (x / total) * 100; return (v >= 10 ? v.toFixed(0) : v.toFixed(v >= 1 ? 1 : 2)).replace(/\.0$/, '') + '%'; };
+    const rows = G.RARITIES.map((r) => `<tr><td style="color:${r.color}">${r.name}</td><td>${pct(r.w, sum('w'))}</td><td>${pct(r.bossW, sum('bossW'))}</td></tr>`).join('');
+    const chance = (boss) => Math.round(G.dropChance(state, boss) * 1000) / 10;
+    return `<div>몬스터를 잡으면 <b>${chance(false)}%</b> 확률로, 보스는 <b>${chance(true)}%</b> 확률로 장비가 떨어져요. 높은 스테이지에서 얻을수록 수치가 커져요.</div>` +
+      `<table class="droptable"><tr><th>등급 확률</th><th>일반 몬스터</th><th>보스</th></tr>${rows}</table>`;
+  }
+
+  function renderGear(force) {
+    const s = state;
+    const ids = (it) => (it ? it.id : 0);
+    const key = [G.SLOT_KEYS.map((k) => ids(s.equip[k])).join(','), s.bag.map((x) => x.id).join(','), s.autoEquip, s.autoSell, [...gearNew].join('+'), G.perkLv(s, 'luck')].join('|');
+    if (!force && key === gearKey) return;
+    gearKey = key;
+    $('gearSummary').textContent = gearSummaryText();
+    $('slots').innerHTML = G.SLOT_KEYS.map((k) => slotCard(k, s.equip[k])).join('');
+    $('autoEquip').checked = s.autoEquip;
+    $('autoSell').value = String(s.autoSell);
+    const bc = $('bagCount');
+    bc.textContent = `${s.bag.length} / ${G.BAG_MAX}`;
+    bc.style.color = s.bag.length >= G.BAG_MAX ? 'var(--red)' : '';
+    let html = '';
+    s.bag.forEach((it) => {
+      html += `<button class="gitem r${it.r} ${gearNew.has(it.id) ? 'is-new' : ''}" type="button" data-item="${it.id}">${A.icon(G.GEAR[it.slot].icon)}` +
+        `<div class="gitem__stat">${KIND_SHORT[it.kind]} +${fmtVal(it.val)}%</div><div class="gitem__lv">Lv.${it.ilvl}</div></button>`;
+    });
+    for (let i = s.bag.length; i < G.BAG_MAX; i++) html += '<div class="gitem is-empty"></div>';
+    $('bag').innerHTML = html;
+    const cheap = s.bag.filter((x) => x.r <= 1);
+    $('sellAllBtn').textContent = cheap.length ? `노말·고급 ${cheap.length}개 판매` : '일괄 판매';
+    $('sellAllBtn').disabled = cheap.length === 0;
+    $('dropInfo').innerHTML = dropInfoHtml();
+  }
+
+  // 장비 하나의 정보 창. 장착 중이면 해제, 가방에 있으면 장착·판매를 고를 수 있다.
+  function showItem(it, equipped) {
+    const R = G.RARITIES[it.r], def = G.GEAR[it.slot].kinds[it.kind];
+    const cur = state.equip[it.slot];
+    let cmp = '';
+    if (!equipped) {
+      if (!cur) cmp = '<div class="itemd__cmp">이 칸은 지금 비어 있어요</div>';
+      else if (cur.kind === it.kind) {
+        const d = Math.round((it.val - cur.val) * 10) / 10;
+        cmp = `<div class="itemd__cmp">장착 중인 ${G.itemName(cur)}보다 <span class="${d >= 0 ? 'cmp-plus' : 'cmp-minus'}">${d >= 0 ? '▲ +' : '▼ '}${d}%p</span></div>`;
+      } else {
+        cmp = `<div class="itemd__cmp">장착 중인 장비는 ${G.GEAR[cur.slot].kinds[cur.kind].label} 능력이라 수치를 바로 비교할 수 없어요</div>`;
+      }
+    }
+    const body =
+      `<div class="itemd__head"><div class="slot r${it.r}">${A.icon(G.GEAR[it.slot].icon)}</div>` +
+      `<div><span class="itemd__tag r${it.r}">${R.name}</span><div class="itemd__main">${def.label} +${fmtVal(it.val)}%</div>` +
+      `<small>${G.GEAR[it.slot].name} · 드롭 스테이지 ${it.ilvl}</small></div></div>${cmp}`;
+    const done = (msg, icon) => { addLog(msg, 'is-good', icon); writeSave(); render(); renderGear(true); };
+    if (equipped) {
+      openModal(G.itemName(it), body, [
+        { text: '닫기' },
+        { text: '해제하기', cls: 'btn--blue', onClick: () => {
+          if (!G.unequipItem(state, it.slot)) { addLog('가방이 가득 차서 해제할 수 없어요', 'is-bad', 'lock'); return; }
+          done(`${G.itemName(it)}을(를) 해제했다`, G.GEAR[it.slot].icon);
+        } },
+      ]);
+      return;
+    }
+    const price = G.sellValue(it);
+    const sell = () => {
+      const g = G.sellBagItem(state, it.id);
+      if (g >= 0) done(`${G.itemName(it)}을(를) 팔았다 (+${G.fmt(g)} 골드)`, 'coin');
+    };
+    openModal(G.itemName(it), body, [
+      { text: '닫기' },
+      { text: `판매 +${G.fmt(price)}`, cls: 'btn--blue', onClick: () => {
+        if (it.r >= 3) {   // 귀한 장비는 한 번 더 확인
+          openModal('정말 팔까요?', `<b style="color:${R.color}">[${R.name}] ${G.itemName(it)}</b><br>${COIN} 골드 ${G.fmt(price)}을(를) 받고 팔아요.<br><small>되돌릴 수 없어요.</small>`,
+            [{ text: '취소' }, { text: '판매', cls: 'btn--blue', onClick: sell }]);
+        } else sell();
+      } },
+      { text: '장착하기', cls: 'btn--gold', onClick: () => {
+        if (!G.equipItem(state, it.id)) return;
+        done(`${G.itemName(it)}을(를) 장착했다`, G.GEAR[it.slot].icon);
+      } },
+    ]);
+  }
+  $('slots').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-slot]');
+    if (b) showItem(state.equip[b.dataset.slot], true);
+  });
+  $('bag').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-item]');
+    const it = b && state.bag.find((x) => x.id === Number(b.dataset.item));
+    if (it) showItem(it, false);
+  });
+  $('autoEquip').addEventListener('change', (e) => { state.autoEquip = e.target.checked; writeSave(); });
+  $('autoSell').addEventListener('change', (e) => { state.autoSell = Number(e.target.value); writeSave(); });
+  $('sellAllBtn').addEventListener('click', () => {
+    const items = state.bag.filter((x) => x.r <= 1);
+    if (!items.length) return;
+    const gold = items.reduce((a, x) => a + G.sellValue(x), 0);
+    openModal('일괄 판매', `가방의 노말·고급 장비 <b>${items.length}개</b>를 팔고<br>${COIN} 골드 <b>${G.fmt(gold)}</b>을(를) 받아요.<br><small>장착 중인 장비와 희귀 이상은 그대로예요.</small>`, [
+      { text: '취소' },
+      { text: '판매', cls: 'btn--gold', onClick: () => {
+        const r = G.sellBagUpTo(state, 1);
+        addLog(`장비 ${r.n}개를 팔았다 (+${G.fmt(r.gold)} 골드)`, 'is-gold', 'coin');
+        writeSave(); render(); renderGear(true);
+      } },
+    ]);
+  });
+
   // ---- 업적 (기록 탭) ----
   let achieveKey = '';
   function renderAchieves(force) {
@@ -668,6 +825,15 @@
       } else if (e.type === 'down') {
         addLog(`쓰러졌다... 스테이지 ${e.to}로 후퇴`, 'is-bad', 'skull');
         shakeScene(5);
+      } else if (e.type === 'drop') {
+        const it = e.item, R = G.RARITIES[it.r], name = G.itemName(it);
+        if (!(e.action === 'sold' && it.r === 0)) {   // 자동 판매된 노말까지 기록하면 너무 많다
+          const verb = e.action === 'equipped' ? '장착' : e.action === 'bag' ? '획득' : `판매 +${G.fmt(e.gold)} 골드`;
+          addLog(`[${R.name}] ${name} ${verb}`, it.r >= 2 ? 'is-gold' : 'is-good', G.GEAR[it.slot].icon);
+        }
+        if (e.action !== 'sold' || it.r >= 2) floatText(`${R.name} ${name}`, 'float--drop', 'center', R.color);
+        if (it.r >= 3) rareDropFx(it.r);
+        if (e.action !== 'sold') gearNew.add(it.id);
       } else if (e.type === 'achieve') {
         const a = G.ACHIEVEMENTS.find((x) => x.id === e.id);
         addLog(`업적 달성: ${a.name}! 공격력·골드 +${Math.round(G.ACHIEVE_BONUS * 100)}%`, 'is-gold', a.icon);
@@ -787,6 +953,7 @@
 
     // 직업 탭
     if (currentTab === 'class') renderClass(false);
+    if (currentTab === 'gear') renderGear(false);
     if (currentTab === 'shop') renderShop(false);
     if (currentTab === 'log') renderAchieves(false);
 
@@ -804,7 +971,7 @@
 
     // 메뉴 알림 점
     const dots = document.querySelectorAll('.tabnav__btn .dot');
-    const want = [anyBuy && currentTab !== 'upgrade', G.promoStage(s) !== null && currentTab !== 'class', gain > 0 && currentTab !== 'prestige',
+    const want = [anyBuy && currentTab !== 'upgrade', gearNew.size > 0 && currentTab !== 'gear', G.promoStage(s) !== null && currentTab !== 'class', gain > 0 && currentTab !== 'prestige',
       G.PERK_KEYS.some((id) => G.canBuyPerk(s, id)) && currentTab !== 'shop'];
     dots.forEach((d, i) => { if (d.hidden === want[i]) d.hidden = !want[i]; });
   }
@@ -883,6 +1050,7 @@
       `${A.icon('sword')} 몬스터 ${G.fmt(r.kills)}마리 처치<br>` +
       `${A.icon('arrowup')} 레벨 ${r.levelFrom} → ${r.levelTo}<br>` +
       `${A.icon('star')} ${stage}` +
+      (r.drops > 0 ? `<br>${A.icon('gem')} 장비 ${r.drops}개 발견 (${r.dropsSold}개 자동 판매)` + (r.dropBest >= 2 ? ` · 최고 <b style="color:${G.RARITIES[r.dropBest].color}">${G.RARITIES[r.dropBest].name}</b>` : '') : '') +
       (r.seconds >= G.offlineCap(state) ? `<br><small>(오프라인 보상은 최대 ${Math.round(G.offlineCap(state) / 3600)}시간까지예요)</small>` : ''),
       [{ text: '받기', cls: '' }]);
   }
