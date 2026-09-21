@@ -12,6 +12,7 @@
   const BIOMES = ['고블린 숲', '어둠의 동굴', '불타는 사막', '얼음 산맥', '화산 지대', '저주받은 성'];
   const STAT_LABEL = { dmg: '공격력', hp: '체력', aps: '공격 속도', gold: '골드', comp: '동료', regen: '회복', click: '직접 공격' };
   const COIN = A.icon('coin');
+  const GEM = A.icon('gem');
 
   // ---- 저장소 (막혀 있어도 게임은 동작해야 하므로 전부 try/catch) ----
   function loadSave() {
@@ -20,9 +21,11 @@
       return text ? G.deserialize(text) : null;
     } catch (e) { return null; }
   }
+  let booting = true;   // 시작할 때 비운 시간을 계산하기 전에는 저장하지 않는다 (저장하면 '마지막 저장 시각'이 지금으로 바뀌어 비운 시간이 사라진다)
   function writeSave() {
+    if (booting) return;
     try {
-      localStorage.setItem(SAVE_KEY, G.serialize(state, Date.now()));
+      localStorage.setItem(SAVE_KEY, G.serialize(state, Date.now(), serverNow()));
       setText('saveInfo', '자동 저장됨');
     } catch (e) {
       setText('saveInfo', '저장할 수 없어요 (브라우저 설정 확인)');
@@ -33,6 +36,24 @@
   }
 
   let state = loadSave() || G.createState(Date.now());
+
+  // 서버 시각: 광고 횟수·장비 상점 갱신·자리를 비운 시간을 재는 데 쓴다. 기기 시계는 사용자가 바꿀 수 있고 어긋나기도 해서, 이 사이트를 내려 주는 서버의 응답 시각을 기준으로 삼는다.
+  // 서버 시각은 이 사이트를 내려 주는 서버의 응답 시각(Date 헤더)이다. 받지 못하면(오프라인·로컬 파일) 새 하루로 넘어가지 않는다.
+  let srvBase = null, perfBase = 0;
+  async function fetchServerTime(timeoutMs) {
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), timeoutMs || 4000);
+    try {
+      const res = await fetch(location.href.split('#')[0].split('?')[0], { method: 'HEAD', cache: 'no-store', signal: ctl.signal });
+      const date = Date.parse(res.headers.get('Date') || ''), age = Number(res.headers.get('Age') || 0);
+      if (Number.isFinite(date)) { srvBase = date + (Number.isFinite(age) ? age : 0) * 1000; perfBase = performance.now(); return true; }
+    } catch (e) { /* 서버 시각을 못 받으면 마지막으로 확인된 날짜에 머문다 */ }
+    finally { clearTimeout(timer); }
+    return false;
+  }
+  // 받아 둔 서버 시각에서 흐른 시간은 기기 시계가 아니라 performance.now()로 잰다 (도중에 시계를 바꿔도 영향이 없다)
+  const serverNow = () => (srvBase === null ? null : srvBase + (performance.now() - perfBase));
+  setInterval(() => { if (!document.hidden) fetchServerTime(); }, 10 * 60 * 1000);   // 오래 켜 둬도 서버 시각이 어긋나지 않게 가끔 다시 받는다
 
   // ---- 바뀐 값만 화면에 쓴다 (초당 10번 갱신하므로 불필요한 그리기를 줄임) ----
   const cache = {};
@@ -931,7 +952,7 @@
 
   // ---- 증표 상점 ----
   let shopKey = '';
-  const TIER_TITLE = { 1: '1단계 · 기본 강화', 2: '2단계 · 응용 (앞 단계 강화가 필요해요)', 3: '3단계 · 궁극' };
+  const TIER_TITLE = { 1: '1단계 · 기본 강화', 2: '2단계 · 응용 (앞 단계 강화가 필요해요)', 3: '3단계 · 궁극', 4: '4단계 · 직업 강화 (전직한 직업과 이어져요)' };
   function renderShop(force) {
     const s = state;
     const key = G.PERK_KEYS.map((id) => G.perkLv(s, id)).join(',') + '|' + G.tokenBalance(s);
@@ -941,7 +962,7 @@
     $('shopSpent').textContent = `강화에 쓴 증표 ${G.perkSpent(s)}개`;
     $('respecBtn').hidden = G.perkSpent(s) === 0;
     let html = '';
-    for (const tier of [1, 2, 3]) {
+    for (const tier of [1, 2, 3, 4]) {
       html += `<div class="tier">${TIER_TITLE[tier]}</div><div class="tierbox ${tier > 1 ? 'tierbox--sub' : ''}">`;
       for (const id of G.PERK_KEYS) {
         const p = G.PERKS[id];
@@ -1040,12 +1061,13 @@
     return parts.length ? parts.join(' · ') : '아직 효과 없음';
   }
 
+  const spText = (it) => (it.sp ? window.GoblinStore.specialOf(it.sp.k).text(it.sp.v) : '');
   function slotCard(slot, it) {
     if (!it) {
       return `<div class="slot is-empty" data-slot="${slot}"><div class="slot__cap">${G.GEAR[slot].name}</div>${A.icon(G.GEAR[slot].icon)}<div class="slot__name" style="color:var(--muted)">비어 있음</div></div>`;
     }
     return `<button class="slot r${it.r}" type="button" data-slot="${slot}"><div class="slot__cap">${G.GEAR[slot].name}</div>${gearArt(it)}` +
-      `<div class="slot__name">${G.itemName(it)}</div><div class="slot__stat">${itemStat(it)}</div><div class="slot__lv">Lv.${it.ilvl}</div></button>`;
+      `<div class="slot__name">${G.itemName(it)}</div><div class="slot__stat">${itemStat(it)}</div>${it.sp ? `<div class="slot__sp">★ ${spText(it)}</div>` : ''}<div class="slot__lv">Lv.${it.ilvl}</div></button>`;
   }
 
   // 드롭 확률표: 가중치를 백분율로 바꿔서 보여 준다 (높은 등급일수록 확률이 낮다)
@@ -1061,11 +1083,16 @@
   function renderGear(force) {
     const s = state;
     const ids = (it) => (it ? it.id : 0);
-    const key = [G.SLOT_KEYS.map((k) => ids(s.equip[k])).join(','), s.bag.map((x) => x.id).join(','), s.autoEquip, s.autoSell, [...gearNew].join('+'), G.perkLv(s, 'luck'), selectMode, [...picked].join('+')].join('|');
+    const key = [G.SLOT_KEYS.map((k) => ids(s.equip[k])).join(','), s.bag.map((x) => x.id).join(','), s.autoEquip, s.autoSell, s.relicEq.join('+'), [...gearNew].join('+'), G.perkLv(s, 'luck'), selectMode, [...picked].join('+')].join('|');
     if (!force && key === gearKey) return;
     gearKey = key;
     $('gearSummary').textContent = gearSummaryText();
     $('slots').innerHTML = G.SLOT_KEYS.map((k) => slotCard(k, s.equip[k])).join('');
+    $('relicBar').innerHTML = Array.from({ length: Store.RELIC_SLOTS }, (_, i) => {
+      const r = G.relicDef(s.relicEq[i]);
+      return r ? `<button class="rslot is-full" type="button" style="--rc:${r.color}">${A.icon(r.icon)}<span class="rslot__t"><b>${r.name}</b><small>${r.opts.map((o) => o.text).join(' · ')}</small></span></button>`
+        : `<button class="rslot" type="button">${A.icon('star')}<span class="rslot__t"><b>유물 칸 ${i + 1}</b><small>상점에서 유물을 사서 끼워요</small></span></button>`;
+    }).join('');
     $('autoEquip').checked = s.autoEquip;
     $('autoSell').value = String(s.autoSell);
     const bc = $('bagCount');
@@ -1074,7 +1101,7 @@
     for (const id of [...picked]) if (!s.bag.some((x) => x.id === id)) picked.delete(id);   // 이미 팔린 장비는 선택에서 뺀다
     let html = '';
     s.bag.forEach((it) => {
-      html += `<button class="gitem r${it.r} ${gearNew.has(it.id) ? 'is-new' : ''} ${picked.has(it.id) ? 'is-sel' : ''}" type="button" data-item="${it.id}">${gearArt(it)}` +
+      html += `<button class="gitem r${it.r} ${gearNew.has(it.id) ? 'is-new' : ''} ${picked.has(it.id) ? 'is-sel' : ''}" type="button" data-item="${it.id}">${gearArt(it)}${it.sp ? '<i class="gitem__sp">★</i>' : ''}` +
         `<div class="gitem__stat">${KIND_SHORT[it.kind]} +${fmtVal(it.val)}%</div><div class="gitem__lv">Lv.${it.ilvl}</div></button>`;
     });
     for (let i = s.bag.length; i < G.bagLimit(s); i++) html += '<div class="gitem is-empty"></div>';
@@ -1108,7 +1135,7 @@
     }
     const body =
       `<div class="itemd__head"><div class="slot r${it.r}">${gearArt(it)}</div>` +
-      `<div><span class="itemd__tag r${it.r}">${R.name}</span><div class="itemd__main">${def.label} +${fmtVal(it.val)}%</div>` +
+      `<div><span class="itemd__tag r${it.r}">${R.name}</span><div class="itemd__main">${def.label} +${fmtVal(it.val)}%</div>${it.sp ? `<div class="itemd__sp">★ ${spText(it)}</div>` : ''}` +
       `<small>${G.GEAR[it.slot].name} · 드롭 스테이지 ${it.ilvl}</small></div></div>${cmp}`;
     const done = (msg, icon) => { addLog(msg, 'is-good', icon); writeSave(); render(); renderGear(true); };
     if (equipped) {
@@ -1210,21 +1237,43 @@
   function renderAchieves(force) {
     const s = state;
     const done = Object.keys(s.achieved).length;
-    // 달성 수와 진행도가 바뀌었을 때만 다시 그린다
-    const key = G.ACHIEVEMENTS.map((a) => (s.achieved[a.id] ? 'x' : Math.min(a.val(s), a.goal))).join('|');
+    const claimable = G.unclaimedAchievements(s);
+    // 달성 수·진행도·받은 보상이 바뀌었을 때만 다시 그린다
+    const key = G.ACHIEVEMENTS.map((a) => (s.achieved[a.id] ? (s.achClaimed[a.id] ? 'c' : 'x') : Math.min(a.val(s), a.goal))).join('|');
     if (!force && key === achieveKey) return;
     achieveKey = key;
     $('achieveBonus').textContent = `${done} / ${G.ACHIEVEMENTS.length} · 공격력·골드 +${Math.round(done * G.ACHIEVE_BONUS * 100)}%`;
+    const sum = claimable.reduce((t, a) => t + a.reward, 0);
+    $('achClaim').hidden = claimable.length === 0;
+    $('achClaimText').innerHTML = `받을 보상 <b>${claimable.length}개</b> · ${GEM} ${sum}`;
+    const groups = [];
+    for (const a of G.ACHIEVEMENTS) { let g = groups.find((x) => x.name === a.group); if (!g) groups.push(g = { name: a.group, list: [] }); g.list.push(a); }
     let html = '';
-    for (const a of G.ACHIEVEMENTS) {
-      const on = !!s.achieved[a.id];
-      const cur = on ? a.goal : Math.min(a.val(s), a.goal);
-      html += `<div class="ach ${on ? 'is-on' : ''}">${A.icon(a.icon)}<div class="ach__body">` +
-        `<div class="ach__name">${a.name}</div><div class="ach__desc">${a.desc}</div>` +
-        `<div class="ach__bar"><i class="${on ? 'is-full' : ''}" style="width:${(cur / a.goal) * 100}%"></i></div></div></div>`;
+    for (const g of groups) {
+      const n = g.list.filter((a) => s.achieved[a.id]).length;
+      html += `<div class="achgroup"><span>${g.name}</span><small>${n} / ${g.list.length}</small></div><div class="achv">`;
+      for (const a of g.list) {
+        const on = !!s.achieved[a.id], claimed = !!s.achClaimed[a.id];
+        const cur = on ? a.goal : Math.min(a.val(s), a.goal);
+        const reward = claimed ? '<em>받음</em>' : on ? `<span>${GEM}${a.reward}</span><button class="btn btn--gold" type="button" data-claim="${a.id}">받기</button>` : `<span>${GEM}${a.reward}</span>`;
+        html += `<div class="ach ${on ? 'is-on' : ''} ${on && !claimed ? 'is-claim' : ''}">${A.icon(a.icon)}<div class="ach__body">` +
+          `<div class="ach__row"><div class="ach__name">${a.name}</div><div class="ach__num">${G.fmt(cur)} / ${G.fmt(a.goal)}</div></div><div class="ach__desc">${a.desc}</div>` +
+          `<div class="ach__bar"><i class="${on ? 'is-full' : ''}" style="width:${(cur / a.goal) * 100}%"></i></div></div><div class="ach__rw">${reward}</div></div>`;
+      }
+      html += '</div>';
     }
     $('achv').innerHTML = html;
   }
+  function claimAchieves(ids) {
+    let sum = 0;
+    for (const id of ids) sum += G.claimAchievement(state, id);
+    if (sum <= 0) return;
+    addLog(`업적 보상! 크리스탈 +${sum}`, 'is-gold', 'gem');
+    floatText(`+${sum} 크리스탈`, 'float--big', 'center');
+    cloudSoon(); writeSave(); render(); renderAchieves(true);
+  }
+  $('achv').addEventListener('click', (e) => { const b = e.target.closest('button[data-claim]'); if (b) claimAchieves([b.dataset.claim]); });
+  $('achClaimAll').addEventListener('click', () => claimAchieves(G.unclaimedAchievements(state).map((a) => a.id)));
 
   // ---- 이벤트 처리 ----
   function handleEvents(events) {
@@ -1265,7 +1314,7 @@
         if (e.action !== 'sold') gearNew.add(it.id);
       } else if (e.type === 'achieve') {
         const a = G.ACHIEVEMENTS.find((x) => x.id === e.id);
-        addLog(`업적 달성: ${a.name}! 공격력·골드 +${Math.round(G.ACHIEVE_BONUS * 100)}%`, 'is-gold', a.icon);
+        addLog(`업적 달성: ${a.name}! 공격력·골드 +${Math.round(G.ACHIEVE_BONUS * 100)}% · 크리스탈 ${a.reward}개 (기록 탭에서 받기)`, 'is-gold', a.icon);
         floatText('업적 달성!', 'float--big', 'center');
       }
     }
@@ -1398,50 +1447,45 @@
     if (currentTab === 'log') renderAchieves(false);
 
     // 환생 탭
-    const gain = G.prestigeGain(s);
+    const info = G.prestigeInfo(s), gain = info.gain;
+    const fullGain = Math.max(1, Math.floor(info.base * (1 + G.relicV(s, 'token'))));
     const pb = $('prestigeBtn');
     setText('pTokens', G.tokenBalance(s));
     setText('pBonus', '+' + Math.round((G.tokenMult(s) - 1) * 100) + '%');
     setText('pBest', s.bestStage);
     pb.disabled = gain <= 0;
     setText('prestigeBtn', gain > 0 ? `환생하기 (증표 +${gain})` : '아직 환생할 수 없어요');
-    setText('prestigeHint', gain > 0
-      ? `지금 환생하면 왕의 증표 ${gain}개를 얻어요. 증표 1개당 공격력·골드가 영구히 +${Math.round(G.TOKEN_BONUS * 100)}%라서 보너스가 +${Math.round((G.tokenMult(s) - 1) * 100)}% → +${Math.round(G.TOKEN_BONUS * 100 * (s.tokens + gain))}%가 돼요. 골드·레벨·강화·스테이지·직업은 처음부터 다시 시작하고, 직업 도감은 그대로 남아요. 증표는 '증표' 탭에서 영구 강화를 사는 데 쓸 수 있어요.`
-      : `스테이지 ${G.PRESTIGE_MIN_STAGE}에 도달하면 환생할 수 있어요. 환생하면 왕의 증표를 얻어 영구히 강해지고, 다른 직업으로 다시 시작해 볼 수 있어요.`);
+    const perTok = Math.round(G.TOKEN_BONUS * G.resonance(s) * 100), maxTok = Math.round(G.TOKEN_BONUS * (1 + 4 * G.RESONANCE) * 100);
+    const runMin = Math.floor(s.runT / 60);
+    const timeNote = gain <= 0 ? '' : info.timeF < 1
+      ? `이번 판은 <b>${runMin}분</b> 키웠어요. 증표는 판을 <b>10분</b> 키우면 100%이고 지금은 ${Math.round(info.timeF * 100)}%예요 (${Math.ceil(info.secsLeft / 60)}분 더 키우면 +${fullGain}).`
+      : `이번 판을 10분 넘게 키워서 증표를 100% 받아요.`;
+    $('prestigeHint').innerHTML = gain > 0
+      ? `지금 환생하면 왕의 증표 <b>${gain}개</b>를 얻어요. ${timeNote}<br>골드·레벨·강화·스테이지·직업은 처음부터 다시 시작하고, 직업 도감은 그대로 남아요.`
+      : `스테이지 ${G.PRESTIGE_MIN_STAGE}에 도달하면 환생할 수 있어요. 환생하면 왕의 증표를 얻어 영구히 강해지고, 다른 직업으로 다시 시작해 볼 수 있어요.`;
+    $('prestigeNote').innerHTML =
+      `증표 1개당 공격력·골드 <b>+${perTok}%</b>, 체력도 조금 늘어요.<br>` +
+      `<b>전직할 때마다 증표의 힘이 ${Math.round(G.RESONANCE * 100)}%씩 더 깨어나요.</b> 지금 ${G.classPath(s).length}단계 → 4차 직업이면 증표 1개당 +${maxTok}%까지 올라요.<br>` +
+      `증표는 <b>증표 탭</b>에서 영구 강화를 사는 데 쓰고, 4단계의 <b>직업 각성·도감 공명</b>은 전직과 이어진 강화예요.`;
+
+    setText('awayNote', `자리를 비워도 최대 ${Math.round(G.offlineCap(s) / 3600)}시간까지 보상을 받아요. 비운 시간은 ${serverNow() === null ? '기기 시계' : '서버 시각'} 기준으로 재고, 창을 닫아도 백그라운드에 두어도 같은 규칙이에요.`);
 
     // 메뉴 알림 점
     const dots = document.querySelectorAll('.tabnav__btn .dot');
     const want = [anyBuy && currentTab !== 'upgrade', gearNew.size > 0 && currentTab !== 'gear', G.promoStage(s) !== null && currentTab !== 'class', gain > 0 && currentTab !== 'prestige',
-      G.PERK_KEYS.some((id) => G.canBuyPerk(s, id)) && currentTab !== 'shop', G.adStatus(s, today()).left > 0 && adsMod.available && currentTab !== 'store'];
+      G.PERK_KEYS.some((id) => G.canBuyPerk(s, id)) && currentTab !== 'shop', G.adStatus(s, today()).left > 0 && adsMod.available && currentTab !== 'store', G.unclaimedAchievements(s).length > 0 && currentTab !== 'log'];
     dots.forEach((d, i) => { if (d.hidden === want[i]) d.hidden = !want[i]; });
   }
+
+  $('relicBar').addEventListener('click', () => goTab('store'));
 
   // ---- 크리스탈 상점 ----
   // 결제와 광고는 지금 '시연 모드'다: 실제 돈이 청구되지 않고, 실제 광고도 나오지 않는다. (실제로 바꾸는 방법: docs/PAYMENTS.md)
   const Store = window.GoblinStore;
-  const GEM = A.icon('gem');
-  const POTION_ICON = { gold: 'coin', might: 'sword', haste: 'boots', exp: 'arrowup', luck: 'star', hero: 'crown', sand: 'bolt' };
+  const POTION_ICON = { gold: 'coin', might: 'sword', haste: 'boots', exp: 'arrowup', luck: 'star', hero: 'crown' };
   const won = (n) => n.toLocaleString('ko-KR') + '원';
   const clockText = (sec) => (sec >= 3600 ? `${Math.floor(sec / 3600)}시간 ${Math.floor((sec % 3600) / 60)}분` : `${Math.max(1, Math.ceil(sec / 60))}분`);
-  // 광고 횟수를 세는 '오늘'은 기기 시계가 아니라 서버 시각으로 정한다 (시계를 바꿔서 횟수를 늘리지 못하게).
-  // 서버 시각은 이 사이트를 내려 주는 서버의 응답 시각(Date 헤더)이다. 받지 못하면(오프라인·로컬 파일) 새 하루로 넘어가지 않는다.
-  let srvBase = null, perfBase = 0;
-  async function fetchServerTime() {
-    const ctl = new AbortController();
-    const timer = setTimeout(() => ctl.abort(), 4000);
-    try {
-      const res = await fetch(location.href.split('#')[0].split('?')[0], { method: 'HEAD', cache: 'no-store', signal: ctl.signal });
-      const date = Date.parse(res.headers.get('Date') || ''), age = Number(res.headers.get('Age') || 0);
-      if (Number.isFinite(date)) { srvBase = date + (Number.isFinite(age) ? age : 0) * 1000; perfBase = performance.now(); return true; }
-    } catch (e) { /* 서버 시각을 못 받으면 마지막으로 확인된 날짜에 머문다 */ }
-    finally { clearTimeout(timer); }
-    return false;
-  }
-  // 받아 둔 서버 시각에서 흐른 시간은 기기 시계가 아니라 performance.now()로 잰다 (도중에 시계를 바꿔도 영향이 없다)
-  const serverNow = () => (srvBase === null ? null : srvBase + (performance.now() - perfBase));
   const today = () => G.adToday(state, serverNow(), Date.now());
-  fetchServerTime();
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) fetchServerTime(); });
   let storeKey = '', potionKey = '';
   const rarityName = (r) => `<b style="color:${G.RARITIES[r].color}">${G.RARITIES[r].name}</b>`;
   const oddsHtml = (odds) => Object.keys(odds).map(Number).map((r) => `<span style="color:${G.RARITIES[r].color}">${G.RARITIES[r].name} ${odds[r]}%</span>`).join('');
@@ -1453,7 +1497,8 @@
   function renderStore(force) {
     const s = state;
     const ad = G.adStatus(s, today());
-    const key = [s.crystals, ad.left, s.bagExtra, s.bought.starter ? 1 : 0, s.bag.length >= G.bagLimit(s) ? 1 : 0, paymentsMod.mode, adsMod.mode].join('|');
+    const sh = G.shopSync(s, serverNow(), Date.now());
+    const key = [s.crystals, ad.left, s.shop.win, s.shop.reroll, s.shop.bought.join(''), sh.secsLeft === null ? 'x' : Math.floor(sh.secsLeft / 60), s.bag.length, s.bagExtra, Object.keys(s.relics).join('+'), s.relicEq.join('+'), s.bought.starter ? 1 : 0, s.bag.length >= G.bagLimit(s) ? 1 : 0, paymentsMod.mode, adsMod.mode].join('|');
     if (!force && key === storeKey) return;
     storeKey = key;
     $('crystalBal').textContent = G.fmt(s.crystals);
@@ -1466,18 +1511,26 @@
     $('demoNote').innerHTML = demo.join(' ');
 
     $('adCard').innerHTML = `<div class="card prod"><div class="prod__tile" style="--tone:#3a8a4a">${A.icon('arrowup')}</div>` +
-      `<div><div class="prod__name">광고 보고 크리스탈 <span class="prod__chip">무료</span></div>` +
-      `<div class="prod__desc">광고를 끝까지 볼 때마다 ${GEM} <b>크리스탈 ${Store.AD_CRYSTALS}개</b>.<br>오늘 ${ad.left}/${ad.limit}번 남음 · 한국 시간 자정에 초기화</div></div>` +
+      `<div><div class="prod__name">광고 보고 크리스탈·물약 <span class="prod__chip">무료</span></div>` +
+      `<div class="prod__desc">광고를 끝까지 볼 때마다 ${GEM} <b>크리스탈 ${Store.AD_CRYSTALS}개</b>와 <b>랜덤 물약 1개</b> (30분~1시간 동안 강해져요).<br>오늘 ${ad.left}/${ad.limit}번 남음 · 한국 시간 자정에 초기화</div></div>` +
       `<button class="btn prod__btn" type="button" data-ad ${ad.left > 0 && adsMod.available ? '' : 'disabled'}><span>${ad.left > 0 ? '광고 보기' : '오늘 끝'}</span></button></div>`;
 
     const buyBtn = (id, price, disabled, label) => `<button class="btn btn--gold prod__btn" type="button" data-buy="${id}" ${disabled ? 'disabled' : ''}>${label ? `<small>${label}</small>` : ''}<span>${GEM}${price}</span></button>`;
     const card = (icon, tone, name, desc, extra, btn) => `<div class="card prod"><div class="prod__tile" style="--tone:${tone}">${A.icon(icon)}</div><div><div class="prod__name">${name}</div><div class="prod__desc">${desc}</div>${extra || ''}</div>${btn}</div>`;
 
-    $('potionList').innerHTML = [...Store.POTIONS, ...Store.INSTANT].map((p) => {
-      const left = s.potions[p.id] || 0;
-      const active = left > 0 ? `<div class="prod__desc" style="color:var(--green)">적용 중 · ${clockText(left)} 남음</div>` : '';
-      const dur = p.dur ? ` <small>(${clockText(p.dur)})</small>` : '';
-      return card(POTION_ICON[p.id] || 'heart', p.color + '99', p.name, p.desc + dur, active, buyBtn(p.id, p.price, s.crystals < p.price));
+    // 장비 상점: 특별 옵션이 붙은 영웅·전설 장비 (정해진 시간마다 새로 들어온다)
+    $('gshopTimer').textContent = sh.secsLeft === null ? '서버 시각을 확인하지 못했어요' : `다음 갱신까지 ${clockText(sh.secsLeft)}`;
+    $('gshopReroll').disabled = s.shop.reroll >= Store.GEAR_SHOP.rerollMax || s.crystals < Store.GEAR_SHOP.rerollCost;
+    $('gshopReroll').textContent = `새로고침 ${GEM.replace('class="ic"', 'class="ic ic--s"')}${Store.GEAR_SHOP.rerollCost} (${Store.GEAR_SHOP.rerollMax - s.shop.reroll}/${Store.GEAR_SHOP.rerollMax})`;
+    $('gshopNote').innerHTML = `영웅·전설 장비에 <b>드롭에는 없는 특별 옵션</b>이 붙어 있어요. 낀 동안 효과가 적용되고, 옵션 없는 드롭에게 자리를 뺏기지 않아요. 진열은 ${Store.GEAR_SHOP.refreshSec / 3600}시간마다 새로 바뀌어요.`;
+    $('gearShop').innerHTML = G.shopStock(s).map((o) => {
+      const it = o.item, R = G.RARITIES[it.r], cur = s.equip[it.slot];
+      const cmp = !cur ? '<span class="cmp-plus">칸이 비어 있어요</span>' : cur.kind === it.kind ? (() => { const d = Math.round((it.val - cur.val) * 10) / 10; return `<span class="${d >= 0 ? 'cmp-plus' : 'cmp-minus'}">낀 장비보다 ${d >= 0 ? '▲ +' : '▼ '}${d}%p</span>`; })() : '';
+      const btn = o.sold ? '<button class="btn btn--gray prod__btn" type="button" disabled>판매 완료</button>' : `<button class="btn btn--gold prod__btn" type="button" data-gbuy="${o.i}" ${s.crystals < o.price ? 'disabled' : ''}><span>${GEM}${o.price}</span></button>`;
+      return `<div class="card prod gshop r${it.r} ${o.sold ? 'is-sold' : ''}" style="--rc:${R.color}"><div class="prod__tile">${gearArt(it)}</div>` +
+        `<div><div class="prod__name" style="color:${R.color}">${G.itemName(it)} <span class="prod__chip">${R.name}</span></div>` +
+        `<div class="prod__desc">${G.GEAR[it.slot].kinds[it.kind].label} +${fmtVal(it.val)}% · Lv.${it.ilvl} ${cmp}</div>` +
+        `<div class="relic__opts" style="--rc:${R.color}"><b>${spText(it)}</b></div></div>${btn}</div>`;
     }).join('');
 
     $('boxList').innerHTML = Store.BOXES.map((b) =>
@@ -1489,7 +1542,17 @@
       card('pouch', '#8a6a3a99', u.name, `${u.desc}<br>지금 ${G.bagLimit(s)}칸`, '', bagMaxed ? '<button class="btn btn--gray prod__btn" type="button" disabled>MAX</button>' : buyBtn(u.id, u.price, s.crystals < u.price)) +
       card('party', '#ff8a3a99', st.name, st.desc, '', s.bought.starter ? '<button class="btn btn--gray prod__btn" type="button" disabled>구매 완료</button>' : buyBtn(st.id, st.price, s.crystals < st.price));
 
-    $('storeNote').innerHTML = '장비 상자는 위 확률대로 등급이 정해져요 (같은 등급 안에서 능력은 무작위). 산 장비는 자동 판매되지 않고, 더 좋으면 바로 장착돼요. 물약은 게임을 꺼 둔 동안에도 시간이 줄어요.';
+    $('relicCount').textContent = `장착 ${s.relicEq.length}/${Store.RELIC_SLOTS} · 드롭으로 얻을 수 없는 특별 옵션`;
+    $('relicList').innerHTML = Store.RELICS.map((r) => {
+      const own = !!s.relics[r.id], on = s.relicEq.includes(r.id);
+      const btn = !own ? buyBtn(r.id, r.price, s.crystals < r.price)
+        : `<button class="btn ${on ? 'btn--gray' : 'btn--gold'} prod__btn" type="button" data-relic="${r.id}">${on ? '해제' : '장착'}</button>`;
+      const opts = `<div class="relic__opts">${r.opts.map((o) => `<b>${o.text}</b>`).join('')}</div>`;
+      return `<div class="card prod relic ${on ? 'is-on' : ''}" style="--rc:${r.color}"><div class="prod__tile" style="--tone:${r.color}55">${A.icon(r.icon)}</div>` +
+        `<div><div class="prod__name">${r.name} <span class="prod__chip prod__chip--relic">${on ? '장착 중' : own ? '보유' : '유물'}</span></div><div class="prod__desc">${r.desc}</div>${opts}</div>${btn}</div>`;
+    }).join('');
+
+    $('storeNote').innerHTML = '유물은 한 번 사면 영구히 내 것이고 환생해도 남아요. 한 번에 2개까지만 장착할 수 있어서 상황에 맞게 바꿔 끼우세요. 장비 상자는 위 확률대로 등급이 정해져요 (같은 등급 안에서 능력은 무작위). 산 장비는 자동 판매되지 않고, 더 좋으면 바로 장착돼요. 물약은 게임을 꺼 둔 동안에도 시간이 줄어요.';
   }
 
   function renderPotionbar() {
@@ -1502,6 +1565,42 @@
     bar.innerHTML = list.map((p) => `<div class="pchip" style="--pc:${p.color}">${A.icon(POTION_ICON[p.id] || 'heart')}${clockText(state.potions[p.id])}</div>`).join('');
   }
 
+  function toggleRelic(id) {
+    const r = G.toggleRelic(state, id);
+    if (r === 'full') { openModal('유물 칸이 가득 찼어요', `유물은 ${Store.RELIC_SLOTS}개까지만 낄 수 있어요. 다른 유물을 먼저 해제해 주세요.`, [{ text: '확인' }]); return; }
+    cloudSoon(); writeSave(); render(); renderStore(true); renderGear(true);
+  }
+
+  function askBuyGear(i) {
+    const o = G.shopStock(state)[i];
+    if (!o || o.sold) return;
+    const it = o.item, R = G.RARITIES[it.r];
+    openModal('구매할까요?',
+      `<div class="got" style="--rc:${R.color}">${gearArt(it)}<div><b>[${R.name}] ${G.itemName(it)}</b><small>${G.GEAR[it.slot].kinds[it.kind].label} +${fmtVal(it.val)}% · Lv.${it.ilvl}</small></div></div>` +
+      `<div class="relic__opts" style="--rc:${R.color};align-items:center"><b>${spText(it)}</b></div>` +
+      `<div style="margin-top:12px">${GEM} 크리스탈 <b>${o.price}개</b> 사용</div><div style="margin-top:2px"><small>구매 후 남는 크리스탈 ${state.crystals - o.price}개</small></div>`,
+      [{ text: '취소' }, { text: '구매하기', cls: 'btn--gold', onClick: () => {
+        const res = G.buyShopItem(state, i);
+        if (!res.ok) { openModal('살 수 없어요', reasonText[res.reason] || (res.reason === 'sold' ? '이미 판매된 장비예요' : '다시 시도해 주세요'), [{ text: '확인' }]); renderStore(true); return; }
+        addLog(`${G.itemName(res.item)} 구매!`, 'is-gold', G.GEAR[res.item.slot].icon);
+        if (res.action === 'bag') gearNew.add(res.item.id);
+        cloudSoon(); writeSave(); render(); renderStore(true); renderGear(true);
+        const r2 = G.RARITIES[res.item.r];
+        openModal('구매 완료', `<div class="got" style="--rc:${r2.color}">${gearArt(res.item)}<div><b>[${r2.name}] ${G.itemName(res.item)}</b><small>${G.GEAR[res.item.slot].kinds[res.item.kind].label} +${fmtVal(res.item.val)}%</small></div></div>` +
+          `<div class="relic__opts" style="--rc:${r2.color};align-items:center"><b>${spText(res.item)}</b></div>` +
+          `<div style="margin-top:8px;color:var(--green);font-weight:800">${res.action === 'equipped' ? '바로 장착했어요' : '가방에 넣었어요. 장비 탭에서 껴 보세요'}</div>`, [{ text: '확인', cls: 'btn--gold' }]);
+      } }]);
+  }
+  $('gshopReroll').addEventListener('click', () => {
+    const left = Store.GEAR_SHOP.rerollMax - state.shop.reroll;
+    openModal('진열을 새로 바꿀까요?', `${GEM} 크리스탈 <b>${Store.GEAR_SHOP.rerollCost}개</b>를 내고 진열을 새 물건으로 바꿔요.<br><small>이번 갱신 시간에 ${left}번 더 할 수 있어요. 산 물건은 그대로 내 것이에요.</small>`,
+      [{ text: '취소' }, { text: '새로고침', cls: 'btn--gold', onClick: () => {
+        const r = G.rerollShop(state);
+        if (!r.ok) { openModal('할 수 없어요', r.reason === 'max' ? '이번 갱신 시간에는 더 새로고침할 수 없어요' : '크리스탈이 부족해요', [{ text: '확인' }]); return; }
+        cloudSoon(); writeSave(); render(); renderStore(true);
+      } }]);
+  });
+
   // 구매 결과 창: 받은 장비를 보여 준다
   function showBought(res) {
     const p = res.product;
@@ -1509,16 +1608,19 @@
     if (res.items && res.items.length) {
       body += res.items.map((it) => `<div class="got" style="--rc:${G.RARITIES[it.r].color}">${gearArt(it)}<div><b>[${G.RARITIES[it.r].name}] ${G.itemName(it)}</b><small>${KIND_SHORT[it.kind]} +${fmtVal(it.val)}% · Lv.${it.ilvl}</small></div></div>`).join('');
       body += '<small>가방에서 확인하고, 더 좋으면 자동으로 장착됐어요.</small>';
+    } else if (p.opts) {
+      const on = state.relicEq.includes(p.id);
+      body += `<div class="relic__opts" style="--rc:${p.color};align-items:center">${p.opts.map((o) => `<b>${o.text}</b>`).join('')}</div><div style="margin-top:8px;color:var(--green);font-weight:800">${on ? '바로 장착했어요' : '유물 칸이 가득 차 있어요. 상점 탭에서 바꿔 낄 수 있어요'}</div>`;
     } else body += `<div style="color:var(--green);font-weight:800">${p.desc}</div>`;
     openModal('구매 완료', body, [{ text: '확인', cls: 'btn--gold' }]);
   }
   function askBuyProduct(id) {
-    const all = [...Store.POTIONS, ...Store.INSTANT, ...Store.BOXES, ...Store.UTILITIES, Store.STARTER];
+    const all = [...Store.BOXES, ...Store.UTILITIES, Store.STARTER, ...Store.RELICS];
     const p = all.find((x) => x.id === id);
     if (!p) return;
-    const odds = p.odds ? `<div class="prod__odds" style="justify-content:center;margin-top:6px">${oddsHtml(p.odds)}</div>` : '';
+    const odds = p.odds ? `<div class="prod__odds" style="justify-content:center;margin-top:6px">${oddsHtml(p.odds)}</div>` : p.opts ? `<div class="relic__opts" style="--rc:${p.color};align-items:center;margin-top:6px">${p.opts.map((o) => `<b>${o.text}</b>`).join('')}</div>` : '';
     openModal('구매할까요?',
-      `<div style="font-weight:900;font-size:16px">${p.name}</div><div style="margin-top:4px;color:var(--muted)">${p.desc}</div>${odds}` +
+      `<div style="font-weight:900;font-size:16px">${p.name}</div><div style="margin-top:4px;color:var(--muted)">${p.desc || ''}</div>${odds}` +
       `<div style="margin-top:12px">${GEM} 크리스탈 <b>${p.price}개</b> 사용</div><div style="margin-top:2px"><small>구매 후 남는 크리스탈 ${state.crystals - p.price}개</small></div>`,
       [{ text: '취소' }, { text: '구매하기', cls: 'btn--gold', onClick: () => {
         const res = G.buyProduct(state, id);
@@ -1532,6 +1634,10 @@
   document.querySelector('.tab[data-tab="store"]').addEventListener('click', (e) => {
     const b = e.target.closest('button[data-buy]');
     if (b && !b.disabled) askBuyProduct(b.dataset.buy);
+    const rb = e.target.closest('button[data-relic]');
+    if (rb) toggleRelic(rb.dataset.relic);
+    const gb = e.target.closest('button[data-gbuy]');
+    if (gb && !gb.disabled) askBuyGear(Number(gb.dataset.gbuy));
     if (e.target.closest('button[data-ad]') && !e.target.closest('button[data-ad]').disabled) watchAd();
   });
 
@@ -1599,8 +1705,9 @@
       if (r.status === 'completed') {
         const res = G.claimAd(state, today());   // 서버 시각 기준으로 센다
         if (res.ok) {
-          addLog(`광고 보상! 크리스탈 +${res.crystals}`, 'is-gold', 'gem');
+          addLog(`광고 보상! 크리스탈 +${res.crystals}, ${res.potion.name}`, 'is-gold', 'gem');
           floatText(`+${res.crystals} 크리스탈`, 'float--big', 'center');
+          openModal('광고 보상', `<div style="font-size:15px;font-weight:900">${GEM} 크리스탈 +${res.crystals}</div><div class="got" style="--rc:${res.potion.color};margin-top:8px">${A.icon(POTION_ICON[res.potion.id] || 'heart')}<div><b>${res.potion.name}</b><small>${res.potion.desc} · ${clockText(res.potion.dur)}</small></div></div>`, [{ text: '확인', cls: 'btn--gold' }]);
           cloudSoon(); writeSave(); render(); renderStore(true);
         }
       } else if (r.status === 'unavailable') openModal('광고를 볼 수 없어요', esc(r.reason || ''), [{ text: '확인' }]);
@@ -1637,10 +1744,12 @@
 
   // ---- 환생 / 처음부터 ----
   $('prestigeBtn').addEventListener('click', () => {
-    const gain = G.prestigeGain(state);
+    const info = G.prestigeInfo(state), gain = info.gain;
     if (gain <= 0) return;
+    const fullGain = Math.max(1, Math.floor(info.base * (1 + G.relicV(state, 'token'))));
+    const early = info.timeF < 1 ? `<div class="demoban" style="margin-top:8px">이번 판을 아직 ${Math.floor(state.runT / 60)}분밖에 키우지 않았어요. ${Math.ceil(info.secsLeft / 60)}분 더 키우면 증표 <b>${fullGain}개</b>를 받아요.</div>` : '';
     openModal('환생할까요?',
-      `${A.icon('crown')}왕의 증표 <b>${gain}개</b>를 얻고<br>골드·레벨·강화·스테이지·직업이 처음으로 돌아가요.<br><small>직업 도감은 그대로 남아요.</small>`,
+      `${A.icon('crown')}왕의 증표 <b>${gain}개</b>를 얻고<br>골드·레벨·강화·스테이지·직업이 처음으로 돌아가요.<br><small>직업 도감은 그대로 남아요.</small>${early}`,
       [
         { text: '취소' },
         { text: '환생하기', cls: 'btn--gold', onClick: () => {
@@ -1677,6 +1786,11 @@
 
   function showOffline(r) {
     const stage = r.stageTo === r.stageFrom ? `스테이지 ${r.stageTo}에서 계속 싸웠어요` : `스테이지 ${r.stageFrom} → ${r.stageTo}`;
+    const cap = G.offlineCap(state);
+    const notes = [];
+    if (r.capped || r.seconds >= cap) notes.push(`실제로는 ${G.fmtTime(r.raw || r.seconds)} 비웠지만, 보상은 최대 ${Math.round(cap / 3600)}시간까지예요.`);
+    if (r.jumped) notes.push('기기 시계가 서버 시각과 크게 달라서 <b>서버 시각</b> 기준으로 계산했어요.');
+    else if (r.source) notes.push(`시간은 ${r.source === 'server' ? '서버 시각' : '기기 시계'} 기준이에요.`);
     openModal('자리를 비운 사이에...',
       `${G.fmtTime(r.seconds)} 동안 고블린이 열심히 싸웠어요.<br>` +
       `${COIN} 골드 +${G.fmt(r.gold)}<br>` +
@@ -1684,8 +1798,9 @@
       `${A.icon('arrowup')} 레벨 ${r.levelFrom} → ${r.levelTo}<br>` +
       `${A.icon('star')} ${stage}` +
       (r.drops > 0 ? `<br>${A.icon('gem')} 장비 ${r.drops}개 발견 (${r.dropsSold}개 자동 판매)` + (r.dropBest >= 2 ? ` · 최고 <b style="color:${G.RARITIES[r.dropBest].color}">${G.RARITIES[r.dropBest].name}</b>` : '') : '') +
-      (r.seconds >= G.offlineCap(state) ? `<br><small>(오프라인 보상은 최대 ${Math.round(G.offlineCap(state) / 3600)}시간까지예요)</small>` : ''),
+      (notes.length ? `<br><small>${notes.join('<br>')}</small>` : ''),
       [{ text: '받기', cls: '' }]);
+    addLog(`${G.fmtTime(r.seconds)} 동안 자리를 비웠어요`, 'is-gold', 'coin');
   }
 
 
@@ -1713,12 +1828,13 @@
   function applyCloudSave(text) {
     const next = G.deserialize(text);
     if (!next) return false;
-    next.savedAt = Date.now();   // 기기를 바꾼 사이의 시간을 오프라인 보상으로 또 주지 않는다 (다른 기기가 이미 받았을 수 있다)
-    state = next;
+    state = next;   // 그 저장이 마지막으로 저장된 뒤 지금까지 비운 시간도 보상으로 인정한다 (다른 기기에서 이미 받았다면 그 기기가 저장 시각을 옮겨 두었으므로 두 번 받지 않는다)
     logs.length = 0;
     lastLook = ''; lastMonster = '';
     gearKey = ''; shopKey = ''; storeKey = ''; potionKey = ''; classKey = ''; achieveKey = '';
     gearNew.clear();
+    const away = G.applyOffline(state, Date.now(), serverNow());
+    if (away) showOffline(away);
     lastHits = state.hits;
     addLog('클라우드 저장을 불러왔다', 'is-good', 'crown');
     writeSave();
@@ -1744,7 +1860,7 @@
   }
 
   const cloud = window.CloudClient.createCloud(cloudAdapter, {
-    getLocal: () => ({ text: G.serialize(state, Date.now()), summary: window.Sync.summaryOf(state, G.lookId(state)) }),
+    getLocal: () => ({ text: G.serialize(state, Date.now(), serverNow()), summary: window.Sync.summaryOf(state, G.lookId(state)) }),
     applySave: applyCloudSave,
     askConflict,
     storage: cloudStorage,
@@ -1827,51 +1943,93 @@
     if (Date.now() - hiddenAt > 30000) cloud.sync();   // 한동안 다른 화면에 있다 돌아오면, 다른 기기에서 진행했는지 확인해 이어받는다
   });
 
-  // ---- 시작: 자리를 비운 동안의 보상 ----
-  buildUpgrades();
-  const offline = G.applyOffline(state, Date.now());
-  if (offline) {
-    showOffline(offline);
-    addLog(`${G.fmtTime(offline.seconds)} 동안 자리를 비웠어요`, 'is-gold', 'coin');
-  } else {
-    addLog('고블린이 모험을 시작했다!', 'is-good', 'sword');
-  }
-  render();
-
-  // ---- 메인 루프 ----
-  let last = Date.now();
+  // ---- 자리를 비운 시간 ----
+  // 세 경우가 있다: ① 창을 닫았다 다시 연 경우(시작할 때), ② 탭이 백그라운드에 있는 동안 브라우저가 타이머를 늦추거나 멈춘 경우, ③ 기기가 잠들었다 깨어난 경우.
+  // 모두 같은 규칙으로 잰다: 서버 시각이 있으면 서버 시각의 차이, 없으면 기기 시계의 차이 (G.applyOffline). 화면을 벗어난 동안 여러 번 깨어난 시간은 합쳐서 한도를 지키고, 돌아왔을 때 한 번만 알려 준다.
+  let last = Date.now(), lastPerf = performance.now(), lastSrv = null;
   let dealtTimer = 0;
   let lastHits = state.hits;
+  let waking = true;          // 시작 처리나 깨어나는 처리가 끝날 때까지 루프를 멈춘다
+  let away = null;            // 화면을 벗어난 동안의 기록 { at, mark, seconds(시뮬레이션한 시간), chunk(한도에 세는 시간), dropBest, source, jumped, capped }
+  const awayMarkOf = () => ({ gold: state.gold, kills: state.totalKills, stage: state.stage, level: state.level, drops: state.stats.drops, sold: state.stats.sold });
+  const resetClock = () => { last = Date.now(); lastPerf = performance.now(); lastSrv = serverNow(); };
 
-  function frame() {
-    const now = Date.now();
-    let dt = (now - last) / 1000;
-    last = now;
-    if (dt < 0) dt = 0;   // 시계가 뒤로 갔을 때
-
-    if (dt >= 30) {
-      // 탭이 오래 멈춰 있었다면 오프라인 보상과 같은 방식으로 처리
-      state.savedAt = now - dt * 1000;
-      const r = G.applyOffline(state, now);
-      if (r) showOffline(r);
+  // 자리를 비웠다가 돌아온(또는 시계가 튄) 순간: 서버 시각을 다시 받아서 비운 시간을 재고 보상을 준다
+  async function wake() {
+    waking = true;
+    try {
+      await fetchServerTime();
+      state.savedAt = last;                                             // 마지막 프레임 시각과
+      state.srvSavedAt = lastSrv === null ? 0 : Math.floor(lastSrv);    // 그때의 서버 시각에서부터 잰다
+      const left = away ? G.offlineCap(state) - away.chunk : Infinity;
+      const r = G.applyOffline(state, Date.now(), serverNow(), left);
+      if (r) {
+        if (away) {   // 화면 밖이면 조용히 모아 두었다가 돌아왔을 때 한 번만 알린다
+          away.seconds += r.seconds; away.chunk += r.seconds; away.dropBest = Math.max(away.dropBest, r.dropBest);
+          away.source = r.source; away.jumped = away.jumped || r.jumped; away.capped = away.capped || r.capped;
+        } else showOffline(r);
+      }
       lastHits = state.hits;
-    } else {
-      const events = G.simulate(state, dt);
-      handleEvents(events);
-      if (state.hits < lastHits) lastHits = state.hits;   // 처음부터 다시 시작해 횟수가 초기화된 경우
-      if (state.hits !== lastHits) {
-        const n = state.hits - lastHits;
-        lastHits = state.hits;
-        if (!document.hidden) onHeroHit(n);
-      }
-      if (!document.hidden) enemyAttackFx(dt);
-      // 동료의 공격은 자잘하게 나누지 않고 0.5초마다 합쳐서 작게 보여 준다
-      dealtTimer += dt;
-      if (dealtTimer >= 0.5) {
-        dealtTimer = 0;
-        const comp = G.companionDps(state) * 0.5;
-        if (comp > 0 && state.downT <= 0 && !calm()) floatText('-' + G.fmt(comp), 'float--comp', 'comp');
-      }
+    } finally { resetClock(); waking = false; }
+  }
+  function finishAway() {
+    const a = away;
+    away = null;
+    if (!a || a.seconds < 30) return;
+    showOffline({ seconds: Math.floor(a.seconds), raw: Math.floor(a.seconds), gold: Math.floor(state.gold - a.mark.gold), kills: state.totalKills - a.mark.kills,
+      stageFrom: a.mark.stage, stageTo: state.stage, levelFrom: a.mark.level, levelTo: state.level,
+      drops: state.stats.drops - a.mark.drops, dropsSold: state.stats.sold - a.mark.sold, dropBest: a.dropBest, source: a.source, jumped: a.jumped, capped: a.capped });
+  }
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) { away = { at: Date.now(), mark: awayMarkOf(), seconds: 0, chunk: 0, dropBest: -1, source: null, jumped: false, capped: false }; return; }
+    fetchServerTime();   // 돌아오면 서버 시각을 다시 받는다 (광고 횟수·장비 상점 갱신도 이걸 쓴다)
+    // 돌아왔다: 아직 시간 확인 중이면 끝난 뒤에 알린다
+    const done = () => { if (waking) setTimeout(done, 100); else finishAway(); };
+    setTimeout(done, 50);
+  });
+
+  buildUpgrades();
+  render();
+  addLog('고블린이 모험을 시작했다!', 'is-good', 'sword');
+  (async () => {
+    await fetchServerTime(2500);   // 창을 닫았다 열면 서버 시각부터 확인한다 (로컬 파일처럼 못 받는 곳에서는 바로 넘어간다)
+    const offline = G.applyOffline(state, Date.now(), serverNow());
+    if (offline) showOffline(offline);
+    lastHits = state.hits;
+    booting = false;
+    writeSave();
+    resetClock();
+    waking = false;
+    renderAccount();
+    cloud.start();   // 로그인 상태를 확인하고, 로그인돼 있으면 클라우드와 저장을 맞춘다
+  })();
+
+  // ---- 메인 루프 ----
+  function frame() {
+    if (waking) return;
+    const now = Date.now(), perf = performance.now();
+    let dt = (now - last) / 1000;
+    const dtPerf = (perf - lastPerf) / 1000;
+    // 30초 넘게 멈췄거나, 기기 시계가 뒤로/크게 앞으로 튀었거나(시계 변경·절전), 시계와 내부 타이머가 30초 넘게 어긋나면 서버 시각으로 다시 잰다
+    if (dt >= 30 || dt < -5 || Math.abs(dt - dtPerf) > 30) { wake(); return; }
+    last = now; lastPerf = perf; lastSrv = serverNow();
+    if (dt < 0) dt = 0;
+    const events = G.simulate(state, dt);
+    handleEvents(events);
+    if (away) { away.seconds += dt; for (const e of events) if (e.type === 'drop') away.dropBest = Math.max(away.dropBest, e.item.r); }
+    if (state.hits < lastHits) lastHits = state.hits;   // 처음부터 다시 시작해 횟수가 초기화된 경우
+    if (state.hits !== lastHits) {
+      const n = state.hits - lastHits;
+      lastHits = state.hits;
+      if (!document.hidden) onHeroHit(n);
+    }
+    if (!document.hidden) enemyAttackFx(dt);
+    // 동료의 공격은 자잘하게 나누지 않고 0.5초마다 합쳐서 작게 보여 준다
+    dealtTimer += dt;
+    if (dealtTimer >= 0.5) {
+      dealtTimer = 0;
+      const comp = G.companionDps(state) * 0.5;
+      if (comp > 0 && state.downT <= 0 && !calm()) floatText('-' + G.fmt(comp), 'float--comp', 'comp');
     }
     render();
   }
@@ -1882,6 +2040,4 @@
   document.addEventListener('visibilitychange', () => { if (document.hidden) writeSave(); });
   window.addEventListener('pagehide', writeSave);
 
-  renderAccount();
-  cloud.start();   // 로그인 상태를 확인하고, 로그인돼 있으면 클라우드와 저장을 맞춘다
 })();

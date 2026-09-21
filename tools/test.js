@@ -38,12 +38,12 @@ test('조건을 채우면 업적이 한 번만 달성된다', () => {
   assert.strictEqual(G.checkAchievements(s).length, 0, '이미 달성한 업적은 다시 알리지 않는다');
 });
 
-test('달성할 때마다 공격력과 골드가 +2%씩 늘어난다', () => {
+test('달성할 때마다 공격력과 골드가 +1%씩 늘어난다', () => {
   const s = G.createState(0);
   const dmg0 = G.hitDmg(s), gold0 = G.goldMult(s);
   s.achieved.kill100 = true; s.achieved.stage10 = true;
-  assert.ok(Math.abs(G.hitDmg(s) / dmg0 - 1.04) < 1e-9);
-  assert.ok(Math.abs(G.goldMult(s) / gold0 - 1.04) < 1e-9);
+  assert.ok(Math.abs(G.hitDmg(s) / dmg0 - 1.02) < 1e-9);
+  assert.ok(Math.abs(G.goldMult(s) / gold0 - 1.02) < 1e-9);
 });
 
 test('전투 중 처치 수 업적이 사건(achieve)으로 나온다', () => {
@@ -97,10 +97,10 @@ test('2차 전직하면 도감에 기록이 생기고 처치 수와 최고 스�
   const s = G.createState(0);
   s.level = 20; G.promote(s, 'mage'); G.promote(s, 'pyromancer');
   assert.strictEqual(G.dexRecord(s, 'pyromancer').runs, 1);
-  s.monsterHp = 1; G.clickAttack(s);   // 몬스터 1마리 처치
+  s.stage = 30; s.monsterHp = 1; G.clickAttack(s);   // 몬스터 1마리 처치 (뒤 몬스터는 체력이 커서 남은 피해가 이어지지 않는다)
   assert.strictEqual(G.dexRecord(s, 'pyromancer').kills, 1);
-  s.stage = 21; s.killsInStage = 4; s.monsterHp = 1; G.clickAttack(s);   // 스테이지를 넘긴다
-  assert.strictEqual(G.dexRecord(s, 'pyromancer').best, 22);
+  s.stage = 31; s.killsInStage = 4; s.monsterHp = 1; G.clickAttack(s);   // 스테이지를 넘긴다
+  assert.strictEqual(G.dexRecord(s, 'pyromancer').best, 32);
 });
 
 test('도감 등급은 차수별 기준 스테이지에서 오르고 그 직업 보너스를 20%씩 늘린다', () => {
@@ -190,7 +190,7 @@ test('4차까지 순서대로 전직하고, 자식이 아닌 직업이나 건너
 test('3차·4차 직업의 배율이 이전 단계 배율에 모두 곱해진다', () => {
   const s = G.createState(0);
   walkPath(s, ['mage', 'pyromancer', 'infernomage', 'flameemperor']);
-  const expectDmg = 1.35 * 1.5 * 1.35 * 1.6, expectClick = 2 * 1.5 * 1.5;
+  const expectDmg = 1.35 * 1.5 * 1.35 * 2.5, expectClick = 2 * 1.5 * 1.5;
   assert.ok(Math.abs(G.statMult(s, 'dmg') - expectDmg) < 1e-9, G.statMult(s, 'dmg') + ' vs ' + expectDmg);
   assert.ok(Math.abs(G.statMult(s, 'click') - expectClick) < 1e-9);
   assert.ok(Math.abs(G.statMult(s, 'hp') - 0.85) < 1e-9);
@@ -400,7 +400,7 @@ test('실제로 몬스터를 잡았을 때 드롭 비율이 8% 근처다 (2만 �
   const s = G.createState(0); s.autoSell = 4;   // 전부 자동 판매되게 해서 가방이 차지 않게 한다
   let drops = 0;
   for (let i = 0; i < 20000; i++) {
-    s.stage = 1; s.killsInStage = 0; s.monsterHp = 1;
+    s.stage = 31; s.killsInStage = 0; s.monsterHp = 1;
     drops += G.clickAttack(s).events.filter((e) => e.type === 'drop').length;
   }
   const rate = drops / 20000;
@@ -1027,11 +1027,11 @@ const St = G.STORE;
 const cash = (n) => { const t = G.createState(0); t.crystals = n; return t; };
 
 test('상품 데이터가 올바르다 (가격 양수, 아이디 중복 없음, 상자 확률 합 100, 물약 시간은 상한 이하)', () => {
-  const ids = [...St.POTIONS, ...St.INSTANT, ...St.BOXES, ...St.UTILITIES, St.STARTER].map((x) => x.id);
+  const ids = [...St.BOXES, ...St.UTILITIES, ...St.RELICS, St.STARTER].map((x) => x.id);
   assert.strictEqual(new Set(ids).size, ids.length);
-  for (const x of [...St.POTIONS, ...St.INSTANT, ...St.BOXES, ...St.UTILITIES, St.STARTER]) assert.ok(x.price > 0 && x.name && x.desc, x.id);
+  for (const x of [...St.BOXES, ...St.UTILITIES, St.STARTER]) assert.ok(x.price > 0 && x.name && x.desc, x.id);
   for (const b of St.BOXES) assert.strictEqual(Object.values(b.odds).reduce((a, c) => a + c, 0), 100, b.id + ' 확률 합');
-  for (const p of St.POTIONS) assert.ok(p.dur > 0 && p.dur <= St.POTION_CAP, p.id);
+  for (const p of St.POTIONS) assert.ok(p.dur > 0 && p.dur <= St.POTION_CAP && p.w > 0 && !('price' in p), p.id + ' (물약은 팔지 않는다)');
   for (const c of St.CRYSTAL_PACKS) assert.ok(c.crystals >= c.bonus && c.price > 0, c.id);
   const perWon = St.CRYSTAL_PACKS.map((c) => c.crystals / c.price);
   assert.ok(perWon.every((v, i) => i === 0 || v >= perWon[i - 1]), '많이 살수록 크리스탈당 가격이 같거나 싸다');
@@ -1049,22 +1049,39 @@ test('충전: 크리스탈이 늘고, 같은 주문 번호는 두 번 지급되�
   assert.strictEqual(t.orders.length, 50, '주문 기록은 최근 50개만');
 });
 
-test('물약: 크리스탈을 쓰고 효과 시간을 얻으며, 다시 사면 시간이 늘고, 상한(3시간)을 넘지 않는다', () => {
-  const t = cash(1000);
-  assert.deepStrictEqual([G.buyProduct(t, 'gold').ok, t.crystals, t.potions.gold], [true, 940, 1800]);
-  G.buyProduct(t, 'gold');
-  assert.strictEqual(t.potions.gold, 3600);
-  for (let i = 0; i < 10; i++) G.buyProduct(t, 'gold');
-  assert.strictEqual(t.potions.gold, St.POTION_CAP);
+test('물약은 상점에서 팔지 않는다. 광고를 볼 때 하나씩 받고, 겹치면 시간이 늘며 상한(3시간)을 넘지 않는다', () => {
+  const t = cash(5000);
+  for (const id of ['gold', 'might', 'haste', 'exp', 'luck', 'hero', 'sand']) assert.strictEqual(G.buyProduct(t, id).reason, 'unknown', id);
+  assert.strictEqual(t.crystals, 5000);
+  G.setRandom(seeded(5));
+  const u = G.createState(0);
+  const r = G.claimAd(u, '2026-09-21');
+  assert.ok(r.ok && r.potion && St.POTIONS.some((p) => p.id === r.potion.id));
+  assert.strictEqual(u.potions[r.potion.id], r.potion.dur, '받은 물약의 시간만큼 효과가 생긴다');
+  assert.strictEqual(u.stats.potions, 1);
+  u.potions[r.potion.id] = St.POTION_CAP - 10;
+  G.setRandom(() => 0);   // 첫 물약(황금)이 나오게 한다
+  u.potions.gold = St.POTION_CAP - 10; G.claimAd(u, '2026-09-21');
+  assert.strictEqual(u.potions.gold, St.POTION_CAP, '상한을 넘지 않는다');
+  G.setRandom();
 });
 
-test('크리스탈이 모자라면 사지 못하고 아무것도 바뀌지 않는다. 없는 상품도 거절한다', () => {
+test('광고 물약은 가중치대로 나오고 용사의 비약은 드물다 (2만 번)', () => {
+  G.setRandom(seeded(8));
+  const n = {};
+  for (let i = 0; i < 20000; i++) { const u = G.createState(0); const p = G.claimAd(u, 'd' + 0).potion; n[p.id] = (n[p.id] || 0) + 1; }
+  const total = St.POTIONS.reduce((a, p) => a + p.w, 0);
+  for (const p of St.POTIONS) assert.ok(Math.abs(n[p.id] / 20000 - p.w / total) < 0.015, `${p.id} ${(n[p.id] / 200).toFixed(1)}% (기대 ${(100 * p.w / total).toFixed(1)}%)`);
+  assert.ok(n.hero < n.gold / 2);
+  G.setRandom();
+});
+
+test('없는 상품은 거절하고, 크리스탈이 모자라면 아무것도 바뀌지 않는다', () => {
   const t = cash(59);
-  const r = G.buyProduct(t, 'gold');
-  assert.deepStrictEqual([r.ok, r.reason], [false, 'crystals']);
-  assert.deepStrictEqual([t.crystals, t.potions], [59, {}]);
+  const r = G.buyProduct(t, 'box_fine');
+  assert.deepStrictEqual([r.ok, r.reason, t.crystals], [false, 'crystals', 59]);
   assert.strictEqual(G.buyProduct(t, 'nonexistent').reason, 'unknown');
-  for (const id of ['gold', 'box_legend', 'bag', 'starter', 'sand']) { G.buyProduct(t, id); }
+  for (const id of ['box_legend', 'bag', 'starter']) { G.buyProduct(t, id); }
   assert.ok(t.crystals >= 0, '크리스탈이 음수가 되지 않는다');
 });
 
@@ -1092,14 +1109,6 @@ test('물약 시간은 흐르다 0이 되면 사라지고, 쓰러져 있는 동�
   t.downT = 3; const m0 = t.potions.might;
   G.tick(t, 1);
   assert.ok(t.potions.might < m0, '기절 중에도 시간이 간다');
-});
-
-test('시간의 모래: 모든 스킬의 쿨타임을 바로 초기화한다', () => {
-  const t = skillState(['warrior', 'knight']);
-  t.crystals = 100; t.skillCd = { warrior: 9, knight: 12 };
-  assert.ok(G.buyProduct(t, 'sand').ok);
-  assert.deepStrictEqual(t.skillCd, { warrior: 0, knight: 0 });
-  assert.strictEqual(t.crystals, 70);
 });
 
 test('장비 상자: 지정한 개수와 등급 확률로 나오고, 상자를 열면 크리스탈이 나간다', () => {
@@ -1218,7 +1227,7 @@ test('광고: 기기 시계를 바꿔도 하루 3번을 넘길 수 없다 (서�
   assert.strictEqual(G.deserialize(JSON.stringify(o)).adClock, '');
 });
 
-test('광고 보상은 한 번에 크리스탈 10개이고, 횟수를 다 쓰면 받지 못한다', () => {
+test('광고 보상은 한 번에 크리스탈 10개와 물약 1개이고, 횟수를 다 쓰면 받지 못한다', () => {
   const t = G.createState(0);
   t.crystals = 5;
   const r = G.claimAd(t, '2026-09-21');
@@ -1226,7 +1235,7 @@ test('광고 보상은 한 번에 크리스탈 10개이고, 횟수를 다 쓰면
   assert.strictEqual(t.level, 1, '레벨은 오르지 않는다');
   G.claimAd(t, '2026-09-21'); G.claimAd(t, '2026-09-21');
   const x = G.claimAd(t, '2026-09-21');
-  assert.deepStrictEqual([x.ok, x.reason, x.crystals, t.crystals], [false, 'limit', 0, 35], '4번째는 거절되고 크리스탈도 늘지 않는다');
+  assert.deepStrictEqual([x.ok, x.reason, x.crystals, x.potion, t.crystals], [false, 'limit', 0, null, 35], '4번째는 거절되고 크리스탈·물약도 늘지 않는다');
   assert.strictEqual(G.claimAd(t, '2026-09-22').crystals, 10, '다음 날은 다시 받는다');
   assert.strictEqual(G.deserialize(G.serialize(t, 1)).crystals, 45, '저장된다');
 });
@@ -1366,7 +1375,7 @@ test('강화·방어·약탈: 각각 공격력·받는 피해·골드에 영향�
   const noGuard = loss(false), withGuard = loss(true);
   assert.ok(Math.abs((noGuard - withGuard) - 0.5 * G.monsterAtk(6)) < 1e-6, `${noGuard} → ${withGuard}`);
   // 약탈: 처치 골드가 (1 + 위력)배가 된다
-  const kill = (greed) => { const u = skillState(['rogue']); u.monsterHp = 1; if (greed) u.buffs.greed = { t: 9, v: 0.5 }; G.clickAttack(u); return u.gold; };
+  const kill = (greed) => { G.setRandom(() => 0.999); const u = skillState(['rogue']); u.monsterHp = 1; if (greed) u.buffs.greed = { t: 9, v: 0.5 }; G.clickAttack(u); G.setRandom(); return u.gold; };   // 드롭이 골드를 더하지 않게 난수를 고정한다
   const g1 = kill(false), g2 = kill(true);
   assert.ok(g2 > g1 && Math.abs(g2 / g1 - 1.5) < 0.2, `${g1} → ${g2}`);
 });
@@ -1588,6 +1597,581 @@ test('오프라인 보상이 최대 8시간으로 제한된다', () => {
   const s = G.createState(0);
   const r = G.applyOffline(s, 100 * 3600 * 1000);
   assert.strictEqual(r.seconds, 8 * 3600);
+});
+
+
+// ============ 업적 확장 · 유물 · 환생 · 밸런스 ============
+section('업적 보상과 기록');
+test('업적 50개는 번호가 겹치지 않고, 모두 분류와 양수 보상이 있다', () => {
+  const ids = G.ACHIEVEMENTS.map((a) => a.id);
+  assert.strictEqual(new Set(ids).size, ids.length);
+  assert.ok(G.ACHIEVEMENTS.length >= 40);
+  for (const a of G.ACHIEVEMENTS) { assert.ok(a.group && a.name && a.desc && a.icon, a.id); assert.ok(a.reward > 0 && a.goal > 0, a.id); }
+});
+test('보상 크리스탈은 달성한 업적만, 한 번만 받는다', () => {
+  const s = G.createState(0);
+  assert.strictEqual(G.claimAchievement(s, 'kill100'), 0, '달성 전에는 못 받는다');
+  s.totalKills = 100; G.checkAchievements(s);
+  assert.deepStrictEqual(G.unclaimedAchievements(s).map((a) => a.id), ['kill100']);
+  assert.strictEqual(G.claimAchievement(s, 'kill100'), 5);
+  assert.strictEqual(s.crystals, 5);
+  assert.strictEqual(G.claimAchievement(s, 'kill100'), 0, '두 번 받을 수 없다');
+  assert.strictEqual(G.claimAchievement(s, 'nope'), 0);
+  assert.strictEqual(s.crystals, 5);
+});
+test('모두 받기는 받을 수 있는 것을 전부 합쳐서 준다', () => {
+  const s = G.createState(0);
+  s.totalKills = 1000; s.bestStage = 30; s.level = 10; G.checkAchievements(s);
+  const want = G.unclaimedAchievements(s).reduce((a, x) => a + x.reward, 0);
+  assert.ok(want > 20);
+  assert.strictEqual(G.claimAllAchievements(s), want);
+  assert.strictEqual(s.crystals, want);
+  assert.strictEqual(G.unclaimedAchievements(s).length, 0);
+});
+test('예전 저장(보상 기록 없음)의 달성 업적도 보상을 받을 수 있다', () => {
+  const o = JSON.parse(G.serialize(G.createState(0), 1));
+  o.achieved = { kill100: true, stage10: true }; delete o.achClaimed; delete o.stats; delete o.runT;
+  const s = G.deserialize(JSON.stringify(o));
+  assert.strictEqual(G.claimAllAchievements(s), 10);
+});
+test('저장 데이터를 고쳐서 달성하지 않은 업적의 보상을 받은 것으로 만들 수 없다', () => {
+  const o = JSON.parse(G.serialize(G.createState(0), 1));
+  o.achClaimed = { kill100: true, hacker: true }; o.stats = { bossKills: -5, gold: 'x', casts: NaN, taps: 1e400 };
+  const s = G.deserialize(JSON.stringify(o));
+  assert.deepStrictEqual(s.achClaimed, {});
+  assert.strictEqual(s.stats.bossKills, 0);
+  assert.strictEqual(s.stats.gold, 0);
+  assert.ok(Number.isFinite(s.stats.taps));
+});
+test('보상 받은 기록과 누적 기록은 저장되고 환생해도 남는다', () => {
+  const s = G.createState(0);
+  s.totalKills = 100; s.stats.bossKills = 7; G.checkAchievements(s); G.claimAchievement(s, 'kill100');
+  s.runBest = 12; G.prestige(s);
+  const back = G.deserialize(G.serialize(s, 1));
+  assert.strictEqual(back.achClaimed.kill100, true);
+  assert.strictEqual(back.stats.bossKills, 7);
+  assert.strictEqual(back.crystals, 5);
+});
+test('누적 기록이 실제 전투에서 올라간다 (보스 처치·골드·스킬·직접 공격·쓰러짐)', () => {
+  G.setRandom(seeded(3));
+  const s = G.createState(0);
+  s.stage = 5; s.monsterMax = s.monsterHp = 5; s.isBoss = true;   // 보스 스테이지
+  G.clickAttack(s); G.simulate(s, 1);
+  assert.ok(s.stats.taps === 1 && s.stats.bossKills >= 1 && s.stats.gold > 0, JSON.stringify(s.stats));
+  const t = G.createState(0); t.level = 99; G.promote(t, 'warrior'); G.simulate(t, 40);
+  assert.ok(t.stats.casts > 0, '스킬을 쓰면 올라간다');
+  const u = G.createState(0); u.hp = 0.01; G.simulate(u, 0.5);
+  assert.strictEqual(u.stats.downs, 1);
+  G.setRandom();
+});
+test('장비를 얻고 팔면 기록이 오르고, 전설 획득은 따로 센다', () => {
+  const s = G.createState(0); s.autoSell = 0;
+  const ev = [];
+  G.setRandom(seeded(1));
+  const legend = G.rollItem(s, 20, false, 4), common = G.rollItem(s, 5, false, 0);
+  s.bag.push(common);
+  G.sellBagItem(s, common.id);
+  assert.strictEqual(s.stats.sold, 1);
+  G.setRandom();
+});
+
+section('유물 (크리스탈 상점의 특별 옵션 장비)');
+const relicOwner = (ids) => { const s = G.createState(0); s.crystals = 99999; for (const id of ids) G.buyProduct(s, id); return s; };
+test('유물은 크리스탈로 한 번만 살 수 있고, 빈 칸이 있으면 바로 낀다', () => {
+  const s = cash(5000);
+  const r = G.buyProduct(s, 'relic_seal');
+  assert.ok(r.ok);
+  assert.deepStrictEqual([s.crystals, s.relics.relic_seal, s.relicEq], [3800, true, ['relic_seal']]);
+  const again = G.buyProduct(s, 'relic_seal');
+  assert.deepStrictEqual([again.ok, again.reason, s.crystals], [false, 'owned', 3800], '같은 유물은 다시 못 산다');
+  const poor = G.buyProduct(cash(100), 'relic_seal');
+  assert.deepStrictEqual([poor.ok, poor.reason], [false, 'crystals']);
+});
+test('유물은 2칸까지만 낄 수 있고, 가득 차면 하나를 빼야 다른 것을 낀다', () => {
+  const s = relicOwner(['relic_seal', 'relic_horn', 'relic_scholar']);
+  assert.deepStrictEqual(s.relicEq, ['relic_seal', 'relic_horn'], '처음 산 2개만 자동으로 낀다');
+  assert.strictEqual(G.toggleRelic(s, 'relic_scholar'), 'full');
+  assert.strictEqual(G.toggleRelic(s, 'relic_seal'), 'off');
+  assert.strictEqual(G.toggleRelic(s, 'relic_scholar'), 'on');
+  assert.strictEqual(G.toggleRelic(s, 'relic_chrono'), 'none', '안 가진 유물');
+  assert.deepStrictEqual(s.relicEq, ['relic_horn', 'relic_scholar']);
+});
+test('유물 효과는 낀 동안만 적용된다', () => {
+  const s = relicOwner(['relic_vault']);
+  assert.strictEqual(G.relicV(s, 'gold'), 0.3);
+  assert.strictEqual(G.relicV(s, 'offline'), 2);
+  G.toggleRelic(s, 'relic_vault');
+  assert.strictEqual(G.relicV(s, 'gold'), 0);
+});
+test('탐욕의 금고: 골드 +30%, 오프라인 한도 +2시간', () => {
+  const a = G.createState(0), b = relicOwner(['relic_vault']);
+  assert.ok(Math.abs(G.goldMult(b) / G.goldMult(a) - 1.3) < 1e-9);
+  assert.strictEqual(G.offlineCap(b) - G.offlineCap(a), 2 * 3600);
+});
+test('동료의 나팔: 동료 공격 +50%', () => {
+  const a = G.createState(0), b = relicOwner(['relic_bugle']);
+  a.upgrades.companion = b.upgrades.companion = 5;
+  assert.ok(Math.abs(G.companionDps(b) / G.companionDps(a) - 1.5) < 1e-9);
+});
+test('학자의 안경: 처치 경험치 +50%', () => {
+  const a = G.createState(0), b = relicOwner(['relic_scholar']);
+  for (const s of [a, b]) { s.monsterHp = 1; s.exp = 0; G.clickAttack(s); }
+  assert.deepStrictEqual([a.exp, b.exp], [3, 5], '3 → ceil(3 × 1.5)');
+});
+test('사냥꾼의 뿔피리: 보스에게만 피해 +40%', () => {
+  const dmgTo = (s, boss) => { s.stage = boss ? 5 : 4; s.isBoss = boss; s.monsterMax = s.monsterHp = 1e6; s.downT = 0; G.clickAttack(s); return 1e6 - s.monsterHp; };
+  const a = G.createState(0), b = relicOwner(['relic_horn']);
+  assert.ok(Math.abs(dmgTo(b, true) / dmgTo(a, true) - 1.4) < 1e-6, '보스에게 +40%');
+  assert.ok(Math.abs(dmgTo(b, false) / dmgTo(a, false) - 1) < 1e-6, '일반 몬스터에게는 그대로');
+});
+test('불사조의 깃털: 쓰러졌을 때 부활 시간 -60%', () => {
+  const a = G.createState(0), b = relicOwner(['relic_phoenix']);
+  a.hp = b.hp = 0.01; b.rescueT = 99; G.simulate(a, 0.1); G.simulate(b, 0.1);   // 깃털의 '버티기'는 쉬는 중
+  assert.ok(Math.abs(a.downT - G.DOWN_TIME) < 1e-9);
+  assert.ok(Math.abs(b.downT - G.DOWN_TIME * 0.4) < 1e-9, String(b.downT));
+});
+test('시간의 회중시계: 스킬 쿨타임이 25% 빨리 돈다', () => {
+  const mk = (s) => { s.level = 99; G.promote(s, 'warrior'); const id = G.skillsOf(s)[0].id; s.skillCd[id] = 100; s.monsterHp = s.monsterMax = 1e15; return id; };
+  const a = G.createState(0), b = relicOwner(['relic_chrono']);
+  const ia = mk(a), ib = mk(b);
+  G.simulate(a, 3); G.simulate(b, 3);
+  const spentA = 100 - a.skillCd[ia], spentB = 100 - b.skillCd[ib];
+  assert.ok(Math.abs(spentB / spentA - 1 / 0.75) < 1e-6, `${spentA} / ${spentB}`);
+});
+const tankState = (relics, stage, boss) => { const s = relicOwner(relics); s.level = 200; s.stage = stage; s.isBoss = !!boss; s.monsterMax = s.monsterHp = 1e30; s.hp = 1000; return s; };
+test('수호자의 방패: 받는 피해 -20%, 체력 회복 +50%', () => {
+  const a = tankState([], 31), b = tankState(['relic_aegis'], 31);
+  G.simulate(a, 0.1); G.simulate(b, 0.1);
+  const atk = Math.min(2 * Math.pow(1.19, 30), G.maxHp(a) * 0.06) * 0.1, regen = G.maxHp(a) * 0.02 * 0.1;   // 몬스터 공격은 최대 체력의 6%/초까지만
+  assert.ok(Math.abs(a.hp - (1000 + regen - atk)) < 1e-6, String(a.hp));
+  assert.ok(Math.abs(b.hp - (1000 + regen * 1.5 - atk * 0.8)) < 1e-6, String(b.hp));
+});
+test('사냥꾼의 뿔피리: 보스에게 받는 피해만 -25%', () => {
+  const loss = (relics, boss) => { const s = tankState(relics, 30, boss); const max = G.maxHp(s), h0 = s.hp; G.simulate(s, 0.1); return h0 + max * 0.002 - s.hp; };
+  const bossRatio = loss(['relic_horn'], true) / loss([], true), normalRatio = loss(['relic_horn'], false) / loss([], false);
+  assert.ok(Math.abs(bossRatio - 0.75) < 1e-9 && Math.abs(normalRatio - 1) < 1e-9, `${bossRatio} ${normalRatio}`);
+});
+test('불사조의 깃털: 쓰러질 순간 45초에 한 번 체력 40%로 버틴다', () => {
+  const a = tankState([], 60), b = tankState(['relic_phoenix'], 60);
+  a.hp = b.hp = 0.001; G.simulate(a, 0.1); G.simulate(b, 0.1);
+  assert.ok(a.downT > 0, '유물이 없으면 쓰러진다');
+  assert.ok(b.downT === 0 && b.stage === 60 && Math.abs(b.hp - G.maxHp(b) * 0.4) < G.maxHp(b) * 0.02, `hp ${b.hp} down ${b.downT}`);
+  b.hp = 0.001; G.simulate(b, 0.1);
+  assert.ok(b.downT > 0, '45초 안에 또 쓰러지면 버티지 못한다');
+  b.downT = 0; b.hp = 0.001; b.rescueT = 0; G.simulate(b, 0.1);
+  assert.strictEqual(b.downT, 0, '시간이 지나면 다시 버틴다');
+});
+test('네잎클로버: 드롭 확률 +5%p, 희귀 이상 등급이 약 1.4배', () => {
+  const a = G.createState(0), b = relicOwner(['relic_clover']);
+  assert.ok(Math.abs(G.dropChance(b, false) - G.dropChance(a, false) - 0.05) < 1e-9);
+  const rate = (s) => { G.setRandom(seeded(9)); let n = 0; for (let i = 0; i < 40000; i++) if (G.rollItem(s, 10, false).r >= 2) n++; G.setRandom(); return n / 40000; };
+  const ratio = rate(b) / rate(a);
+  assert.ok(ratio > 1.3 && ratio < 1.5, `배율 ${ratio.toFixed(2)}`);
+});
+test('유물은 저장되고 환생해도 남지만, 조작한 저장은 걸러진다', () => {
+  const s = relicOwner(['relic_seal', 'relic_horn']);
+  s.runBest = 12; G.prestige(s);
+  const back = G.deserialize(G.serialize(s, 1));
+  assert.deepStrictEqual([back.relics, back.relicEq], [s.relics, s.relicEq]);
+  const o = JSON.parse(G.serialize(s, 1));
+  o.relics = { relic_seal: true, relic_fake: true, relic_chrono: 'yes' };
+  o.relicEq = ['relic_seal', 'relic_horn', 'relic_fake', 'relic_seal'];
+  const c = G.deserialize(JSON.stringify(o));
+  assert.deepStrictEqual(c.relics, { relic_seal: true }, '없는 유물과 가짜 값은 버린다');
+  assert.deepStrictEqual(c.relicEq, ['relic_seal'], '안 가진 유물은 낄 수 없고, 중복도 없다');
+  const o2 = JSON.parse(G.serialize(relicOwner(['relic_seal', 'relic_horn', 'relic_scholar', 'relic_chrono']), 1));
+  o2.relicEq = ['relic_seal', 'relic_horn', 'relic_scholar', 'relic_chrono'];
+  assert.strictEqual(G.deserialize(JSON.stringify(o2)).relicEq.length, 2, '칸 수 제한');
+});
+
+section('장비 상점 (특별 옵션 장비, 시간마다 갱신)');
+const HOUR = 3600e3, WIN_MS = St.GEAR_SHOP.refreshSec * 1000;
+const shopUser = (win, crystals) => { const t = cash(crystals === undefined ? 99999 : crystals); t.bestStage = 40; G.shopSync(t, win * WIN_MS + 1, 0); return t; };
+test('진열은 6개이고 모두 영웅·전설이며 특별 옵션이 하나씩 붙고, 옵션 종류는 서로 겹치지 않는다', () => {
+  const t = shopUser(500);
+  const stock = G.shopStock(t);
+  assert.strictEqual(stock.length, St.GEAR_SHOP.count);
+  assert.ok(stock.every((o) => o.item.r >= 3 && o.item.sp && St.specialOf(o.item.sp.k) && !o.sold));
+  assert.strictEqual(new Set(stock.map((o) => o.item.sp.k)).size, stock.length, '옵션이 겹치지 않는다');
+  const slots = {}; for (const o of stock) slots[o.item.slot] = (slots[o.item.slot] || 0) + 1;
+  assert.deepStrictEqual(slots, { weapon: 2, armor: 2, accessory: 2 }, '무기·방어구·액세서리가 2개씩');
+  for (const o of stock) {
+    const [lo, hi] = St.specialOf(o.item.sp.k)[o.item.r === 4 ? 'legend' : 'hero'];
+    assert.ok(o.item.sp.v >= lo && o.item.sp.v <= hi, `${o.item.sp.k} ${o.item.sp.v}`);
+    assert.strictEqual(o.price, St.GEAR_SHOP.price[o.item.r]);
+    assert.strictEqual(o.item.ilvl, 40);
+    assert.ok(o.item.val >= G.GEAR[o.item.slot].kinds[o.item.kind].base[o.item.r] * (1 + 40 / 40) - 1e-9, '드롭보다 낮게 나오지 않는다');
+  }
+});
+test('같은 시간 구간에서는 언제 열어도 같은 진열이고, 구간이 바뀌면 다른 진열이 된다', () => {
+  const a = shopUser(500), b = shopUser(500), c = shopUser(501);
+  assert.deepStrictEqual(G.shopStock(a), G.shopStock(b));
+  assert.notDeepStrictEqual(G.shopStock(a).map((o) => o.item), G.shopStock(c).map((o) => o.item));
+  G.shopSync(a, 500 * WIN_MS + 3 * HOUR, 0);
+  assert.deepStrictEqual(G.shopStock(a), G.shopStock(b), '3시간 뒤에도 같은 구간');
+});
+test('구간은 서버 시각으로만 넘어간다: 기기 시계를 돌려도, 서버 시각을 못 받아도 새 물건이 나오지 않는다', () => {
+  const t = shopUser(500);
+  const before = JSON.stringify(G.shopStock(t));
+  G.shopSync(t, null, 900 * WIN_MS);
+  G.shopSync(t, NaN, 900 * WIN_MS);
+  assert.strictEqual(JSON.stringify(G.shopStock(t)), before, '오프라인에서는 그대로');
+  G.shopSync(t, 400 * WIN_MS, 0);
+  assert.strictEqual(t.shop.win, 500, '서버가 옛 시각을 말해도 뒤로 가지 않는다');
+  const info = G.shopSync(t, 500 * WIN_MS + WIN_MS - 5000, 0);
+  assert.deepStrictEqual([info.online, info.secsLeft], [true, 5], '갱신까지 남은 시간');
+  G.shopSync(t, 501 * WIN_MS, 0);
+  assert.strictEqual(t.shop.win, 501);
+  const fresh = G.createState(0);
+  G.shopSync(fresh, null, 700 * WIN_MS);
+  assert.strictEqual(fresh.shop.win, 700, '처음 쓰는 오프라인 기기는 기기 시각으로 시작하고');
+  G.shopSync(fresh, null, 999 * WIN_MS);
+  assert.strictEqual(fresh.shop.win, 700, '그 뒤로는 시계를 돌려도 넘어가지 않는다');
+});
+test('구매: 크리스탈을 내고 장비를 얻고 그 칸은 "판매 완료"가 되며, 새 구간이 되면 다시 열린다', () => {
+  const t = shopUser(500, 3000);
+  const stock = G.shopStock(t);
+  const r = G.buyShopItem(t, 0);
+  assert.ok(r.ok && r.item.id > 0 && r.item.sp && ['equipped', 'bag'].includes(r.action));
+  assert.strictEqual(t.crystals, 3000 - stock[0].price);
+  assert.ok(G.shopStock(t)[0].sold);
+  assert.strictEqual(G.buyShopItem(t, 0).reason, 'sold');
+  assert.strictEqual(G.buyShopItem(t, 99).reason, 'none');
+  assert.ok([...t.bag, ...Object.values(t.equip)].some((x) => x && x.id === r.item.id), '장비가 내 것이 됐다');
+  G.shopSync(t, 501 * WIN_MS, 0);
+  assert.ok(G.shopStock(t).every((o) => !o.sold));
+});
+test('크리스탈이 모자라거나 가방이 가득 차면 살 수 없고 아무것도 바뀌지 않는다', () => {
+  const poor = shopUser(500, 100);
+  assert.deepStrictEqual([G.buyShopItem(poor, 0).reason, poor.crystals, poor.bag.length], ['crystals', 100, 0]);
+  const full = shopUser(500);
+  for (let i = 0; i < G.bagLimit(full); i++) full.bag.push({ id: 1000 + i, slot: 'weapon', kind: 'dmg', r: 0, ilvl: 1, val: 1, n: 0 });
+  const c0 = full.crystals;
+  assert.deepStrictEqual([G.buyShopItem(full, 0).reason, full.crystals], ['bag', c0]);
+});
+test('새로고침: 크리스탈을 내고 진열이 바뀌며 산 기록이 지워지고, 한 구간에 3번까지다', () => {
+  const t = shopUser(500, 1000);
+  const first = JSON.stringify(G.shopStock(t).map((o) => o.item));
+  G.buyShopItem(t, 1);
+  const seen = new Set([first]);
+  for (let i = 0; i < 3; i++) { const r = G.rerollShop(t); assert.ok(r.ok); seen.add(JSON.stringify(G.shopStock(t).map((o) => o.item))); }
+  assert.strictEqual(seen.size, 4, '매번 다른 진열');
+  assert.ok(G.shopStock(t).every((o) => !o.sold), '새 진열은 모두 살 수 있다');
+  assert.ok(t.crystals < 1000 - 3 * St.GEAR_SHOP.rerollCost + 1 && t.crystals >= 0);
+});
+test('새로고침 비용과 횟수 제한', () => {
+  const t = shopUser(500, 1000), c0 = t.crystals;
+  G.rerollShop(t);
+  assert.strictEqual(t.crystals, c0 - St.GEAR_SHOP.rerollCost);
+  G.rerollShop(t); G.rerollShop(t);
+  assert.strictEqual(G.rerollShop(t).reason, 'max');
+  const poor = shopUser(500, 10);
+  assert.deepStrictEqual([G.rerollShop(poor).reason, poor.crystals], ['crystals', 10]);
+  G.shopSync(t, 501 * WIN_MS, 0);
+  assert.strictEqual(t.shop.reroll, 0, '새 구간에는 횟수가 돌아온다');
+});
+test('전설이 약 25%, 나머지는 영웅으로 나온다 (구간 2,000개)', () => {
+  let legend = 0, total = 0;
+  for (let w = 1000; w < 3000; w++) { const t = shopUser(w); for (const o of G.shopStock(t)) { total++; if (o.item.r === 4) legend++; } }
+  assert.ok(Math.abs(legend / total - St.GEAR_SHOP.legendChance) < 0.02, `전설 ${(100 * legend / total).toFixed(1)}%`);
+});
+test('특별 옵션은 장착했을 때만 적용되고, 이름 앞에 옵션 이름이 붙는다', () => {
+  const t = shopUser(500);
+  const it = Object.assign({ id: 77 }, G.shopStock(t)[0].item);
+  it.sp = { k: 'boss', v: 0.2 };
+  t.bag.push(it);
+  assert.strictEqual(G.specialV(t, 'boss'), 0);
+  assert.ok(G.itemName(it).startsWith('사냥꾼의 '), G.itemName(it));
+  assert.ok(G.equipItem(t, 77));
+  assert.strictEqual(G.specialV(t, 'boss'), 0.2);
+  G.unequipItem(t, it.slot);
+  assert.strictEqual(G.specialV(t, 'boss'), 0);
+});
+test('특별 옵션은 유물과 합쳐지고, 상한(쿨타임 60%·받는 피해 70%·부활 80%)은 넘지 않는다', () => {
+  const t = relicOwner(['relic_chrono', 'relic_aegis']);
+  t.equip.weapon = { id: 1, slot: 'weapon', kind: 'dmg', r: 4, ilvl: 10, val: 10, n: 0, sp: { k: 'cdr', v: 0.45 } };
+  t.equip.armor = { id: 2, slot: 'armor', kind: 'hp', r: 4, ilvl: 10, val: 10, n: 0, sp: { k: 'guard', v: 0.5 } };
+  assert.ok(Math.abs(G.specialV(t, 'cdr') - 0.7) < 1e-9);
+  assert.ok(Math.abs(G.specialV(t, 'guard') - 0.7) < 1e-9);
+  t.stage = 31; t.monsterMax = t.monsterHp = 1e30; t.level = 200; t.hp = 1000;
+  const hit = Math.min(2 * Math.pow(1.19, 30), G.maxHp(t) * 0.06) * 0.1, regen = G.maxHp(t) * 0.02 * 1.5 * 0.1;
+  G.simulate(t, 0.1);
+  assert.ok(Math.abs(t.hp - (1000 + regen - hit * 0.3)) < 1e-6, `방어가 70%를 넘어도 70%까지만 막는다: ${t.hp}`);
+});
+test('특별 옵션 장비는 옵션 없는 드롭에게 자리를 뺏기지 않고 정리·자동 판매 대상이 아니다', () => {
+  const t = G.createState(0);
+  const sp = { id: 5, slot: 'weapon', kind: 'dmg', r: 3, ilvl: 10, val: 20, n: 0, sp: { k: 'exp', v: 0.1 } };
+  const plainBetter = { id: 6, slot: 'weapon', kind: 'dmg', r: 3, ilvl: 10, val: 60, n: 0 };
+  t.equip.weapon = sp;
+  assert.strictEqual(G.isUpgrade(t, plainBetter), false, '수치가 3배여도 옵션 장비를 밀어내지 않는다');
+  t.equip.weapon = { id: 7, slot: 'weapon', kind: 'dmg', r: 3, ilvl: 10, val: 20, n: 0 };
+  assert.strictEqual(G.isUpgrade(t, Object.assign({}, sp, { val: 19 })), true, '옵션 장비는 수치가 90% 이상이면 자리를 얻는다');
+  assert.strictEqual(G.isUpgrade(t, Object.assign({}, sp, { val: 15 })), false);
+  t.equip.weapon = { id: 8, slot: 'weapon', kind: 'dmg', r: 3, ilvl: 10, val: 50, n: 0 };
+  t.bag = [sp];
+  assert.deepStrictEqual(G.bagWeaker(t), [], '더 약해 보여도 옵션 장비는 정리 대상이 아니다');
+});
+test('특별 옵션 장비는 저장·복원되고, 조작된 옵션은 걸러진다', () => {
+  const t = shopUser(500, 5000);
+  G.buyShopItem(t, 0);
+  const back = G.deserialize(G.serialize(t, 1));
+  assert.deepStrictEqual([back.shop, back.crystals], [t.shop, t.crystals]);
+  const all = [...back.bag, ...Object.values(back.equip)].filter(Boolean);
+  assert.ok(all.length === 1 && all[0].sp && all[0].sp.v === [...t.bag, ...Object.values(t.equip)].filter(Boolean)[0].sp.v);
+  const o = JSON.parse(G.serialize(t, 1));
+  const target = o.bag[0] || Object.values(o.equip).find(Boolean);
+  target.sp = { k: 'hacker', v: 99 };
+  const c = G.deserialize(JSON.stringify(o));
+  assert.ok([...c.bag, ...Object.values(c.equip)].filter(Boolean).every((x) => !x.sp), '없는 옵션은 버린다');
+  target.sp = { k: 'exp', v: 99 }; target.r = 1;
+  assert.ok([...G.deserialize(JSON.stringify(o)).bag, ...Object.values(G.deserialize(JSON.stringify(o)).equip)].filter(Boolean).every((x) => !x.sp), '희귀 이하에는 옵션이 붙을 수 없다');
+  target.r = 4; target.sp = { k: 'exp', v: 99 };
+  const d = G.deserialize(JSON.stringify(o));
+  const kept = [...d.bag, ...Object.values(d.equip)].filter(Boolean)[0];
+  assert.ok(kept.sp && kept.sp.v <= St.specialOf('exp').legend[1], '값은 그 옵션의 최대치로 제한된다');
+  const bad = JSON.parse(G.serialize(t, 1)); bad.shop = { win: 'x', reroll: 99, lvl: -4, bought: [0, 0, 7, 'a', 2] };
+  const e = G.deserialize(JSON.stringify(bad));
+  assert.deepStrictEqual(e.shop, { win: 0, reroll: St.GEAR_SHOP.rerollMax, lvl: 0, bought: [0, 2] });
+});
+test('상점 값이 없는 예전 저장도 불러오고, 환생해도 진열 기록은 남는다', () => {
+  const o = JSON.parse(G.serialize(G.createState(0), 1)); delete o.shop;
+  assert.deepStrictEqual(G.deserialize(JSON.stringify(o)).shop, { win: 0, reroll: 0, lvl: 0, bought: [] });
+  const t = shopUser(500, 3000); G.buyShopItem(t, 2); t.runBest = 12; G.prestige(t);
+  assert.deepStrictEqual(t.shop.bought, [2]);
+});
+
+section('환생 보상과 전직·증표');
+test('환생 보상은 스테이지 5개당 증표 1개에 판을 키운 시간(10분 = 100%)을 곱한다', () => {
+  const s = G.createState(0);
+  s.runBest = 50;
+  const at = (sec) => { s.runT = sec; return G.prestigeGain(s); };
+  assert.deepStrictEqual([at(0), at(120), at(300), at(600), at(5000)], [1, 2, 5, 10, 10]);
+  s.runBest = 9; s.runT = 9999;
+  assert.strictEqual(G.prestigeGain(s), 0, '스테이지 10 미만은 환생 불가');
+});
+test('왕의 인장: 환생 증표 +15%', () => {
+  const s = relicOwner(['relic_seal']); s.runBest = 50; s.runT = 600;
+  assert.strictEqual(G.prestigeGain(s), 11);
+});
+test('환생하면 이번 판 시간이 0으로 돌아가고, 게임을 켜 둔 시간은 판 시간에 쌓인다', () => {
+  const s = G.createState(0);
+  G.simulate(s, 100); assert.ok(Math.abs(s.runT - 100) < 1e-6);
+  s.runBest = 12; G.prestige(s); assert.strictEqual(s.runT, 0);
+});
+test('예전 저장(판 시간 없음)은 손해 보지 않게 10분이 지난 것으로 시작한다', () => {
+  const o = JSON.parse(G.serialize(G.createState(0), 1)); delete o.runT;
+  const s = G.deserialize(JSON.stringify(o));
+  assert.strictEqual(s.runT, G.PRESTIGE_FULL_SEC);
+  o.runT = -5; assert.strictEqual(G.deserialize(JSON.stringify(o)).runT, 0);
+});
+test('전직 단계가 오를수록 증표의 공격력·골드 보너스가 커진다 (직업 공명)', () => {
+  const s = G.createState(0); s.tokens = 10; s.level = 99;
+  const m = [G.tokenMult(s)];
+  for (const id of ['mage', 'pyromancer', 'infernomage', 'flameemperor']) { G.promote(s, id); m.push(G.tokenMult(s)); }
+  for (let i = 1; i < m.length; i++) assert.ok(m[i] > m[i - 1], m.join(','));
+  assert.ok(Math.abs(m[0] - (1 + G.TOKEN_BONUS * 10)) < 1e-9);
+  assert.ok(Math.abs(m[4] - (1 + G.TOKEN_BONUS * (1 + 4 * G.RESONANCE) * 10)) < 1e-9);
+  assert.ok(Math.abs(G.resonance(s) - (1 + 4 * G.RESONANCE)) < 1e-9);
+});
+test('증표는 체력에도 깃든다 (증표 효과의 0.4제곱)', () => {
+  const a = G.createState(0), b = G.createState(0); b.tokens = 100;
+  assert.ok(Math.abs(G.maxHp(b) / G.maxHp(a) - Math.pow(G.tokenMult(b), 0.4)) < 1e-9);
+  assert.ok(G.maxHp(b) > G.maxHp(a) * 4);
+});
+test('직업 각성: 직업의 장점 배율만 강해지고 단점은 그대로다', () => {
+  const s = G.createState(0); s.level = 99; G.promote(s, 'mage');   // dmg ×1.35, hp ×0.85
+  const d0 = G.statMult(s, 'dmg'), h0 = G.statMult(s, 'hp');
+  s.perks.awaken = 5;
+  assert.ok(Math.abs(G.statMult(s, 'dmg') - Math.pow(1.35, 1.5)) < 1e-9);
+  assert.strictEqual(G.statMult(s, 'hp'), h0, '체력 단점은 그대로');
+  assert.ok(G.statMult(s, 'dmg') > d0);
+});
+test('도감 공명: 직업 도감 보너스가 레벨당 +20%', () => {
+  const s = G.createState(0); s.mastered.knight = true; s.mastered.berserker = true;
+  const m0 = G.masteryMult(s) - 1;
+  s.perks.codex = 5;
+  assert.ok(Math.abs((G.masteryMult(s) - 1) / m0 - 2) < 1e-9);
+});
+test('직업 각성·도감 공명은 왕의 위엄을 먼저 사야 열리고, 가격은 4·8·12…', () => {
+  const s = G.createState(0); s.tokens = 200;
+  assert.strictEqual(G.canBuyPerk(s, 'awaken'), false);
+  s.perks = { might: 5, greed: 5, kingly: 1 };
+  assert.ok(G.canBuyPerk(s, 'awaken') && G.canBuyPerk(s, 'codex'));
+  assert.deepStrictEqual([G.perkCost(s, 'awaken')], [4]);
+  assert.strictEqual(G.PERKS.awaken.tier, 4);
+});
+test('저장·불러오기와 초기화가 새 강화와도 맞는다 (쓴 증표 계산)', () => {
+  const s = G.createState(0); s.tokens = 200; s.perks = { might: 5, greed: 5, kingly: 1, awaken: 2 };
+  const spent = G.perkSpent(s);
+  assert.strictEqual(spent, 15 + 15 + 5 + 12);
+  assert.strictEqual(G.respecPerks(s), spent);
+});
+
+section('밸런스 회귀 (봇 시뮬레이션)');
+test('몬스터의 공격은 초당 최대 체력의 6%를 넘지 않아서, 스테이지 150에서도 한 번 맞고 쓰러지지 않는다', () => {
+  const s = G.createState(0); s.stage = 150; s.monsterMax = s.monsterHp = 1e300; s.level = 30;
+  s.hp = G.maxHp(s);
+  G.simulate(s, 1);
+  assert.ok(s.downT === 0 && s.hp >= G.maxHp(s) * (1 - 0.06 - 1e-9), `체력 ${(100 * s.hp / G.maxHp(s)).toFixed(1)}%`);
+  G.simulate(s, 4);
+  assert.strictEqual(s.downT, 0, '몇 초를 맞아도 버틴다 (체력 회복이 있어 실제로는 25초쯤 버틴다)');
+  for (let i = 0; i < 60; i++) G.simulate(s, 1);
+  assert.ok(s.downT > 0 || s.stage < 150, '계속 맞으면 결국 쓰러진다');
+});
+test('증표가 쌓인 뒤 10분 판에서 쓰러지는 횟수가 예전(111~164번)보다 훨씬 적다', () => {
+  G.setRandom(seeded(7));
+  const s = G.createState(0); s.tokens = 60; s.prestiges = 5;
+  for (const id of ['might', 'greed', 'vitality', 'kingly']) s.perks[id] = G.PERKS[id].max;
+  s.hp = G.maxHp(s);
+  bot(s, MAGE, 600);
+  G.setRandom();
+  assert.ok(s.runBest >= 90 && s.stats.downs <= 50, `스테이지 ${s.runBest}, 쓰러짐 ${s.stats.downs}번`);
+});
+
+// 강화를 가장 싼 것부터 사고 전직 경로를 따라가는 봇
+function bot(s, path, seconds, order) {
+  order = order || ['weapon', 'armor', 'speed', 'companion', 'loot'];
+  for (let t = 0; t < seconds; t++) {
+    G.simulate(s, 1);
+    for (;;) { let b = null, bc = Infinity; for (const k of order) if (G.canBuy(s, k) && G.upgradeCost(s, k) < bc) { b = k; bc = G.upgradeCost(s, k); } if (!b) break; G.buy(s, b); }
+    const st = G.promoStage(s);
+    if (st) { const id = path[['base', 'adv', 'adv3', 'adv4'].indexOf(st)]; if (id) G.promote(s, id); }
+  }
+}
+const MAGE = ['mage', 'pyromancer', 'infernomage', 'flameemperor'];
+test('환생을 짧게 반복하는 쪽이 10분씩 키우는 쪽보다 증표를 훨씬 더 벌지 못한다', () => {
+  const loop = (runMin, totalMin) => {
+    G.setRandom(seeded(4));
+    const s = G.createState(0);
+    for (let el = 0; el + runMin <= totalMin; el += runMin) {
+      bot(s, MAGE, runMin * 60);
+      G.prestige(s);
+      for (;;) { let b = null, bc = Infinity; for (const id of G.PERK_KEYS) if (G.canBuyPerk(s, id) && G.perkCost(s, id) < bc) { b = id; bc = G.perkCost(s, id); } if (!b) break; G.buyPerk(s, b); }
+    }
+    G.setRandom();
+    return s.tokens;
+  };
+  const spam = loop(3, 60), steady = loop(10, 60);
+  assert.ok(spam <= steady * 1.15, `3분마다 ${spam}개, 10분마다 ${steady}개 (예전에는 3.5배였다)`);
+});
+test('재빠른 손은 이제 실제로 도움이 된다 (없으면 스테이지가 3 이상 낮아진다)', () => {
+  const fin = (order) => { G.setRandom(seeded(5)); const s = G.createState(0); bot(s, MAGE, 15 * 60, order); G.setRandom(); return s.runBest; };
+  const withSpeed = fin(), without = fin(['weapon', 'armor', 'companion', 'loot']);
+  assert.ok(withSpeed - without >= 3, `${withSpeed} vs ${without}`);
+});
+test('증표가 많아도 스테이지가 90 근처에서 멈추지 않는다 (증표 150개로 15분에 100 넘게)', () => {
+  G.setRandom(seeded(6));
+  const s = G.createState(0); s.tokens = 150; s.prestiges = 8;
+  for (const id of ['might', 'greed', 'vitality', 'kingly', 'headstart']) s.perks[id] = G.PERKS[id].max;
+  s.hp = G.maxHp(s);
+  bot(s, MAGE, 15 * 60);
+  G.setRandom();
+  assert.ok(s.runBest >= 98, `스테이지 ${s.runBest}`);
+});
+test('32가지 4차 직업이 증표 30개 상태에서 15분 뒤 도달하는 스테이지 격차가 9 이하다 (피해 상한을 넣은 직후 예전 직업표는 15)', () => {
+  const paths = [];
+  const walk = (p) => { if (p.length === 4) { paths.push(p); return; } for (const c of (p.length === 0 ? Object.keys(G.CLASSES) : G.childrenOf(p[p.length - 1]))) walk(p.concat(c)); };
+  walk([]);
+  const res = paths.map((p) => {
+    G.setRandom(seeded(2));
+    const s = G.createState(0); s.tokens = 30; s.prestiges = 5;
+    for (const id of ['might', 'greed', 'vitality']) s.perks[id] = 6;
+    s.hp = G.maxHp(s);
+    bot(s, p, 15 * 60);
+    return s.runBest;
+  });
+  G.setRandom();
+  const spread = Math.max(...res) - Math.min(...res);
+  assert.ok(spread <= 9, `격차 ${spread} (${Math.min(...res)}~${Math.max(...res)})`);
+});
+
+
+section('자리를 비운 시간 (오프라인 보상)');
+const awayState = (savedWall, savedSrv) => { const s = G.createState(0); s.savedAt = savedWall; s.srvSavedAt = savedSrv || 0; return s; };
+test('서버 시각이 있으면 기기 시계가 아니라 서버 시각의 차이로 잰다', () => {
+  const s = awayState(1e9, 5e12);
+  const a = G.resolveAway(s, 1e9 + 3600e3, 5e12 + 1800e3);   // 기기는 1시간, 서버는 30분
+  assert.deepStrictEqual([a.seconds, a.source, a.jumped, a.capped], [1800, 'server', true, false]);
+});
+test('기기 시계를 앞으로 돌려도(10시간) 서버가 5분이라고 하면 5분만 받는다', () => {
+  const s = awayState(1e9, 5e12);
+  const a = G.resolveAway(s, 1e9 + 10 * 3600e3, 5e12 + 300e3);
+  assert.deepStrictEqual([a.seconds, a.jumped], [300, true]);
+});
+test('기기 시계가 뒤로 가 있어도(음수) 서버 시각으로 실제 비운 시간을 받는다', () => {
+  const s = awayState(1e9, 5e12);
+  const a = G.resolveAway(s, 1e9 - 3600e3, 5e12 + 7200e3);
+  assert.deepStrictEqual([a.seconds, a.source, a.jumped], [7200, 'server', true]);
+});
+test('서버 시각을 모르면(저장 때나 지금) 기기 시계의 차이를 쓰고, 음수는 0이다', () => {
+  assert.deepStrictEqual(G.resolveAway(awayState(1e9, 0), 1e9 + 600e3, 5e12).source, 'device', '저장 때 서버 시각을 몰랐던 경우');
+  assert.strictEqual(G.resolveAway(awayState(1e9, 0), 1e9 + 600e3, 5e12).seconds, 600);
+  assert.deepStrictEqual([G.resolveAway(awayState(1e9, 5e12), 1e9 + 600e3, null).source, G.resolveAway(awayState(1e9, 5e12), 1e9 + 600e3, NaN).seconds], ['device', 600], '지금 서버 시각을 못 받은 경우');
+  assert.strictEqual(G.resolveAway(awayState(1e9, 0), 1e9 - 999e3, null).seconds, 0);
+});
+test('두 시각이 2분 이내로 어긋난 것은 시계가 튄 것으로 치지 않는다', () => {
+  const s = awayState(1e9, 5e12);
+  assert.strictEqual(G.resolveAway(s, 1e9 + 3600e3, 5e12 + 3600e3 + 100e3).jumped, false);
+  assert.strictEqual(G.resolveAway(s, 1e9 + 3600e3, 5e12 + 3600e3 + 130e3).jumped, true);
+});
+test('한도(기본 8시간 + 든든한 휴식·탐욕의 금고)를 넘으면 한도까지만 주고 표시한다', () => {
+  const s = awayState(1e9, 5e12);
+  const a = G.resolveAway(s, 1e9, 5e12 + 20 * 3600e3);
+  assert.deepStrictEqual([a.seconds, a.capped, a.raw], [8 * 3600, true, 20 * 3600]);
+  s.perks.rest = 4;
+  assert.strictEqual(G.resolveAway(s, 1e9, 5e12 + 20 * 3600e3).seconds, 12 * 3600);
+  const v = relicOwner(['relic_vault']); v.savedAt = 1e9; v.srvSavedAt = 5e12;
+  assert.strictEqual(G.resolveAway(v, 1e9, 5e12 + 20 * 3600e3).seconds, 10 * 3600);
+});
+test('여러 번에 나눠 받을 때는 남은 한도(maxSeconds)까지만 준다', () => {
+  const s = awayState(1e9, 5e12);
+  assert.strictEqual(G.resolveAway(s, 1e9, 5e12 + 5 * 3600e3, 3 * 3600).seconds, 3 * 3600);
+  assert.strictEqual(G.resolveAway(s, 1e9, 5e12 + 5 * 3600e3, 0).seconds, 0);
+  assert.strictEqual(G.resolveAway(s, 1e9, 5e12 + 5 * 3600e3, -50).seconds, 0);
+  assert.strictEqual(G.resolveAway(s, 1e9, 5e12 + 5 * 3600e3, NaN).seconds, 5 * 3600, '값이 이상하면 한도 없음이 아니라 기본 한도');
+});
+test('보상은 한 번만 준다: 받고 나면 저장 시각이 지금으로 옮겨져서 바로 다시 받을 수 없다', () => {
+  G.setRandom(seeded(2));
+  const s = awayState(0, 5e12);
+  const r = G.applyOffline(s, 3600e3, 5e12 + 3600e3);
+  assert.ok(r && r.seconds === 3600 && r.source === 'server' && r.gold > 0 && r.kills > 0);
+  assert.deepStrictEqual([s.savedAt, s.srvSavedAt], [3600e3, 5e12 + 3600e3]);
+  assert.strictEqual(G.applyOffline(s, 3600e3 + 10e3, 5e12 + 3610e3), null, '10초 뒤에는 보상이 없다');
+  G.setRandom();
+});
+test('30초 미만은 보상이 없지만 저장 시각은 옮겨진다 (짧게 여러 번 열어도 시간이 새지 않는다)', () => {
+  const s = awayState(0, 5e12);
+  assert.strictEqual(G.applyOffline(s, 20e3, 5e12 + 20e3), null);
+  assert.strictEqual(s.savedAt, 20e3);
+  const r = G.applyOffline(s, 70e3, 5e12 + 70e3);
+  assert.strictEqual(r.seconds, 50, '옮겨진 시각부터 다시 잰다');
+});
+test('보고서에 실제 비운 시간(raw)·기준(source)·한도 여부가 담긴다', () => {
+  G.setRandom(seeded(3));
+  const s = awayState(0, 5e12);
+  const r = G.applyOffline(s, 20 * 3600e3, 5e12 + 20 * 3600e3);
+  assert.deepStrictEqual([r.seconds, r.raw, r.capped, r.source], [8 * 3600, 20 * 3600, true, 'server']);
+  G.setRandom();
+});
+test('오래 비울수록 보상이 커진다 (1시간 < 4시간 < 8시간)', () => {
+  const gold = (h) => { G.setRandom(seeded(4)); const s = G.createState(0); const g0 = s.gold; G.applyOffline(s, h * 3600e3, null); G.setRandom(); return s.gold - g0; };
+  const g1 = gold(1), g4 = gold(4), g8 = gold(8);
+  assert.ok(g1 > 0 && g4 > g1 && g8 > g4, `${g1} ${g4} ${g8}`);
+});
+test('저장할 때 서버 시각도 함께 기록하고, 모르면 0으로 적는다. 조작된 값은 걸러진다', () => {
+  const s = G.createState(0);
+  const back = G.deserialize(G.serialize(s, 1234, 5e12 + 0.7));
+  assert.deepStrictEqual([back.savedAt, back.srvSavedAt], [1234, 5e12]);
+  assert.strictEqual(G.deserialize(G.serialize(s, 1234)).srvSavedAt, 0, '모르면 0 (옛 서버 시각이 남지 않는다)');
+  for (const bad of [-5, 'x', NaN, 1e30, null]) { const o = JSON.parse(G.serialize(s, 1)); o.srvSavedAt = bad; const v = G.deserialize(JSON.stringify(o)).srvSavedAt; assert.ok(v >= 0 && v <= 1e14 && Number.isFinite(v), String(bad)); }
+  const old = JSON.parse(G.serialize(s, 1)); delete old.srvSavedAt;
+  assert.strictEqual(G.deserialize(JSON.stringify(old)).srvSavedAt, 0, '예전 저장(서버 시각 없음)은 기기 시계로 잰다');
+});
+test('한 번에 받은 8시간과 나눠 받은 8시간(4시간+4시간)이 같은 한도로 계산된다', () => {
+  const s = awayState(0, 5e12);
+  const first = G.resolveAway(s, 0, 5e12 + 4 * 3600e3, 8 * 3600);
+  const second = G.resolveAway(s, 0, 5e12 + 9 * 3600e3, 8 * 3600 - first.seconds);
+  assert.strictEqual(first.seconds + second.seconds, 8 * 3600);
 });
 
 queue.then(() => console.log(`\n${passed}개 통과` + (process.exitCode ? ', 실패 있음' : '')));

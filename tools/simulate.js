@@ -127,12 +127,25 @@ if (!only) {
   console.log(`  가장 강한 경로: ${name(best.p)} ${best.r.final.toFixed(1)} / 가장 약한 경로: ${name(worst.p)} ${worst.r.final.toFixed(1)}`);
 }
 
-console.log('\n== 환생 반복 (한 판 15분씩 10번) ==');
+console.log('\n== 환생 반복 (한 판 10분씩 10번) ==');
 const demo = only ? selected[0] : ['mage', 'pyromancer', 'infernomage', 'flameemperor'];
 SEEDS = [1, 2, 3, 4, 5, 6, 7, 8];
 const show = (rs) => rs.map((r) => `${r.run}판→${r.stage}`).join('  ');
-console.log(demo.join('/') + ' (증표 상점 안 씀): ' + show(runPrestiges(demo, 15, 10, false)));
-const withPerks = runPrestiges(demo, 15, 10, true);
+console.log(demo.join('/') + ' (증표 상점 안 씀): ' + show(runPrestiges(demo, 10, 10, false)));
+const withPerks = runPrestiges(demo, 10, 10, true);
 console.log(demo.join('/') + ' (증표 상점 사용): ' + show(withPerks));
 const last = withPerks[withPerks.length - 1];
 console.log(`  10판 뒤 누적 증표 ${last.tokens}개, 상점에 쓴 증표 ${last.spent}개`);
+
+// 환생 주기 비교: 같은 60분 동안 몇 분마다 환생하면 증표를 얼마나 모으는지 (짧게 반복하는 쪽이 유리하면 밸런스 결함)
+console.log('\n== 환생 주기 비교 (총 60분, 증표 상점 사용) ==');
+SEEDS = [1, 2, 3, 4];
+for (const runMin of [3, 5, 10, 15, 30, 60]) {
+  const res = SEEDS.map((seed) => {
+    G.setRandom(seeded(seed));
+    const s = G.createState(0);
+    for (let el = 0; el + runMin <= 60; el += runMin) { playRun(s, demo, runMin * 60, []); G.prestige(s); spendTokens(s); }
+    return s.tokens;
+  });
+  console.log(`${String(runMin).padStart(2)}분마다 환생 → 60분 뒤 누적 증표 ${mean(res).toFixed(0)}개`);
+}

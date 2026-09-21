@@ -347,7 +347,7 @@ svg { display: block; }
 .choice .btn { width: 100%; padding: 8px 8px 6px; font-size: 13px; margin-top: 2px; }
 .notice { font-size: 12px; color: var(--muted); text-align: center; padding: 12px; margin-top: 10px; line-height: 1.6; border: 1px dashed var(--line); background: rgba(10, 30, 70, 0.4); }
 .codex { display: block; }
-.achv { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.achv { display: grid; grid-template-columns: 1fr; gap: 6px; margin-bottom: 8px; }
 .ach { display: flex; align-items: center; gap: 8px; padding: 8px; min-width: 0; background: rgba(10, 30, 70, 0.5); border: 1px solid var(--line); }
 .ach.is-on { border-color: rgba(255, 212, 121, 0.7); background: linear-gradient(180deg, rgba(90, 64, 10, 0.5), rgba(10, 30, 70, 0.5)); }
 .ach .ic { width: 26px; height: 26px; filter: grayscale(1) brightness(0.55); }
@@ -502,7 +502,7 @@ svg { display: block; }
 .gearopts input[type=checkbox] { width: 18px; height: 18px; accent-color: #ffc84a; }
 .gearopts select { margin-left: 4px; padding: 5px 6px; font: inherit; font-size: 12px; color: var(--ink); background: #0a1a3e; border: 1px solid var(--line); }
 .bag { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
-.gitem { padding: 6px 2px 5px; min-height: 76px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; }
+.gitem { position: relative; padding: 6px 2px 5px; min-height: 76px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; }
 .gitem .ic { width: 30px; height: 30px; }
 .gitem__stat { font-size: 11px; font-weight: 900; color: var(--rc); }
 .gitem__lv { font-size: 9px; color: var(--muted); }
@@ -724,3 +724,49 @@ svg { display: block; }
 .adov__note { margin: 10px 0; font-size: 12px; color: var(--muted); line-height: 1.5; }
 .adov__btns { display: flex; gap: 8px; }
 .adov__btns .btn { flex: 1; }
+
+/* ===== 업적 보상 · 유물 ===== */
+.achgroup { margin: 12px 0 6px; font-size: 12px; font-weight: 900; color: var(--gold); letter-spacing: 0.04em; display: flex; justify-content: space-between; }
+.achgroup small { color: var(--muted); font-weight: 700; }
+.ach__row { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; }
+.ach__num { font-size: 10px; font-weight: 800; color: var(--muted); white-space: nowrap; }
+.ach__rw { flex: none; min-width: 66px; display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 11px; font-weight: 900; color: #8fd8ff; }
+.ach__rw .ic { width: 16px; height: 16px; filter: none !important; }
+.ach__rw span { display: flex; align-items: center; gap: 2px; }
+.ach__rw .btn { padding: 4px 10px 2px; font-size: 12px; min-width: 60px; }
+.ach__rw em { font-style: normal; font-size: 10px; color: var(--muted); }
+.ach.is-claim { border-color: #ffd479; box-shadow: 0 0 10px rgba(255, 212, 121, 0.35); }
+.achclaim { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; padding: 8px 10px; font-size: 12px; font-weight: 800; background: rgba(90, 64, 10, 0.4); border: 1px solid rgba(255, 212, 121, 0.6); }
+.achclaim .btn { flex: none; padding: 6px 14px 4px; }
+.relic { border-color: var(--rc, var(--gold-d)); }
+.relic .prod__tile { border-color: var(--rc); }
+.relic__opts { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; }
+.relic__opts b { font-size: 12px; color: var(--rc); }
+.relic__opts b::before { content: '★ '; }
+.relic.is-on { box-shadow: 0 0 14px -2px var(--rc); }
+.relic .prod__btn { min-width: 70px; }
+.prod__chip--relic { background: linear-gradient(180deg, #ffe9a8, #ffc93a); color: #4a2a00; }
+.relicbar { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 8px 0; }
+.rslot { display: flex; align-items: center; gap: 6px; padding: 6px 8px; min-width: 0; font: inherit; color: var(--ink); text-align: left; cursor: pointer; background: rgba(10, 30, 70, 0.5); border: 1px dashed var(--line); }
+.rslot.is-full { border: 1px solid var(--rc); background: linear-gradient(180deg, rgba(60, 40, 90, 0.5), rgba(10, 30, 70, 0.5)); }
+.rslot .ic { width: 26px; height: 26px; flex: none; }
+.rslot__t { min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
+.rslot__t b { font-size: 11.5px; }
+.rslot__t small { font-size: 10px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pnote { margin-top: 8px; font-size: 11.5px; line-height: 1.55; color: var(--muted); text-align: left; }
+.pnote b { color: var(--gold); }
+
+/* ===== 장비 상점 · 특별 옵션 장비 ===== */
+.gshopnote { margin: 0 0 8px; font-size: 11px; line-height: 1.5; color: var(--muted); }
+.gshopnote b { color: var(--gold); }
+.gshop { border-color: var(--rc); }
+.gshop .prod__tile { width: 54px; height: 54px; padding: 3px; border-color: var(--rc); --tone: color-mix(in srgb, var(--rc) 35%, #0a1a3e); }
+.gshop .prod__tile svg, .gshop .prod__tile img { width: 100%; height: 100%; }
+.gshop.is-sold { opacity: 0.45; filter: grayscale(0.7); }
+.gshop .prod__desc .cmp-plus, .gshop .prod__desc .cmp-minus { margin-left: 4px; font-weight: 800; }
+.slot__sp { margin-top: 1px; font-size: 9.5px; font-weight: 800; color: var(--gold); line-height: 1.25; }
+.gitem__sp { position: absolute; right: 3px; top: 1px; font-style: normal; font-size: 12px; color: #ffe27a; text-shadow: 0 0 4px #000, 0 0 6px #ffc93a; }
+.itemd__sp { margin-top: 2px; font-size: 12.5px; font-weight: 900; color: var(--gold); }
+#gshopReroll .ic { width: 14px; height: 14px; vertical-align: -2px; filter: none; }
+
+.awaynote { margin: 10px 0 0; padding: 8px 10px; font-size: 11px; line-height: 1.5; color: var(--muted); border: 1px dashed var(--line); }
