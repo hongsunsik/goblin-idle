@@ -1179,19 +1179,19 @@ test('광고: 하루 3번까지 보상을 받고, 그 이상은 거절하며, �
   assert.deepStrictEqual([day1, day2], ['2026-09-21', '2026-09-22']);
   assert.strictEqual(G.dayKey(Date.UTC(2026, 8, 21, 14, 59, 59)), '2026-09-21', '자정 1초 전은 아직 같은 날');
   assert.deepStrictEqual(G.adStatus(t, day1), { used: 0, left: 3, limit: 3 });
-  for (let i = 0; i < 3; i++) assert.ok(G.claimAdLevel(t, day1).ok);
-  const r = G.claimAdLevel(t, day1);
+  for (let i = 0; i < 3; i++) assert.ok(G.claimAd(t, day1).ok);
+  const r = G.claimAd(t, day1);
   assert.deepStrictEqual([r.ok, r.reason, r.left], [false, 'limit', 0]);
-  assert.strictEqual(t.level, 4, '3번 성공했으니 레벨 1 → 4');
+  assert.strictEqual(t.crystals, 30, '3번 성공했으니 크리스탈 30개');
   assert.strictEqual(G.adStatus(t, day2).left, 3, '다음 날 초기화');
-  assert.ok(G.claimAdLevel(t, day2).ok);
+  assert.ok(G.claimAd(t, day2).ok);
 });
 
 test('광고: 기기 시계를 바꿔도 하루 3번을 넘길 수 없다 (서버 시각 기준)', () => {
   const t = G.createState(0);
   const H = 3600e3, d21 = Date.UTC(2026, 8, 21, 1), d22 = Date.UTC(2026, 8, 21, 16);   // 서버가 말하는 시각 (21일, 22일)
   const localReal = d21;
-  const use = (server, local) => { const day = G.adToday(t, server, local); return G.claimAdLevel(t, day); };
+  const use = (server, local) => { const day = G.adToday(t, server, local); return G.claimAd(t, day); };
   for (let i = 0; i < 3; i++) assert.ok(use(d21, localReal).ok);
   assert.ok(!use(d21, localReal).ok, '서버가 같은 날이라고 하면 막힌다');
   // 기기 시계를 이틀 앞으로 돌려도, 서버 시각이 같은 날이면 그대로 막힌다
@@ -1218,16 +1218,17 @@ test('광고: 기기 시계를 바꿔도 하루 3번을 넘길 수 없다 (서�
   assert.strictEqual(G.deserialize(JSON.stringify(o)).adClock, '');
 });
 
-test('광고 보상은 정확히 한 번의 레벨업이고, 경험치를 이미 쌓아 둔 상태에서도 한 번만 오른다', () => {
+test('광고 보상은 한 번에 크리스탈 10개이고, 횟수를 다 쓰면 받지 못한다', () => {
   const t = G.createState(0);
-  t.exp = Math.floor(G.expNeeded(t) / 2);
-  const r = G.claimAdLevel(t, '2026-09-21');
-  assert.strictEqual(t.level, 2);
-  assert.strictEqual(t.exp, 0);
-  assert.deepStrictEqual(r.events.filter((e) => e.type === 'levelup').map((e) => e.level), [2]);
-  const u = G.createState(0); u.level = 9;
-  const ev = G.claimAdLevel(u, '2026-09-21').events;
-  assert.ok(ev.some((e) => e.type === 'promoReady' && e.stage === 'base'), '레벨 10이 되면 전직 알림도 나온다');
+  t.crystals = 5;
+  const r = G.claimAd(t, '2026-09-21');
+  assert.deepStrictEqual([r.ok, r.crystals, r.left, t.crystals], [true, 10, 2, 15]);
+  assert.strictEqual(t.level, 1, '레벨은 오르지 않는다');
+  G.claimAd(t, '2026-09-21'); G.claimAd(t, '2026-09-21');
+  const x = G.claimAd(t, '2026-09-21');
+  assert.deepStrictEqual([x.ok, x.reason, x.crystals, t.crystals], [false, 'limit', 0, 35], '4번째는 거절되고 크리스탈도 늘지 않는다');
+  assert.strictEqual(G.claimAd(t, '2026-09-22').crystals, 10, '다음 날은 다시 받는다');
+  assert.strictEqual(G.deserialize(G.serialize(t, 1)).crystals, 45, '저장된다');
 });
 
 test('상점 관련 저장 값은 저장·복원되고, 조작된 값은 범위 안으로 보정한다', () => {

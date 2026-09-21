@@ -1465,10 +1465,9 @@
     $('demoNote').hidden = demo.length === 0;
     $('demoNote').innerHTML = demo.join(' ');
 
-    const lvNext = s.level + 1;
     $('adCard').innerHTML = `<div class="card prod"><div class="prod__tile" style="--tone:#3a8a4a">${A.icon('arrowup')}</div>` +
-      `<div><div class="prod__name">광고 보고 레벨업 <span class="prod__chip">무료</span></div>` +
-      `<div class="prod__desc">광고를 끝까지 보면 바로 <b>레벨업 1번</b> (Lv.${s.level} → ${lvNext}).<br>오늘 ${ad.left}/${ad.limit}번 남음 · 자정에 초기화</div></div>` +
+      `<div><div class="prod__name">광고 보고 크리스탈 <span class="prod__chip">무료</span></div>` +
+      `<div class="prod__desc">광고를 끝까지 볼 때마다 ${GEM} <b>크리스탈 ${Store.AD_CRYSTALS}개</b>.<br>오늘 ${ad.left}/${ad.limit}번 남음 · 한국 시간 자정에 초기화</div></div>` +
       `<button class="btn prod__btn" type="button" data-ad ${ad.left > 0 && adsMod.available ? '' : 'disabled'}><span>${ad.left > 0 ? '광고 보기' : '오늘 끝'}</span></button></div>`;
 
     const buyBtn = (id, price, disabled, label) => `<button class="btn btn--gold prod__btn" type="button" data-buy="${id}" ${disabled ? 'disabled' : ''}>${label ? `<small>${label}</small>` : ''}<span>${GEM}${price}</span></button>`;
@@ -1598,11 +1597,10 @@
       if (G.adStatus(state, today()).left <= 0) { renderStore(true); return; }
       const r = await adsMod.showRewarded();
       if (r.status === 'completed') {
-        const before = state.level;
-        const res = G.claimAdLevel(state, today());   // 서버 시각 기준으로 센다
+        const res = G.claimAd(state, today());   // 서버 시각 기준으로 센다
         if (res.ok) {
-          handleEvents(res.events);
-          addLog(`광고 보상! 레벨 ${before} → ${state.level}`, 'is-gold', 'arrowup');
+          addLog(`광고 보상! 크리스탈 +${res.crystals}`, 'is-gold', 'gem');
+          floatText(`+${res.crystals} 크리스탈`, 'float--big', 'center');
           cloudSoon(); writeSave(); render(); renderStore(true);
         }
       } else if (r.status === 'unavailable') openModal('광고를 볼 수 없어요', esc(r.reason || ''), [{ text: '확인' }]);

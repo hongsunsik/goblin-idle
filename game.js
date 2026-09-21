@@ -396,7 +396,7 @@
     return { ok: true, product, items };
   }
 
-  // ---- 광고 보상: 광고를 보면 레벨업 1번, 하루 3번까지 ----
+  // ---- 광고 보상: 광고를 끝까지 보면 크리스탈 10개, 하루 3번까지 ----
   // 광고 횟수를 세는 '오늘'. 기기 시계는 사용자가 바꿀 수 있어서 서버 시각(serverNow, 없으면 null)을 기준으로 한다.
   // 서버 시각을 못 받으면(오프라인 등) 새 날로 넘어가지 않고 마지막으로 확인된 날짜에 머문다. 시계를 앞으로 돌려도 뒤로 돌려도 횟수는 늘지 않는다.
   function adToday(s, serverNow, localNow) {
@@ -408,15 +408,13 @@
     const used = s.adLog.day === day ? s.adLog.n : 0;
     return { used, left: Math.max(0, St.AD_DAILY_LIMIT - used), limit: St.AD_DAILY_LIMIT };
   }
-  // 광고를 끝까지 봤을 때 부른다. 다음 레벨까지 필요한 경험치를 채워 정확히 한 번 레벨업시킨다. 결과: { ok, reason?, left, events }
-  function claimAdLevel(s, day) {
+  // 광고를 끝까지 봤을 때 부른다. 하루 횟수가 남았으면 크리스탈을 준다. 결과: { ok, reason?, left, crystals }
+  function claimAd(s, day) {
     const st = adStatus(s, day);
-    const ev = [];
-    if (st.left <= 0) return { ok: false, reason: 'limit', left: 0, events: ev };
+    if (st.left <= 0) return { ok: false, reason: 'limit', left: 0, crystals: 0 };
     s.adLog = { day, n: st.used + 1 };
-    gainExp(s, Math.max(1, expNeeded(s) - s.exp), ev);
-    checkAchievements(s, ev);
-    return { ok: true, left: st.left - 1, events: ev };
+    s.crystals += St.AD_CRYSTALS;
+    return { ok: true, left: st.left - 1, crystals: St.AD_CRYSTALS };
   }
 
   // ---- 상태 ----
@@ -1016,7 +1014,7 @@
     serialize, deserialize,
     TOKEN_BONUS, maxHp, hitDmg, attacksPerSec, companionDps, totalDps, goldMult, expNeeded, tokenMult,
     monsterAtk, monsterGold, monsterInfo, biomeOf, roundOf, BIOME_LEN, NORMAL_SLOTS, isBossStage, lookId, classTitle,
-    STORE: St, potionV, dayKey, creditCrystals, buyProduct, adToday, adStatus, claimAdLevel, shopItemLevel,
+    STORE: St, potionV, dayKey, creditCrystals, buyProduct, adToday, adStatus, claimAd, shopItemLevel,
     SKILL_KINDS: Sk.KINDS, SKILL_NAMES: Sk.SKILLS, describeSkill: Sk.describeSkill, MELEE_STYLES: Sk.MELEE_STYLES, ATTACK_STYLE: Sk.ATTACK_STYLE,
     skillsOf, attackStyle, styleOfClass, buffV, canCast, skillFor: (id) => Sk.makeSkill(id, TIER_OF[id]),
     NODES: NODE, nextPromo, promoStage, promoOptions, promote, statMult, masteryMult,

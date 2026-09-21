@@ -2,7 +2,7 @@
 //
 // 크리스탈: 유료 재화. 지금은 '데모 결제'로만 충전된다 (실제 돈은 청구되지 않는다). 실제 결제로 바꾸려면 docs/PAYMENTS.md 를 보세요.
 // 상품: 물약(잠시 지속되는 효과), 장비 상자(등급 확률 공개), 편의(가방 확장), 시작 패키지(1회).
-// 광고: 광고를 보면 레벨업 1번, 하루 3번까지.
+// 광고: 광고를 끝까지 보면 크리스탈 10개, 하루 3번까지.
 (function (root) {
   // ---- 크리스탈 충전 상품 (가격은 원). crystals에는 보너스가 포함돼 있다. ----
   const CRYSTAL_PACKS = [
@@ -46,12 +46,13 @@
 
   // ---- 광고 ----
   const AD_DAILY_LIMIT = 3;   // 하루 3번 (자정에 초기화)
+  const AD_CRYSTALS = 10;     // 광고 1번을 볼 때마다 받는 크리스탈
   const AD_SECONDS = 5;       // 데모 광고 길이
 
   const byId = (list, id) => list.find((x) => x.id === id) || null;
   const POTION_IDS = POTIONS.map((p) => p.id);
 
-  const api = { CRYSTAL_PACKS, POTIONS, INSTANT, BOXES, UTILITIES, STARTER, POTION_CAP, POTION_IDS, BAG_STEP, BAG_EXTRA_MAX, AD_DAILY_LIMIT, AD_SECONDS, byId };
+  const api = { CRYSTAL_PACKS, POTIONS, INSTANT, BOXES, UTILITIES, STARTER, POTION_CAP, POTION_IDS, BAG_STEP, BAG_EXTRA_MAX, AD_DAILY_LIMIT, AD_CRYSTALS, AD_SECONDS, byId };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.GoblinStore = api;
 })(typeof window !== 'undefined' ? window : globalThis);

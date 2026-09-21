@@ -450,17 +450,17 @@ const FAKE_CLOUD = `(() => {
     check('가방 확장(80) 뒤 크리스탈이 90이다', (await txt('#crystalBal')) === '90');
     // 광고
     check('광고는 오늘 3번 남아 있다', (await txt('#adCard')).includes('3/3'));
-    const lv0 = Number(await txt('#level'));
+    const bal0 = Number(await txt('#crystalBal'));
     await click('#adCard [data-ad]'); await sleep(300);
     check('광고 화면이 열리고 카운트다운이 끝나기 전에는 보상 버튼이 잠긴다', await ev(`!document.getElementById('adOverlay').hidden && document.getElementById('adClaim').disabled`));
     await click('#adCancel'); await sleep(200);
-    check('광고를 중간에 그만두면 횟수가 줄지 않는다', (await txt('#adCard')).includes('3/3') && Number(await txt('#level')) === lv0);
+    check('광고를 중간에 그만두면 횟수가 줄지 않는다', (await txt('#adCard')).includes('3/3') && Number(await txt('#crystalBal')) === bal0);
     for (let i = 1; i <= 3; i++) {
       await click('#adCard [data-ad]'); await sleep(1500);
       const ready = await ev(`!document.getElementById('adClaim').disabled`);
       if (!ready) check(`광고 ${i}: 1초 뒤 보상 버튼이 열린다`, false);
       await click('#adClaim'); await sleep(400);
-      check(`광고 ${i}번째: 레벨이 정확히 1 오르고 남은 횟수가 ${3 - i}번`, Number(await txt('#level')) === lv0 + i && (await txt('#adCard')).includes(`${3 - i}/3`), `레벨 ${await txt('#level')}, ${await txt('#adCard')}`);
+      check(`광고 ${i}번째: 크리스탈이 정확히 10개 늘고 남은 횟수가 ${3 - i}번`, Number(await txt('#crystalBal')) === bal0 + 10 * i && (await txt('#adCard')).includes(`${3 - i}/3`), `크리스탈 ${await txt('#crystalBal')}, ${await txt('#adCard')}`);
     }
     check('하루 3번을 다 쓰면 광고 버튼이 잠긴다', await ev(`document.querySelector('#adCard [data-ad]').disabled`));
     await shot('store-ad');
@@ -468,7 +468,7 @@ const FAKE_CLOUD = `(() => {
     await sleep(600);
     await send('Page.navigate', { url: 'file://' + ROOT + '/index.html' }); await sleep(1500);
     await click('[data-go="store"]'); await sleep(400);
-    check('다시 열어도 크리스탈 90·광고 횟수·물약이 유지된다', (await txt('#crystalBal')) === '90' && (await ev(`document.querySelector('#adCard [data-ad]').disabled`)) && (await txt('#potionList')).includes('적용 중'));
+    check('다시 열어도 크리스탈 120(90+광고 30)·광고 횟수·물약이 유지된다', (await txt('#crystalBal')) === '120' && (await ev(`document.querySelector('#adCard [data-ad]').disabled`)) && (await txt('#potionList')).includes('적용 중'));
 
     // 기기 시계를 바꿔서 광고 횟수를 늘리려는 시도
     await ev(`(() => { window.__realNow = Date.now; window.__realFetch = window.fetch; Date.now = () => window.__realNow() + 2 * 864e5; })()`);   // 기기 시계를 이틀 앞으로
