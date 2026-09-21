@@ -13,10 +13,18 @@ const CHROME = process.env.CHROME || '/Applications/Google Chrome.app/Contents/M
 const PORT = 9333;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// 씨앗이 있는 난수: 장비 드롭이 무작위라도 스크린샷이 매번 같게 나오도록 한다
+function seeded(seed) {
+  let a = seed >>> 0;
+  return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+
 // 봇이 강화를 사면서 플레이한 것처럼 진행시켜 보기 좋은 저장 데이터를 만든다.
 // until(s)이 참이 되는 순간에서 멈추고, 전직은 레벨 조건을 채웠을 때만 한다 (불가능한 상태를 만들지 않음).
-function makeSave({ until, cls, adv, promoteAdv = true, tokens = 0, prestiges = 0, mastered = [], dex = {}, perks = {} }) {
+function makeSave({ until, cls, adv, promoteAdv = true, tokens = 0, prestiges = 0, mastered = [], dex = {}, perks = {}, autoSell = 0, seed = 11 }) {
+  G.setRandom(seeded(seed));
   const s = G.createState(0);
+  s.autoSell = autoSell;
   s.tokens = tokens;
   s.prestiges = prestiges;
   s.perks = perks;
@@ -108,6 +116,7 @@ async function main() {
     await shot('battle-ice', makeSave({ until: (s) => s.stage >= 33, ...mage, tokens: 4 }));    // 얼음 산맥
     await shot('class', makeSave({ until: (s) => s.level >= 20, ...mage, promoteAdv: false, tokens: 2 }), { tab: 'class' });
     await shot('achievements', makeSave({ until: (s) => s.stage >= 36, ...mage, tokens: 4, prestiges: 1 }), { tab: 'log' });
+    await shot('gear', makeSave({ until: (s) => s.stage >= 40, ...mage, tokens: 4, autoSell: -1, seed: 21 }), { tab: 'gear' });
     await shot('shop', makeSave({ until: (s) => s.stage >= 20, ...mage, tokens: 24, perks: { might: 4, greed: 3, vitality: 2, click: 1 } }), { tab: 'shop' });
     await shot('codex', makeSave({
       until: (s) => s.level >= 20, ...mage, tokens: 8, mastered: ['knight', 'sniper', 'necromancer'],

@@ -33,14 +33,25 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     await send('Emulation.setDeviceMetricsOverride', { width: 420, height: 900, deviceScaleFactor: 1, mobile: true });
 
     // 저장 데이터: 스테이지 20 근처, 증표 20개, 골드 넉넉히
-    const s = G.createState(0); s.tokens = 20; s.gold = 5e4; s.level = 22; s.stage = 21; s.runBest = s.bestStage = 21;
+    const s = G.createState(0); s.tokens = 20; s.gold = 5e4; s.level = 22; s.stage = 6; s.runBest = s.bestStage = 21;
     s.cls = 'mage'; s.adv = 'pyromancer'; s.mastered.pyromancer = true; s.dex.pyromancer = { best: 24, kills: 300, runs: 1 };
+    // 장비: 무기 하나를 차고, 가방에 종류·등급이 다른 장비 6개
+    const it = (o) => Object.assign({ id: 1, slot: 'weapon', kind: 'dmg', r: 0, ilvl: 10, val: 5, n: 0 }, o);
+    s.autoSell = -1;
+    s.equip.weapon = it({ id: 1, r: 0, val: 5 });
+    s.bag.push(it({ id: 2, r: 2, val: 30, ilvl: 18 }), it({ id: 3, slot: 'armor', kind: 'hp', r: 1, val: 12 }),
+      it({ id: 4, slot: 'accessory', kind: 'gold', r: 0, val: 7 }), it({ id: 5, slot: 'weapon', r: 1, val: 9 }),
+      it({ id: 6, slot: 'accessory', kind: 'aps', r: 3, val: 11, ilvl: 20 }), it({ id: 7, slot: 'armor', kind: 'hp', r: 0, val: 6 }));
+    s.itemSeq = 7;
     s.hp = G.maxHp(s);
     const save = G.serialize(s, Date.now());
     fs.writeFileSync(path.join(profile, 'seed.html'), '<!doctype html><title>s</title>');
     await send('Page.navigate', { url: 'file://' + path.join(profile, 'seed.html') }); await sleep(300);
     await ev(`localStorage.setItem('goblin-idle-save-v1', ${JSON.stringify(save)})`);
     await send('Page.navigate', { url: 'file://' + ROOT + '/index.html' }); await sleep(1500);
+
+    // 전투 중 장비가 무작위로 떨어지면 가방 개수가 달라져 점검이 흔들린다 → 기본은 드롭이 없게 난수를 고정한다
+    await ev(`Game.setRandom(() => 0.999)`);
 
     console.log('탭 공격 모션');
     const before = await ev(`document.getElementById('monsterHpText').textContent`);
@@ -96,6 +107,58 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     await ev(`document.querySelector('.dexcard.is-off').click()`); await sleep(300);
     check('미달성 카드는 힌트 창이 열린다', await ev(`document.getElementById('modalTitle').textContent === '???'`));
     await ev(`document.querySelector('#modalActions .btn').click()`);
+
+    console.log('장비');
+    await ev(`document.querySelector('[data-go="gear"]').click()`); await sleep(400);
+    check('장비 탭이 열린다', await ev(`!document.querySelector('.tab[data-tab="gear"]').hidden`));
+    check('장착 칸이 3개 보이고 무기만 채워져 있다', (await ev(`document.querySelectorAll('#slots .slot').length`)) === 3 && (await ev(`document.querySelectorAll('#slots .slot.is-empty').length`)) === 2);
+    check('가방에 장비 6개가 보인다', (await ev(`document.querySelectorAll('#bag .gitem[data-item]').length`)) === 6);
+    check('드롭 확률표에 다섯 등급이 나온다', (await ev(`document.querySelectorAll('#dropInfo .droptable tr').length`)) === 6);
+    await shot('gear');
+    // 희귀 무기(id 2)를 눌러 상세 창 → 비교 표시 → 장착
+    await ev(`document.querySelector('.gitem[data-item="2"]').click()`); await sleep(300);
+    check('가방 장비를 누르면 정보 창이 열리고 장착 중인 장비와 비교해 보여 준다', await ev(`!document.getElementById('modal').hidden && document.getElementById('modalBody').textContent.includes('▲')`));
+    await shot('itemmodal');
+    await ev(`document.querySelector('#modalActions .btn--gold').click()`); await sleep(350);
+    check('장착하면 무기 칸이 그 장비(희귀)로 바뀐다', await ev(`!!document.querySelector('#slots .slot.r2[data-slot="weapon"]')`));
+    check('밀려난 기존 무기는 가방으로 간다 (가방 6개 유지)', (await ev(`document.querySelectorAll('#bag .gitem[data-item]').length`)) === 6);
+    // 판매
+    const goldBefore = await ev(`document.getElementById('gold').textContent`);
+    await ev(`document.querySelector('.gitem[data-item="7"]').click()`); await sleep(250);
+    await ev(`document.querySelector('#modalActions .btn--blue').click()`); await sleep(350);
+    check('판매하면 가방에서 사라진다', (await ev(`document.querySelectorAll('#bag .gitem[data-item]').length`)) === 5);
+    check('판매하면 골드가 늘어난다', (await ev(`document.getElementById('gold').textContent`)) !== goldBefore);
+    // 영웅 이상은 판매 전에 한 번 더 확인
+    await ev(`document.querySelector('.gitem[data-item="6"]').click()`); await sleep(250);
+    await ev(`document.querySelector('#modalActions .btn--blue').click()`); await sleep(300);
+    check('영웅 장비를 팔려 하면 확인 창이 한 번 더 뜬다', (await ev(`document.getElementById('modalTitle').textContent`)) === '정말 팔까요?');
+    await ev(`document.querySelector('#modalActions .btn:not(.btn--blue)').click()`); await sleep(200);
+    check('취소하면 그대로 남는다', (await ev(`document.querySelectorAll('#bag .gitem[data-item]').length`)) === 5);
+    // 일괄 판매 (노말·고급만)
+    await ev(`document.getElementById('sellAllBtn').click()`); await sleep(250);
+    await ev(`document.querySelector('#modalActions .btn--gold').click()`); await sleep(350);
+    check('일괄 판매하면 희귀 이상만 남는다', (await ev(`[...document.querySelectorAll('#bag .gitem[data-item]')].every((b) => b.classList.contains('r2') || b.classList.contains('r3') || b.classList.contains('r4'))`)));
+    // 설정은 바로 저장된다
+    await ev(`(() => { const sel = document.getElementById('autoSell'); sel.value = '2'; sel.dispatchEvent(new Event('change')); document.getElementById('autoEquip').click(); })()`); await sleep(200);
+    const saved = JSON.parse(await ev(`localStorage.getItem('goblin-idle-save-v1')`));
+    check('자동 판매·자동 장착 설정이 저장된다', saved.autoSell === 2 && saved.autoEquip === false, JSON.stringify([saved.autoSell, saved.autoEquip]));
+    // 전설 장비를 강제로 떨어뜨려 연출·기록·알림 점 확인
+    await ev(`document.querySelector('[data-go="upgrade"]').click()`); await sleep(300);
+    await ev(`(() => { let c = 0; Game.setRandom(() => (c++ % 6 === 0 ? 0 : 0.9999)); })()`);
+    let legend = false;
+    for (let i = 0; i < 12 && !legend; i++) {
+      await ev(`(() => { const r = document.getElementById('scene').getBoundingClientRect(); document.getElementById('scene').dispatchEvent(new PointerEvent('pointerdown', { clientX: r.left + r.width*0.68, clientY: r.top + r.height*0.6, bubbles: true, cancelable: true })); })()`);
+      await sleep(120);
+      legend = await ev(`[...document.querySelectorAll('#log li')].some((li) => li.textContent.includes('전설'))`);
+    }
+    await ev(`Game.setRandom(() => 0.999)`);   // 다시 드롭이 없게
+    check('전설 장비가 드롭되면 기록에 남는다', legend);
+    check('장비 탭에 새 장비 알림 점이 뜬다', await ev(`!document.querySelector('[data-go="gear"] .dot').hidden`));
+    await shot('legend');
+    await ev(`document.querySelector('[data-go="gear"]').click()`); await sleep(300);
+    check('장비 탭을 열면 새 장비에 NEW가 붙는다', (await ev(`document.querySelectorAll('#bag .gitem.is-new, #slots .slot').length`)) > 0);
+    await ev(`document.querySelector('[data-go="upgrade"]').click()`); await sleep(300);
+    check('탭을 떠나면 알림 점이 사라진다', await ev(`document.querySelector('[data-go="gear"] .dot').hidden`));
 
     console.log('오래 돌려도 안정적인가 (전투 10초)');
     await ev(`document.querySelector('[data-go="upgrade"]').click()`);
