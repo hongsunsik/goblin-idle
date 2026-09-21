@@ -135,24 +135,6 @@
     if (a) a.onfinish = () => el.remove(); else setTimeout(() => el.remove(), 900);
   }
 
-  // ---- 고블린 공격: 웅크렸다가(예비 동작) 돌진하고, 멈칫했다가 돌아온다 ----
-  function heroLunge(seconds, soft) {
-    if (soft) {   // 차분하게: 작게 앞으로 나갔다 돌아온다
-      const d = Math.max(200, Math.min(320, seconds * 1000 * 0.7));
-      anim($('hero'), [{ transform: 'translate(0, 0)' }, { transform: 'translate(10px, 0)', offset: 0.4, easing: 'ease-out' }, { transform: 'translate(0, 0)' }], { duration: d });
-      return d * 0.4;
-    }
-    const dur = Math.max(190, Math.min(440, seconds * 1000 * 0.85));
-    anim($('hero'), [
-      { transform: 'translate(0, 0) scale(1, 1) rotate(0deg)' },
-      { transform: 'translate(-7px, 1px) scale(1.05, 0.95) rotate(-4deg)', offset: 0.22, easing: 'cubic-bezier(0.5, 0, 1, 0.6)' },
-      { transform: 'translate(34px, -2px) scale(0.94, 1.07) rotate(6deg)', offset: 0.4, easing: 'ease-out' },
-      { transform: 'translate(28px, 0) scale(1.02, 0.98) rotate(3deg)', offset: 0.54 },
-      { transform: 'translate(0, 0) scale(1, 1) rotate(0deg)' },
-    ], { duration: dur });
-    return dur * 0.4;   // 고블린이 몬스터에 닿는 시각(ms)
-  }
-
   // ---- 몬스터 피격: 밀려났다가 되돌아오고, 순간 하얗게 번쩍인다 ----
   function monsterHit(strong, delay, soft) {
     const body = $('monster'), img = body.firstElementChild;
@@ -181,15 +163,6 @@
       { transform: `scale(0.3) rotate(${rand(-30, 30)}deg)`, opacity: 1 },
       { transform: `scale(${strong ? 2.3 : 1.7}) rotate(${rand(-30, 30)}deg)`, opacity: 0 },
     ], { duration: 260, delay, easing: 'ease-out' });
-    if (strong) {
-      const a = rand(-35, 35);
-      const slash = addFx('fx-slash', p.x, p.y);
-      playFx(slash, [
-        { transform: `rotate(${a}deg) scaleX(0.2)`, opacity: 1 },
-        { transform: `rotate(${a}deg) scaleX(1.05)`, opacity: 1, offset: 0.4 },
-        { transform: `rotate(${a}deg) scaleX(1.15)`, opacity: 0 },
-      ], { duration: 240, delay, easing: 'ease-out' });
-    }
   }
 
   // ---- 몬스터가 쓰러질 때: 복제본이 튕겨 날아가며 사라지고, 새 몬스터가 통통 튀며 등장한다 ----
@@ -354,25 +327,192 @@
   }
 
   // 고블린이 한 번 때릴 때마다 부르는 연출 (여러 번 때린 프레임에도 한 번만)
-  let lastHitFx = 0;
-  function onHeroHit(n) {
-    if (calm()) {   // 차분하게: 작은 움직임만, 최대 0.5초에 한 번. 숫자와 불꽃은 없다.
-      const t = Date.now();
-      if (t - lastHitFx < 500) return;
-      lastHitFx = t;
-      const contact = heroLunge(1 / G.attacksPerSec(state), true);
-      monsterHit(false, contact, true);
+  // ---- 직업별 공격 모션 ----
+  // 근접 직업(기사·광전사 등)은 제자리에서 무기를 휘두르고 몬스터 쪽에 베는 궤적이 남는다.
+  // 원거리 직업은 표창·화살·마법구·총알 같은 것을 날려 보낸다. 예전처럼 앞으로 달려갔다 돌아오지 않는다.
+  const ARC_CLASS = { slash: 'arc--slash', axe: 'arc--axe', holy: 'arc--holy', dagger: 'arc--dagger' };
+  const FLIGHT_MS = { bullet: 110, arrow: 190, bolt: 170, shuriken: 210, coin: 230, orb: 240, fire: 260, dark: 260 };
+  const handPos = () => spot($('heroSprite'), 0.78, 0.42);      // 무기를 든 손
+  const targetPos = () => spot($('monsterSprite'), 0.42, 0.5);  // 몬스터의 몸통
+
+  // 근접: 몸을 살짝 젖혔다가 휘두르고 돌아온다. 몬스터에 닿는 시각(ms)을 돌려준다.
+  function swingBody(style, soft) {
+    const k = soft ? 0.6 : 1;
+    let kf, dur, hit;
+    if (style === 'hammer') {   // 망치: 위로 들어 올렸다가 내리찍는다
+      dur = 440; hit = 0.6;
+      kf = [{ transform: 'translate(0, 0) rotate(0deg)' }, { transform: `translate(-4px, ${-10 * k}px) rotate(${-8 * k}deg)`, offset: 0.35, easing: 'ease-in' },
+        { transform: `translate(${9 * k}px, ${2 * k}px) rotate(${9 * k}deg)`, offset: 0.6 }, { transform: 'translate(0, 0) rotate(0deg)' }];
+    } else if (style === 'dagger') {   // 단검: 빠르게 두 번 찌른다
+      dur = 280; hit = 0.3;
+      kf = [{ transform: 'translate(0, 0)' }, { transform: `translate(${8 * k}px, 0) rotate(${5 * k}deg)`, offset: 0.25 }, { transform: 'translate(0, 0)', offset: 0.45 },
+        { transform: `translate(${8 * k}px, 0) rotate(${5 * k}deg)`, offset: 0.7 }, { transform: 'translate(0, 0)' }];
+    } else {   // 칼·도끼·성검: 젖혔다가 크게 휘두른다
+      dur = style === 'axe' ? 380 : 330; hit = 0.55;
+      kf = [{ transform: 'translate(0, 0) rotate(0deg)' }, { transform: `translate(${-4 * k}px, 0) rotate(${-9 * k}deg)`, offset: 0.3, easing: 'cubic-bezier(0.5, 0, 1, 0.6)' },
+        { transform: `translate(${11 * k}px, 1px) rotate(${10 * k}deg)`, offset: 0.55, easing: 'ease-out' }, { transform: 'translate(0, 0) rotate(0deg)' }];
+    }
+    anim($('hero'), kf, { duration: dur });
+    return dur * hit;
+  }
+  // 근접: 몬스터 위에 베는 궤적(호)이나 내리찍는 충격파를 그린다
+  function arcFx(style, strong, delay) {
+    const p = targetPos();
+    if (style === 'hammer') {
+      const ring = addFx('fx-ring', p.x, p.y + 12);
+      playFx(ring, [{ transform: 'scale(0.3, 0.15)', opacity: 1 }, { transform: `scale(${strong ? 2.4 : 1.7}, ${strong ? 1.1 : 0.8})`, opacity: 0 }], { duration: 380, delay, easing: 'ease-out' });
       return;
     }
-    const contact = heroLunge(1 / G.attacksPerSec(state));
-    monsterHit(false, contact);
-    impactFx(false, contact);
-    const now = Date.now();
-    if (now - lastHitText > 350) {   // 연타할 때 숫자가 쏟아지지 않게 한다
-      lastHitText = now;
+    const strokes = style === 'dagger' ? 2 : 1;
+    for (let i = 0; i < strokes; i++) {
+      const el = addFx('fx-arc ' + (ARC_CLASS[style] || 'arc--slash'), p.x + i * 6, p.y + i * 8);
+      const rot = rand(-25, 25) + i * 40;
+      playFx(el, [
+        { transform: `rotate(${rot - 60}deg) scale(0.5)`, opacity: 0 },
+        { transform: `rotate(${rot}deg) scale(${strong ? 1.3 : 1})`, opacity: 1, offset: 0.35 },
+        { transform: `rotate(${rot + 35}deg) scale(1.1)`, opacity: 0 },
+      ], { duration: 250, delay: delay + i * 90, easing: 'ease-out' });
+    }
+  }
+  // 원거리: 반동(총·활) 또는 마법을 모으는 동작(마법구)
+  function shootBody(style, soft) {
+    const k = soft ? 0.6 : 1;
+    const cast = style === 'orb' || style === 'fire' || style === 'dark';
+    anim($('hero'), cast
+      ? [{ transform: 'translateY(0) scale(1, 1)' }, { transform: `translateY(${-5 * k}px) scale(1.03, 0.98)`, offset: 0.4 }, { transform: 'translateY(0) scale(1, 1)' }]
+      : [{ transform: 'translateX(0)' }, { transform: `translateX(${-5 * k}px)`, offset: 0.25 }, { transform: 'translateX(0)' }], { duration: 260 });
+  }
+  // 원거리: 손에서 몬스터까지 날아가는 것. 도착까지 걸리는 시간(ms)을 돌려준다.
+  function projectile(style, delay, big) {
+    const a = handPos(), b = targetPos();
+    const el = addFx('fx-proj proj--' + style, a.x, a.y);
+    const dx = b.x - a.x, dy = b.y - a.y + rand(-8, 8);
+    const ang = (Math.atan2(dy, dx) * 180) / Math.PI;
+    const flight = FLIGHT_MS[style] || 200;
+    const spin = style === 'shuriken' || style === 'coin';
+    const sc = big ? 1.5 : 1;
+    playFx(el, [
+      { transform: `translate(0, 0) rotate(${spin ? 0 : ang}deg) scale(${0.7 * sc})`, opacity: 1 },
+      { transform: `translate(${dx}px, ${dy}px) rotate(${spin ? 720 : ang}deg) scale(${sc})`, opacity: 1, offset: 0.92 },
+      { transform: `translate(${dx}px, ${dy}px) rotate(${spin ? 760 : ang}deg) scale(${sc})`, opacity: 0 },
+    ], { duration: flight + 30, delay, easing: style === 'orb' || style === 'fire' || style === 'dark' ? 'ease-in' : 'linear' });
+    if (style === 'bullet') {   // 총구 섬광
+      const f = addFx('fx-spark', a.x + 8, a.y);
+      playFx(f, [{ transform: 'scale(0.4)', opacity: 1 }, { transform: 'scale(1.4)', opacity: 0 }], { duration: 120, delay });
+    }
+    return flight;
+  }
+  // 그 직업의 평타 한 번: 몸동작 + 궤적/투사체 + 몬스터 피격. 몬스터에 닿는 시각(ms)을 돌려준다.
+  function classAttack(strong) {
+    const style = G.attackStyle(state);
+    const soft = calm() && !strong;
+    let land;
+    if (G.MELEE_STYLES.includes(style)) { land = swingBody(style, soft); arcFx(style, strong, land); }
+    else { shootBody(style, soft); land = 60 + projectile(style, 60, strong); }
+    monsterHit(strong, land, soft);
+    return land;
+  }
+
+  // 고블린이 한 번 때릴 때마다 부르는 연출. 차분하게는 0.45초에 한 번만, 화려하게는 0.22초에 한 번(불꽃·타격 숫자 포함).
+  let lastHitFx = 0;
+  function onHeroHit(n) {
+    const t = Date.now();
+    if (t - lastHitFx < (calm() ? 450 : 220)) return;
+    lastHitFx = t;
+    const land = classAttack(false);
+    if (calm()) return;
+    impactFx(false, land);
+    if (t - lastHitText > 350) {   // 연타할 때 숫자가 쏟아지지 않게 한다
+      lastHitText = t;
       floatText(G.fmt(G.hitDmg(state) * n), 'float--hit', 'hit');
     }
   }
+
+  // ---- 스킬 연출 ----
+  const SKILL_COLOR = { strike: '#ffd479', multi: '#ffa25a', heal: '#8dff7a', haste: '#7ad8ff', might: '#ff7a6a', guard: '#8fb4ff', greed: '#ffd24a', summon: '#cba8ff' };
+  function skillFx(e) {
+    const color = SKILL_COLOR[e.kind] || '#fff';
+    floatText(e.name + '!', 'float--skill', 'hero', color);
+    const style = G.attackStyle(state);
+    const melee = G.MELEE_STYLES.includes(style);
+    const hero = spot($('heroSprite'), 0.5, 0.6);
+    if (e.kind === 'strike') {
+      const land = melee ? swingBody(style, false) : (shootBody(style, false), 60 + projectile(style, 60, true));
+      if (melee) arcFx(style, true, land);
+      monsterHit(true, land, false);
+      impactFx(true, land);
+      floatText('-' + G.fmt(e.amount), 'float--tap', 'enemy');
+      shakeScene(4);
+    } else if (e.kind === 'multi') {
+      const n = calm() ? Math.min(e.hits, 3) : e.hits;
+      for (let i = 0; i < n; i++) {
+        setTimeout(() => {
+          if (melee) { arcFx(style, false, 0); monsterHit(false, 80, true); } else { projectile(style, 0, false); monsterHit(false, FLIGHT_MS[style] || 200, true); }
+        }, i * 110);
+      }
+      floatText('-' + G.fmt(e.amount), 'float--tap', 'enemy');
+    } else if (e.kind === 'summon') {
+      const t = targetPos();
+      const n = calm() ? 3 : 5;
+      for (let i = 0; i < n; i++) {
+        const m = addFx('fx-minion', hero.x + rand(-6, 6), hero.y + rand(-10, 10));
+        const dx = t.x - hero.x, dy = t.y - hero.y + rand(-14, 14);
+        playFx(m, [{ transform: 'translate(0, 0) scale(0.6)', opacity: 0 }, { transform: `translate(${dx * 0.5}px, ${dy * 0.5 - 22}px) scale(1)`, opacity: 1, offset: 0.45 }, { transform: `translate(${dx}px, ${dy}px) scale(0.8)`, opacity: 0 }],
+          { duration: 480, delay: i * 90, easing: 'ease-in-out' });
+      }
+      monsterHit(true, 520, true);
+      floatText('-' + G.fmt(e.amount), 'float--tap', 'enemy');
+    } else if (e.kind === 'heal') {
+      const ring = addFx('fx-ring', hero.x, hero.y + 8);
+      if (ring) ring.style.borderColor = color;
+      playFx(ring, [{ transform: 'scale(0.4)', opacity: 1 }, { transform: 'scale(2.4)', opacity: 0 }], { duration: 600, easing: 'ease-out' });
+      for (let i = 0; i < (calm() ? 2 : 4); i++) {
+        const pl = addFx('fx-plus', hero.x + rand(-26, 26), hero.y + rand(-6, 14));
+        if (pl) pl.textContent = '+';
+        playFx(pl, [{ transform: 'translateY(0)', opacity: 0 }, { transform: 'translateY(-14px)', opacity: 1, offset: 0.3 }, { transform: 'translateY(-46px)', opacity: 0 }], { duration: 800, delay: i * 120, easing: 'ease-out' });
+      }
+      floatText('+' + G.fmt(e.amount), 'float--heal', 'hero');
+    } else {   // haste·might·guard·greed: 몸에서 색 고리가 퍼지고, 효과가 끝날 때까지 몸이 은은히 빛난다 (render가 처리)
+      const ring = addFx('fx-ring', hero.x, hero.y + 8);
+      if (ring) ring.style.borderColor = color;
+      playFx(ring, [{ transform: 'scale(0.4)', opacity: 1 }, { transform: 'scale(2.2)', opacity: 0 }], { duration: 560, easing: 'ease-out' });
+    }
+  }
+
+  // ---- 스킬 바 ----
+  let skillKey = '';
+  const skillEls = {};
+  function renderSkillbar() {
+    const list = G.skillsOf(state);
+    const key = list.map((x) => x.id).join(',');
+    const bar = $('skillbar');
+    if (key !== skillKey) {
+      skillKey = key;
+      bar.hidden = list.length === 0;
+      sceneEl.classList.toggle('has-skills', list.length > 0);
+      bar.innerHTML = list.map((sk) => `<button class="skill" type="button" data-sk="${sk.id}" aria-label="${sk.name}">${A.icon(sk.icon)}<i class="skill__cd"></i></button>`).join('');
+      for (const k of Object.keys(skillEls)) delete skillEls[k];
+      bar.querySelectorAll('.skill').forEach((el) => { skillEls[el.dataset.sk] = { el, cd: el.querySelector('.skill__cd'), p: -1, on: null }; });
+    }
+    for (const sk of list) {
+      const r = skillEls[sk.id];
+      if (!r) continue;
+      const p = Math.round(Math.min(1, Math.max(0, state.skillCd[sk.id] || 0) / sk.cd) * 50) / 50;   // 남은 쿨타임 비율 (2% 단위로만 갱신)
+      if (p !== r.p) { r.p = p; r.cd.style.setProperty('--p', p); }
+      const on = !!state.buffs[sk.kind] && (sk.kind === 'haste' || sk.kind === 'might' || sk.kind === 'guard' || sk.kind === 'greed');
+      if (on !== r.on) { r.on = on; r.el.classList.toggle('is-on', on); }
+    }
+  }
+  const skillLine = (sk) => `<div class="sk-row">${A.icon(sk.icon)}<div><b>${sk.name}</b> <small>${sk.label} · 쿨타임 ${sk.cd}초</small><div class="sk-row__d">${G.describeSkill(sk)}</div></div></div>`;
+  function showSkill(id) {
+    const sk = G.skillFor(id);
+    if (!sk) return;
+    openModal(sk.name,
+      `<div class="skilld__ic">${A.icon(sk.icon)}</div><div class="dexd__path">${G.NODES[id].name} · ${TIER_NAME[sk.tier]} 직업 스킬 · ${sk.label}</div>` +
+      `<div class="dexd__desc">${G.describeSkill(sk)}</div><small>쿨타임 ${sk.cd}초 · 쿨타임이 차면 자동으로 사용해요</small>`, [{ text: '닫기' }]);
+  }
+  $('skillbar').addEventListener('click', (e) => { const b = e.target.closest('button[data-sk]'); if (b) showSkill(b.dataset.sk); });
+
   let lastHitText = 0;
 
   // ---- 배경에 떠다니는 빛 입자 (지역마다 색이 다르다) ----
@@ -495,6 +635,7 @@
     openModal(
       `${info.name}(으)로 전직할까요?`,
       A.goblin(id) + `<div>${info.desc}</div><div class="chips" style="justify-content:center;margin-top:8px">${chipsFor(info.mult)}</div>` +
+      `<div class="choice__skill" style="margin-top:10px"><b>새 스킬 · ${G.SKILL_NAMES[id][0]}</b><br>${G.describeSkill(G.skillFor(id))}</div>` +
       '<div style="margin-top:10px"><small>환생하기 전까지는 바꿀 수 없어요.</small></div>',
       [
         { text: '취소' },
@@ -531,6 +672,8 @@
       `<div class="classcard__art">${A.goblin(id)}</div>` +
       `<div><div class="classcard__name">${G.classTitle(s)}</div>${trail}<div class="classcard__desc">${desc}</div>` +
       `<div class="chips">${chipsFor(currentMult())}</div></div>`;
+    const mySkills = G.skillsOf(s);
+    $('classSkills').innerHTML = mySkills.length ? `<h3 class="sect">스킬 <small>쿨타임이 차면 자동으로 사용해요</small></h3>` + mySkills.map(skillLine).join('') : '';
 
     // 전직 선택 (1차~4차)
     const np = G.nextPromo(s);
@@ -544,6 +687,7 @@
           `<div class="choice__name">${info.name}</div>` +
           `<div class="choice__desc">${info.desc}</div>` +
           `<div class="chips" style="justify-content:center">${chipsFor(info.mult)}</div>` +
+          `<div class="choice__skill"><b>스킬 · ${G.SKILL_NAMES[cid][0]}</b><br>${G.describeSkill(G.skillFor(cid))}</div>` +
           `<button class="btn ${np.ready ? '' : 'btn--gray'}" type="button" data-pick="${cid}" ${np.ready ? '' : 'disabled'}>${np.ready ? '전직하기' : `Lv.${np.need} 필요`}</button>` +
           '</div>';
       }
@@ -606,6 +750,7 @@
       `<div class="dexd__path">${TIER_NAME[tier]} 직업 · ${ancestorNames(aid).join(' → ')}</div>` +
       `<div class="dexd__desc">${info.desc}</div>` +
       `<div class="chips" style="justify-content:center">${chipsFor(info.mult)}</div>` +
+      `<div class="choice__skill" style="margin:8px 0"><b>스킬 · ${G.SKILL_NAMES[aid][0]}</b><br>${G.describeSkill(G.skillFor(aid))}</div>` +
       `<div class="dexd__rec"><div><small>최고 스테이지</small><b>${rec.best}</b></div><div><small>처치 수</small><b>${G.fmt(rec.kills)}</b></div><div><small>전직 횟수</small><b>${rec.runs}</b></div></div>` +
       `<div class="dexd__tiers">${rows}</div>` +
       `<div style="margin-top:10px"><small>이 직업 보너스: 공격력·골드 +${bonus}% (메달마다 기본 보너스의 +${Math.round(G.MEDAL_BONUS * 100)}%)</small></div>`,
@@ -939,6 +1084,8 @@
       } else if (e.type === 'levelup') {
         addLog(`레벨 ${e.level} 달성!`, 'is-good', 'arrowup');
         levelUpFx();
+      } else if (e.type === 'skill') {
+        skillFx(e);
       } else if (e.type === 'promoReady') {
         addLog(`${TIER_NAME[STAGE_TIER[e.stage]]} 전직이 가능해요! '전직' 메뉴를 확인하세요`, 'is-gold', 'cap');
         floatText('전직 가능!', 'float--big', 'center');
@@ -1026,6 +1173,8 @@
 
     const striking = s.downT <= 0;
     $('heroBox').classList.toggle('is-striking', striking);
+    for (const k of ['haste', 'might', 'guard', 'greed']) $('heroBox').classList.toggle('buff-' + k, !!s.buffs[k]);   // 효과가 걸려 있는 동안 몸이 은은히 빛난다
+    renderSkillbar();
     const dur = Math.max(0.3, Math.min(1.4, 1 / G.attacksPerSec(s))).toFixed(2) + 's';
     if (cache.dur !== dur) { cache.dur = dur; $('heroBox').style.setProperty('--atk', dur); }
 
@@ -1107,8 +1256,7 @@
     const r = G.clickAttack(state);
     if (r.dmg > 0) {
       floatText(G.fmt(r.dmg), 'float--tap', 'enemy');
-      const contact = heroLunge(0.3);
-      monsterHit(true, contact);
+      const contact = classAttack(true);
       impactFx(true, contact);
       if (px !== undefined) {   // 누른 자리에 동그란 파문
         const ring = addFx('fx-tap', px, py);
@@ -1119,7 +1267,7 @@
     render();
   }
   $('scene').addEventListener('pointerdown', (e) => {
-    if (e.target.closest('.gearbtn')) return;   // 설정 버튼은 공격이 아니다
+    if (e.target.closest('.gearbtn, .skillbar')) return;   // 설정 버튼·스킬 바는 공격이 아니다
     e.preventDefault();
     const box = sceneEl.getBoundingClientRect();
     attack(e.clientX - box.left, e.clientY - box.top);
@@ -1247,6 +1395,8 @@
     onChange: (st) => renderAccount(st),
   });
 
+  window.GoblinCloud = cloud;   // 점검 도구와 개발자 콘솔에서 동기화를 직접 불러 볼 수 있게 한다 (화면에는 저장 버튼이 없다)
+
   function renderAccount(st) {
     st = st || cloud.state();
     const box = $('acct');
@@ -1267,13 +1417,14 @@
       return;
     }
     const u = st.user;
-    const statusText = st.status === 'syncing' ? '동기화하는 중…' : st.status === 'error' ? '저장하지 못했어요' : st.lastSyncedAt ? `마지막 저장 ${agoText(st.lastSyncedAt)}` : '로그인됨';
+    // 저장은 전부 자동이다: 진행이 바뀌면 알아서 올리고, 실패하면 다시 시도한다. 그래서 '저장' 버튼은 없고 상태만 보여 준다.
+    const statusText = st.status === 'syncing' ? '저장하는 중…' : st.status === 'error' ? '저장하지 못했어요 · 자동으로 다시 시도해요' : st.lastSyncedAt ? `자동 저장됨 · 마지막 ${agoText(st.lastSyncedAt)}` : '자동 저장이 켜져 있어요';
     box.innerHTML =
       '<div class="acct__title" style="margin-bottom:8px">☁ 연동된 계정 <span class="acct__soon" style="background:linear-gradient(180deg,#bfe3ff,#6fb6f0)">해제 불가</span></div>' +
       `<div class="acct__user"><div class="acct__photo">${u.photo ? `<img src="${esc(u.photo)}" alt="" referrerpolicy="no-referrer">` : esc((u.name || '?').slice(0, 1))}</div>` +
       `<div><div class="acct__name">${esc(u.name)}</div><div class="acct__mail">${esc(u.email || '')}</div></div></div>` +
       `<div class="acct__status ${st.status === 'syncing' ? 'is-busy' : st.status === 'error' ? 'is-error' : ''}">☁ ${statusText}</div>` +
-      `<div class="acct__btns acct__btns--one"><button class="btn" type="button" data-acct="sync" ${st.status === 'syncing' ? 'disabled' : ''}>지금 저장</button></div>` + err;
+      '<div class="acct__desc" style="margin:0"><small>진행 상황은 자동으로 저장돼요. 다른 기기에서 같은 계정으로 연동하면 이어서 할 수 있어요.</small></div>' + err;
   }
   $('acct').addEventListener('click', async (e) => {
     const login = e.target.closest('button[data-login]');
@@ -1284,9 +1435,6 @@
       }
       await cloud.signIn(login.dataset.login); renderAccount(); return;
     }
-    const act = e.target.closest('button[data-acct]');
-    if (!act) return;
-    if (act.dataset.acct === 'sync') { await cloud.sync(); renderAccount(); }
   });
   // ---- 설정 창 ----
   const settings = $('settings');
@@ -1314,10 +1462,14 @@
   // 저장 시각 문구("3분 전")가 멈춰 보이지 않게 기록 탭이 열려 있으면 가끔 다시 그린다
   setInterval(() => { if (!settings.hidden && cloud.state().user) renderAccount(); }, 15000);
 
-  // 중요한 일(환생·전직·상점 구매·초기화) 뒤에는 바로, 평소에는 3분마다, 창을 가릴 때도 클라우드에 올린다
+  // 중요한 일(환생·전직·상점 구매·초기화) 뒤에는 바로, 평소에는 1분마다, 창을 가릴 때도 클라우드에 올린다 (모두 자동)
   const cloudSoon = () => cloud.schedulePush(4000);
-  setInterval(() => cloud.push(), 180000);
-  document.addEventListener('visibilitychange', () => { if (document.hidden) cloud.push(); });
+  setInterval(() => cloud.push(), 60000);   // 바뀐 게 없으면 서버에 쓰지 않는다
+  let hiddenAt = 0;
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) { hiddenAt = Date.now(); cloud.push(); return; }
+    if (Date.now() - hiddenAt > 30000) cloud.sync();   // 한동안 다른 화면에 있다 돌아오면, 다른 기기에서 진행했는지 확인해 이어받는다
+  });
 
   // ---- 시작: 자리를 비운 동안의 보상 ----
   buildUpgrades();

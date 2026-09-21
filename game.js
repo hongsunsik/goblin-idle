@@ -1,6 +1,7 @@
 // 고블린 키우기 - 게임 로직 (DOM과 무관한 순수 함수 모음)
 (function (root) {
   const { ADVANCED3, ADVANCED4 } = typeof module !== 'undefined' && module.exports ? require('./classes.js') : root.GoblinClasses;
+  const Sk = typeof module !== 'undefined' && module.exports ? require('./skills.js') : root.GoblinSkills;
   const SAVE_VERSION = 1;
   const OFFLINE_CAP = 8 * 3600;   // 오프라인 보상은 최대 8시간까지
   const OFFLINE_MIN = 30;         // 이 시간(초) 이상 자리를 비웠을 때만 오프라인 보상 계산
@@ -364,6 +365,8 @@
       downT: 0,
       atkT: 0,
       dealt: 0,          // 표시용: 최근에 준 피해량 (저장하지 않음)
+      skillCd: {},       // 스킬별 남은 쿨타임(초). 저장은 되지만 불러올 때 새로 시작한다 (표시·계산용)
+      buffs: {},         // 지금 걸려 있는 스킬 효과 { haste|might|guard|greed: { t 남은 시간, v 위력 } }
       hits: 0,           // 표시용: 지금까지 고블린이 때린 횟수. 화면이 타격 연출을 넣는 시점을 알려고 쓴다 (저장하지 않음)
       savedAt: now || 0,
     };
@@ -424,11 +427,12 @@
     for (const f of PATH_FIELDS) { const id = s[f]; if (id) m *= NODE[id].mult[key] || 1; }
     return m;
   }
+  const buffV = (s, kind) => (s.buffs[kind] ? s.buffs[kind].v : 0);   // 스킬 효과의 위력 (없으면 0)
   const baseDmg = (s) => 3 + 1.5 * (s.level - 1);
   const maxHp = (s) => (50 + 12 * (s.level - 1)) * (1 + 0.25 * s.upgrades.armor) * mile(s.upgrades.armor) * statMult(s, 'hp') * (1 + 0.1 * perkLv(s, 'vitality')) * gearMult(s, 'hp');
   const hitDmg = (s) =>
-    baseDmg(s) * (1 + 0.25 * s.upgrades.weapon) * mile(s.upgrades.weapon) * tokenMult(s) * masteryMult(s) * achieveMult(s) * statMult(s, 'dmg') * (1 + 0.1 * perkLv(s, 'might')) * kinglyMult(s) * gearMult(s, 'dmg');
-  const attacksPerSec = (s) => (1 + 0.1 * s.upgrades.speed) * statMult(s, 'aps') * gearMult(s, 'aps');
+    baseDmg(s) * (1 + 0.25 * s.upgrades.weapon) * mile(s.upgrades.weapon) * tokenMult(s) * masteryMult(s) * achieveMult(s) * statMult(s, 'dmg') * (1 + 0.1 * perkLv(s, 'might')) * kinglyMult(s) * gearMult(s, 'dmg') * (1 + buffV(s, 'might'));
+  const attacksPerSec = (s) => (1 + 0.1 * s.upgrades.speed) * statMult(s, 'aps') * gearMult(s, 'aps') * (1 + buffV(s, 'haste'));
   const companionDps = (s) => s.upgrades.companion * mile(s.upgrades.companion) * hitDmg(s) * 0.35 * statMult(s, 'comp') * (1 + 0.1 * perkLv(s, 'bond')) * gearMult(s, 'comp');
   const goldMult = (s) =>
     (1 + 0.15 * s.upgrades.loot) * mile(s.upgrades.loot) * tokenMult(s) * masteryMult(s) * achieveMult(s) * statMult(s, 'gold') * (1 + 0.1 * perkLv(s, 'greed')) * kinglyMult(s) * gearMult(s, 'gold');
@@ -504,6 +508,59 @@
     return true;
   }
 
+  // ---- 스킬 ----
+  // 지금까지 고른 직업(1~4차)의 스킬들. 전직할수록 하나씩 쌓인다.
+  function skillsOf(s) {
+    const out = [];
+    for (const f of PATH_FIELDS) {
+      const id = s[f];
+      const sk = id && Sk.makeSkill(id, TIER_OF[id]);
+      if (sk) out.push(sk);
+    }
+    return out;
+  }
+  // 이 스킬을 지금 써도 되는지 (체력이 충분한데 회복을 쓰지 않도록)
+  function canCast(s, sk) {
+    if (sk.kind === 'heal') return s.hp < maxHp(s) * 0.7;
+    if (sk.kind === 'guard') return s.hp < maxHp(s) * 0.85;
+    return s.monsterHp > 0;
+  }
+  // 스킬 하나를 쓴다. 효과를 적용하고 { type: 'skill' } 사건을 남긴다.
+  function castSkill(s, sk, ev) {
+    let amount = 0;
+    if (sk.kind === 'strike') { amount = hitDmg(s) * sk.power; dealDamage(s, amount, ev); }
+    else if (sk.kind === 'multi') { amount = hitDmg(s) * sk.power * sk.hits; dealDamage(s, amount, ev); }
+    else if (sk.kind === 'summon') { amount = Math.max(companionDps(s), totalDps(s) * 0.25) * sk.secs * sk.power; dealDamage(s, amount, ev); }
+    else if (sk.kind === 'heal') { const before = s.hp; s.hp = Math.min(maxHp(s), s.hp + maxHp(s) * sk.power); amount = s.hp - before; }
+    else {   // haste·might·guard·greed: 잠시 지속되는 효과. 같은 종류가 겹치면 더 센 위력과 더 긴 시간을 따른다.
+      const cur = s.buffs[sk.kind];
+      s.buffs[sk.kind] = { t: Math.max(sk.dur, cur ? cur.t : 0), v: Math.max(sk.power, cur ? cur.v : 0) };
+      amount = sk.power;
+    }
+    ev.push({ type: 'skill', id: sk.id, kind: sk.kind, name: sk.name, amount, hits: sk.hits, power: sk.power });
+  }
+  // dt초 동안의 쿨타임과 효과 시간을 흘려보내고, 준비된 스킬을 쓴다. 처음 만난 스킬은 조금씩 시간 차를 두고 시작해서 한꺼번에 터지지 않는다.
+  function updateSkills(s, dt, ev) {
+    for (const k of Object.keys(s.buffs)) { s.buffs[k].t -= dt; if (s.buffs[k].t <= 0) delete s.buffs[k]; }
+    const list = skillsOf(s);
+    list.forEach((sk, i) => {
+      if (s.skillCd[sk.id] === undefined) s.skillCd[sk.id] = sk.cd * 0.15 * (i + 1);
+      s.skillCd[sk.id] -= dt;
+      if (s.skillCd[sk.id] > 0) return;
+      if (!canCast(s, sk)) { s.skillCd[sk.id] = 0; return; }   // 조건이 될 때까지 기다린다
+      castSkill(s, sk, ev);
+      s.skillCd[sk.id] = sk.cd;
+    });
+  }
+
+  // ---- 공격 모션 ----
+  // 그 직업의 공격 모양 (칼, 표창, 마법구 …). 정해지지 않은 직업은 가장 가까운 윗단계 직업을 따른다.
+  function styleOfClass(id) {
+    for (let c = id, n = 0; c && n < 6; c = parentOf(c), n++) if (has(Sk.ATTACK_STYLE, c)) return Sk.ATTACK_STYLE[c];
+    return 'slash';
+  }
+  const attackStyle = (s) => styleOfClass(deepest(s) || 'novice');
+
   // ---- 강화 ----
   function upgradeCost(s, key) {
     const u = UPGRADES[key];
@@ -562,7 +619,7 @@
   }
 
   function onKill(s, ev) {
-    const gold = Math.ceil(monsterGold(s.stage) * goldMult(s));
+    const gold = Math.ceil(monsterGold(s.stage) * goldMult(s) * (1 + buffV(s, 'greed')));
     s.gold += gold;
     s.totalKills += 1;
     s.killsInStage += 1;
@@ -608,9 +665,11 @@
       dealDamage(s, hitDmg(s), ev);
     }
 
+    updateSkills(s, dt, ev);
+
     const max = maxHp(s);
     s.hp = Math.min(max, s.hp + max * 0.02 * statMult(s, 'regen') * dt);   // 초당 최대 체력의 2% 회복
-    s.hp -= monsterAtk(s.stage) * dt;
+    s.hp -= monsterAtk(s.stage) * dt * (1 - buffV(s, 'guard'));
 
     if (s.hp <= 0) {
       s.hp = 0;
@@ -693,6 +752,8 @@
     s.adv = null;
     s.adv3 = null;
     s.adv4 = null;
+    s.skillCd = {};
+    s.buffs = {};
     s.downT = 0;
     s.atkT = 0;
     s.hp = maxHp(s);
@@ -805,6 +866,8 @@
     serialize, deserialize,
     TOKEN_BONUS, maxHp, hitDmg, attacksPerSec, companionDps, totalDps, goldMult, expNeeded, tokenMult,
     monsterAtk, monsterGold, monsterInfo, biomeOf, roundOf, BIOME_LEN, NORMAL_SLOTS, isBossStage, lookId, classTitle,
+    SKILL_KINDS: Sk.KINDS, SKILL_NAMES: Sk.SKILLS, describeSkill: Sk.describeSkill, MELEE_STYLES: Sk.MELEE_STYLES, ATTACK_STYLE: Sk.ATTACK_STYLE,
+    skillsOf, attackStyle, styleOfClass, buffV, canCast, skillFor: (id) => Sk.makeSkill(id, TIER_OF[id]),
     NODES: NODE, nextPromo, promoStage, promoOptions, promote, statMult, masteryMult,
     ACHIEVEMENTS, ACHIEVE_BONUS, achieveMult, checkAchievements,
     PATH_FIELDS, ADV_IDS, advIdsOfTier, classTier, parentOf, childrenOf, classPath, deepest, DEX_STAGES, DEX_MEDALS, MASTERY_BASE, MEDAL_BONUS, dexStages, masteryOf, dexRecord, dexTier,

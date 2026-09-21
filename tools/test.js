@@ -1022,6 +1022,169 @@ test('실제 어댑터와 가짜 서버가 같은 규격을 지킨다 (Cloud 클
   assert.strictEqual(c.state().status, 'ok');
 });
 
+section('스킬·공격 모션');
+// 스킬 시험용: 몬스터 체력을 크게 잡아서 스킬 피해를 그대로 볼 수 있게 한다 (스테이지 1이라 고블린이 거의 다치지 않는다)
+const skillState = (route) => { const t = G.createState(0); walkPath(t, route); t.stage = 1; t.monsterHp = t.monsterMax = 1e15; t.hp = G.maxHp(t); return t; };
+const castsOf = (t, seconds, id) => { let n = 0; for (let i = 0; i < seconds * 10; i++) { t.monsterHp = t.monsterMax = 1e15; for (const e of G.tick(t, 0.1)) if (e.type === 'skill' && (!id || e.id === id)) n += 1; } return n; };
+
+test('60개 직업 모두 스킬이 있고, 이름이 겹치지 않으며, 효과 종류가 정의돼 있다', () => {
+  const ids = [...Object.keys(G.CLASSES), ...G.ADV_IDS];
+  assert.strictEqual(ids.length, 60);
+  const names = ids.map((id) => { assert.ok(G.SKILL_NAMES[id], id); return G.SKILL_NAMES[id][0]; });
+  assert.strictEqual(new Set(names).size, 60, '스킬 이름이 겹친다');
+  for (const id of ids) assert.ok(G.SKILL_KINDS[G.SKILL_NAMES[id][1]], `${id}: 알 수 없는 효과 종류`);
+  assert.ok(Object.keys(G.SKILL_NAMES).every((id) => ids.includes(id)), '직업이 아닌 이름의 스킬이 있다');
+});
+
+test('직업 단계가 높을수록 같은 종류(강타) 스킬의 위력이 커진다: 1차 3.0 < 2차 3.75 < 4차 5.4', () => {
+  const power = (route, id) => G.skillsOf(skillState(route)).find((x) => x.id === id).power;
+  const p1 = power(['warrior'], 'warrior');
+  const p2 = power(['mage', 'pyromancer'], 'pyromancer');
+  const p4 = power(['mage', 'pyromancer', 'infernomage', 'flameemperor'], 'flameemperor');
+  assert.ok(Math.abs(p1 - 3.0) < 1e-9 && Math.abs(p2 - 3.75) < 1e-9 && Math.abs(p4 - 5.4) < 1e-9, [p1, p2, p4].join(' / '));
+});
+
+test('전직할수록 스킬이 쌓인다 (견습 0개 → 1차 1개 → … → 4차 4개)', () => {
+  const t = G.createState(0);
+  assert.strictEqual(G.skillsOf(t).length, 0);
+  const path = ['warrior', 'knight', 'paladin', 'seraph'];
+  const counts = [];
+  t.level = 99; for (const id of path) { G.promote(t, id); counts.push(G.skillsOf(t).length); }
+  assert.deepStrictEqual(counts, [1, 2, 3, 4]);
+  assert.deepStrictEqual(G.skillsOf(t).map((x) => x.id), path);
+});
+
+test('강타: 쿨타임이 되면 자동으로 공격력 × 위력만큼 피해를 주고 사건을 남긴다', () => {
+  const t = skillState(['warrior']);
+  t.skillCd.warrior = 0;
+  const dmg = G.hitDmg(t);
+  const ev = G.tick(t, 0.1).filter((e) => e.type === 'skill');
+  assert.strictEqual(ev.length, 1);
+  assert.deepStrictEqual([ev[0].id, ev[0].kind, ev[0].name], ['warrior', 'strike', '용맹의 일격']);
+  assert.ok(Math.abs(ev[0].amount - dmg * 3) < 1e-6, `${ev[0].amount} vs ${dmg * 3}`);
+});
+
+test('쿨타임 동안에는 다시 쓰지 않고, 쿨타임(14초)마다 한 번씩 쓴다', () => {
+  const t = skillState(['warrior']);
+  t.skillCd.warrior = 0;
+  const n = castsOf(t, 50);   // 0초, 14초, 28초, 42초 → 4번
+  assert.strictEqual(n, 4);
+});
+
+test('처음 만난 스킬은 시간 차를 두고 시작해서 한꺼번에 터지지 않는다', () => {
+  const t = skillState(['warrior', 'knight', 'paladin', 'seraph']);
+  const first = G.tick(t, 0.1).filter((e) => e.type === 'skill');
+  assert.strictEqual(first.length, 0, '시작하자마자 쓰지 않는다');
+  const cds = G.skillsOf(t).map((sk) => t.skillCd[sk.id]);
+  assert.ok(new Set(cds.map((c) => Math.round(c * 10))).size === 4, '쿨타임 시작이 서로 다르다: ' + cds);
+});
+
+test('연타: 위력 × 횟수만큼 한 번에 피해를 준다', () => {
+  const t = skillState(['rogue']);
+  t.skillCd.rogue = 0;
+  const dmg = G.hitDmg(t);
+  const e = G.tick(t, 0.1).find((x) => x.type === 'skill');
+  assert.strictEqual(e.kind, 'multi');
+  assert.ok(Math.abs(e.amount - dmg * 1.0 * 4) < 1e-6);
+});
+
+test('회복: 체력이 충분하면 쓰지 않고, 70% 아래일 때만 최대 체력의 (위력)만큼 회복한다', () => {
+  const t = skillState(['warrior', 'knight', 'paladin']);
+  t.skillCd.paladin = 0;
+  t.hp = G.maxHp(t);
+  assert.strictEqual(castsOf(t, 30, 'paladin'), 0, '체력이 가득이면 회복하지 않는다');
+  t.hp = G.maxHp(t) * 0.3; t.skillCd.paladin = 0;
+  const before = t.hp;
+  const e = G.tick(t, 0.1).find((x) => x.id === 'paladin');
+  assert.ok(e, '체력이 낮으면 쓴다');
+  assert.ok(t.hp - before >= G.maxHp(t) * 0.3 - 1, `회복량 ${t.hp - before}`);   // 위력 0.2×1.5=0.3
+});
+
+test('가속: 공격 속도가 지속 시간 동안만 오른다', () => {
+  const t = skillState(['archer']);
+  const base = G.attacksPerSec(t);
+  t.skillCd.archer = 0;
+  G.tick(t, 0.1);
+  assert.ok(Math.abs(G.attacksPerSec(t) / base - 1.35) < 1e-9);
+  for (let i = 0; i < 70; i++) { t.monsterHp = t.monsterMax = 1e15; G.tick(t, 0.1); }   // 7초 지남
+  assert.ok(!t.buffs.haste, '효과가 끝났다');
+  assert.strictEqual(G.attacksPerSec(t), base);
+});
+
+test('강화·방어·약탈: 각각 공격력·받는 피해·골드에 영향을 준다', () => {
+  const t = skillState(['mage']);
+  const d0 = G.hitDmg(t);
+  t.buffs.might = { t: 5, v: 0.3 };
+  assert.ok(Math.abs(G.hitDmg(t) / d0 - 1.3) < 1e-9);
+  // 방어: 1초 동안 받는 피해가 (몬스터 공격력 × 위력)만큼 줄어든다. 회복량은 두 경우가 같으므로 손실의 차이가 그 값이다.
+  const loss = (guard) => {
+    const u = skillState(['warrior']); u.stage = 6; u.monsterHp = u.monsterMax = 1e15;
+    u.hp = G.maxHp(u) * 0.5;
+    if (guard) u.buffs.guard = { t: 99, v: 0.5 };
+    const h0 = u.hp; G.tick(u, 1); return h0 - u.hp;
+  };
+  const noGuard = loss(false), withGuard = loss(true);
+  assert.ok(Math.abs((noGuard - withGuard) - 0.5 * G.monsterAtk(6)) < 1e-6, `${noGuard} → ${withGuard}`);
+  // 약탈: 처치 골드가 (1 + 위력)배가 된다
+  const kill = (greed) => { const u = skillState(['rogue']); u.monsterHp = 1; if (greed) u.buffs.greed = { t: 9, v: 0.5 }; G.clickAttack(u); return u.gold; };
+  const g1 = kill(false), g2 = kill(true);
+  assert.ok(g2 > g1 && Math.abs(g2 / g1 - 1.5) < 0.2, `${g1} → ${g2}`);
+});
+
+test('소환: 동료가 없어도 내 초당 피해의 일부만큼은 피해를 준다', () => {
+  const t = skillState(['archer', 'ranger']);
+  t.skillCd.ranger = 0;
+  const e = G.tick(t, 0.1).find((x) => x.id === 'ranger');
+  assert.strictEqual(e.kind, 'summon');
+  assert.ok(e.amount > 0 && e.amount < G.totalDps(t) * 6 * 1.25, `${e.amount}`);
+});
+
+test('쓰러져 있는 동안에는 스킬을 쓰지 않고, 환생하면 쿨타임과 효과가 초기화된다', () => {
+  const t = skillState(['warrior']);
+  t.skillCd.warrior = 0; t.downT = 2;
+  assert.strictEqual(G.tick(t, 0.1).filter((e) => e.type === 'skill').length, 0);
+  t.downT = 0; t.buffs.might = { t: 5, v: 0.3 }; t.skillCd.warrior = 3; t.runBest = 12;
+  G.prestige(t);
+  assert.deepStrictEqual([t.buffs, t.skillCd], [{}, {}]);
+});
+
+test('저장·불러오기 뒤에는 쿨타임과 효과가 새로 시작한다', () => {
+  const t = skillState(['warrior']);
+  t.buffs.might = { t: 5, v: 0.3 }; t.skillCd.warrior = 7;
+  const back = G.deserialize(G.serialize(t, 1));
+  assert.deepStrictEqual([back.buffs, back.skillCd], [{}, {}]);
+  assert.deepStrictEqual(G.skillsOf(back).map((x) => x.id), ['warrior'], '직업(스킬)은 그대로');
+});
+
+test('스킬 설명은 효과 종류마다 위력 수치가 들어간 문장이다', () => {
+  const t = skillState(['mage', 'pyromancer', 'infernomage', 'flameemperor']);
+  const d = G.skillsOf(t).map((sk) => G.describeSkill(sk));
+  assert.ok(d.every((x) => x.length > 8));
+  assert.ok(d[0].includes('30%') && d[0].includes('6초'), d[0]);   // 마나 집중(강화) 위력 0.3
+  assert.ok(d[3].includes('5.4'), d[3]);                            // 화염 제국(강타) ×5.4
+});
+
+test('직업별 공격 모션: 도적은 표창, 마법사는 마법구, 기사는 칼, 궁수는 화살, 저격수는 총', () => {
+  const style = (route) => G.attackStyle(skillState(route));
+  assert.strictEqual(G.attackStyle(G.createState(0)), 'slash', '견습은 몽둥이');
+  assert.strictEqual(style(['rogue']), 'shuriken');
+  assert.strictEqual(style(['mage']), 'orb');
+  assert.strictEqual(style(['warrior', 'knight']), 'slash');
+  assert.strictEqual(style(['archer']), 'arrow');
+  assert.strictEqual(style(['archer', 'sniper']), 'bullet');
+  assert.strictEqual(style(['mage', 'pyromancer']), 'fire');
+  assert.strictEqual(style(['mage', 'necromancer']), 'dark');
+});
+
+test('60개 직업 모두 공격 모션이 정해져 있고, 3·4차는 정해 두지 않으면 윗단계를 따른다', () => {
+  const known = new Set(['slash', 'axe', 'hammer', 'holy', 'dagger', 'arrow', 'bolt', 'bullet', 'orb', 'fire', 'dark', 'shuriken', 'coin']);
+  for (const id of [...Object.keys(G.CLASSES), ...G.ADV_IDS]) assert.ok(known.has(G.styleOfClass(id)), `${id}: ${G.styleOfClass(id)}`);
+  assert.strictEqual(G.styleOfClass('warlord'), 'axe', '전쟁군주는 광전사(도끼)를 따른다');
+  assert.strictEqual(G.styleOfClass('windwalker'), 'arrow');
+  assert.strictEqual(G.styleOfClass('paladin'), 'holy', '정해 둔 것은 그대로');
+  assert.ok(Object.keys(G.ATTACK_STYLE).every((id) => id === 'novice' || G.NODES[id]), '없는 직업의 모션이 있다');
+});
+
 section('스테이지·몬스터 배치');
 test('모든 지역에서 일반 몬스터 5종과 보스 2종이 빠짐없이 나온다 (예전에는 5번째 몬스터가 한 번도 안 나왔다)', () => {
   for (let b = 0; b < 6; b++) {

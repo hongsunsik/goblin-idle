@@ -298,7 +298,7 @@ const FAKE_CLOUD = `(() => {
     check('Google로 로그인하면 이름이 보인다', (await ev(`document.getElementById('acct').textContent`)).includes('테스터'));
     const up1 = JSON.parse(await ev(`localStorage.getItem('fake-cloud-server')`));
     check('로그인하면 이 기기의 진행이 클라우드에 올라간다', up1 && up1.rev === 1 && JSON.parse(up1.save).level === 22, JSON.stringify(up1 && up1.rev));
-    check('저장 상태 문구가 보인다', (await ev(`document.querySelector('.acct__status').textContent`)).includes('마지막 저장'));
+    check('저장 상태가 "자동 저장됨"으로 보이고, 수동 저장 버튼은 없다', (await ev(`document.querySelector('.acct__status').textContent`)).includes('자동 저장됨') && (await ev(`!document.querySelector('[data-acct]') && !document.getElementById('acct').textContent.includes('지금 저장')`)));
     await shot('account-in');
 
     // 다른 기기가 더 진행했다고 가정: 서버 저장을 바꾼다 (rev 2)
@@ -306,14 +306,14 @@ const FAKE_CLOUD = `(() => {
     other.hp = G.maxHp(other);
     await ev(`localStorage.setItem('fake-cloud-server', ${JSON.stringify(JSON.stringify({ save: G.serialize(other, Date.now()), summary: Sync.summaryOf(other, 'novice'), rev: 2, updatedAt: Date.now() }))})`);
     for (let i = 0; i < 3; i++) { await ev(`(() => { const r = document.getElementById('scene').getBoundingClientRect(); document.getElementById('scene').dispatchEvent(new PointerEvent('pointerdown', { clientX: r.left + r.width*0.68, clientY: r.top + r.height*0.6, bubbles: true, cancelable: true })); })()`); await sleep(150); }
-    await ev(`document.querySelector('[data-acct="sync"]').click()`); await sleep(600);
+    await ev(`(() => { window.GoblinCloud.sync(); return 1; })()`); await sleep(600);
     check('양쪽 진행이 다르면 어느 쪽으로 계속할지 묻는 창이 뜬다', (await ev(`document.getElementById('modalTitle').textContent`)) === '어느 저장으로 계속할까요?');
     check('창에 이 기기와 클라우드의 스테이지가 나란히 보이고 더 앞선 쪽을 표시한다', await ev(`(() => { const t = document.getElementById('modalBody').textContent; return t.includes('이 기기') && t.includes('클라우드') && t.includes('스테이지 44') && t.includes('레벨 22') && t.includes('진행이 더 앞서요'); })()`));
     await shot('account-conflict');
     // 창을 나중에로 닫으면 아무것도 바뀌지 않는다
     await ev(`document.querySelector('#modalActions .btn:last-child').click()`); await sleep(300);
     check('나중에를 누르면 이 기기의 진행이 그대로다', (await ev(`document.getElementById('level').textContent`)) === '22');
-    await ev(`document.querySelector('[data-acct="sync"]').click()`); await sleep(600);
+    await ev(`(() => { window.GoblinCloud.sync(); return 1; })()`); await sleep(600);
     await ev(`document.querySelector('#modalActions .btn--gold').click()`); await sleep(700);   // 클라우드 사용
     check('클라우드를 고르면 게임이 클라우드 저장(레벨 33)으로 바뀐다', (await ev(`document.getElementById('level').textContent`)) === '33');
     check('클라우드를 고른 뒤에는 로컬 저장도 같은 진행이다', JSON.parse(await ev(`localStorage.getItem('goblin-idle-save-v1')`)).level >= 33);
@@ -339,7 +339,7 @@ const FAKE_CLOUD = `(() => {
     console.log('전투 효과 (차분하게 / 화려하게)');
     // 3초 동안 전투 층에 생기는 이펙트를 센다 (자동 공격만, 탭 없이)
     const countFx = (ms) => ev(`new Promise((res) => { const n = { spark: 0, hit: 0, coin: 0, all: 0 }; const o = new MutationObserver((list) => { for (const m of list) for (const a of m.addedNodes) { if (!a.classList) continue; n.all++; if (a.classList.contains('fx-spark')) n.spark++; if (a.classList.contains('float--hit')) n.hit++; if (a.classList.contains('fx-coin')) n.coin++; } }); o.observe(document.getElementById('floatLayer'), { childList: true }); setTimeout(() => { o.disconnect(); res(n); }, ${ms}); })`);
-    await reopen(mk(30, ['mage', 'pyromancer']));   // 앞 점검으로 고블린이 기절해 있을 수 있어서, 건강한 상태로 새로 연다 (기절 중에는 공격 연출이 없다)
+    await reopen(mk(30, []));   // 직업이 없는(스킬이 없는) 건강한 고블린으로 연다. 기절 중에는 공격 연출이 없고, 스킬 연출이 섞이면 자동 공격 이펙트만 세기 어렵다.
     await ev(`document.querySelector('[data-go="upgrade"]').click()`); await sleep(300);
     check('기본은 "차분하게"로 선택돼 있다', (await ev(`document.querySelector('#fxSeg button.is-on').dataset.fx`)) === 'calm');
     await sleep(1500);
@@ -352,6 +352,49 @@ const FAKE_CLOUD = `(() => {
     check('화려하게: 같은 4초 동안 불꽃이나 타격 숫자가 나온다 (차분하게보다 확실히 많다)', (fullFx.spark + fullFx.hit) > 0 && fullFx.all > calmFx.all, `차분 ${JSON.stringify(calmFx)} / 화려 ${JSON.stringify(fullFx)}`);
     await ev(`document.querySelector('#fxSeg [data-fx="calm"]').click()`); await sleep(200);
     check('다시 "차분하게"로 돌릴 수 있다', (await ev(`localStorage.getItem('goblin-idle-fx-v1')`)) === 'calm');
+
+    console.log('직업별 공격 모션과 스킬');
+    // 전투 층에 생기는 요소의 클래스를 seconds초 동안 모아 센다
+    const watchFx = (ms, selectors) => ev(`new Promise((res) => { const found = {}; const sels = ${JSON.stringify(selectors)}; const o = new MutationObserver((list) => { for (const m of list) for (const a of m.addedNodes) { if (!a.classList) continue; for (const s of sels) if (a.matches && a.matches(s)) found[s] = (found[s] || 0) + 1; } }); o.observe(document.getElementById('floatLayer'), { childList: true }); setTimeout(() => { o.disconnect(); res(found); }, ${ms}); })`);
+    const styleCase = async (label, route, selector) => {
+      await reopen(mk(30, route)); await sleep(300);
+      const found = await watchFx(4500, [selector]);
+      check(label, (found[selector] || 0) > 0, JSON.stringify(found));
+    };
+    await styleCase('도적: 표창(회전하는 별)을 던진다', ['rogue'], '.proj--shuriken');
+    await styleCase('마법사: 마법구를 쏜다', ['mage'], '.proj--orb');
+    await styleCase('화염술사: 화염구를 쏜다', ['mage', 'pyromancer'], '.proj--fire');
+    await styleCase('사령술사: 어둠 마법을 쏜다', ['mage', 'necromancer'], '.proj--dark');
+    await styleCase('궁수: 화살을 쏜다', ['archer'], '.proj--arrow');
+    await styleCase('저격수: 총알을 쏜다', ['archer', 'sniper'], '.proj--bullet');
+    await styleCase('기사: 칼을 휘둘러 베는 궤적이 남는다 (투사체는 없다)', ['warrior', 'knight'], '.arc--slash');
+    await styleCase('광전사: 도끼를 휘두른다', ['warrior', 'berserker'], '.arc--axe');
+    // 예전처럼 앞뒤로 크게 달려갔다 오지 않는다: 3초 동안 고블린 몸의 가로 이동량을 재 본다 (예전 돌진은 34px)
+    await reopen(mk(30, ['warrior', 'knight'])); await sleep(300);
+    const maxShift = await ev(`new Promise((res) => { let mx = 0; const b = document.getElementById('hero'); const iv = setInterval(() => { const m = new DOMMatrix(getComputedStyle(b).transform); mx = Math.max(mx, Math.abs(m.m41)); }, 25); setTimeout(() => { clearInterval(iv); res(mx); }, 3500); })`);
+    check('근접 공격도 제자리에서 휘두른다 (가로 이동 14px 이하, 예전 돌진은 34px)', maxShift > 0 && maxShift <= 14, `최대 ${maxShift.toFixed(1)}px`);
+
+    // 스킬 바와 자동 시전 (마법사 → 화염술사: 마나 집중(강화), 화염 폭발(강타))
+    await reopen(mk(30, ['mage', 'pyromancer'])); await sleep(300);
+    check('직업이 있으면 스킬 바에 스킬이 직업 수(2개)만큼 보이고 "화면을 눌러 공격" 안내는 숨는다', (await ev(`document.querySelectorAll('#skillbar .skill').length`)) === 2 && (await ev(`!document.getElementById('skillbar').hidden`)) && (await ev(`getComputedStyle(document.querySelector('.tap-hint')).display`)) === 'none');
+    let seenSkillText = false, seenAura = false;
+    for (let i = 0; i < 40 && !(seenSkillText && seenAura); i++) {
+      await sleep(250);
+      seenSkillText = seenSkillText || await ev(`!!document.querySelector('#floatLayer .float--skill')`);
+      seenAura = seenAura || await ev(`document.getElementById('heroBox').classList.contains('buff-might')`);
+    }
+    check('스킬은 쿨타임이 차면 자동으로 쓰이고 스킬 이름이 화면에 뜬다', seenSkillText);
+    check('강화(마나 집중) 스킬을 쓰면 고블린 몸이 붉게 빛난다', seenAura);
+    await ev(`document.querySelector('#skillbar .skill').click()`); await sleep(250);
+    check('스킬 아이콘을 누르면 설명 창이 열리고, 공격으로 잘못 처리되지 않는다', (await ev(`document.getElementById('modalTitle').textContent`)) === '마나 집중' && (await ev(`document.getElementById('modalBody').textContent`)).includes('공격력이'));
+    await ev(`document.querySelector('#modalActions .btn').click()`); await sleep(200);
+    await ev(`document.querySelector('[data-go="class"]').click()`); await sleep(400);
+    check('전직 탭에 지금 직업들의 스킬 목록이 보인다', (await ev(`document.querySelectorAll('#classSkills .sk-row').length`)) === 2 && (await ev(`document.getElementById('classSkills').textContent`)).includes('화염 폭발'));
+    await shot('skills');
+    await reopen(mk(30, ['mage', 'pyromancer']));
+    await ev(`document.querySelector('[data-go="class"]').click()`); await sleep(400);
+    check('3차 전직 선택지 카드에 각 직업의 스킬이 미리 보인다', (await ev(`document.querySelectorAll('#classChoice .choice__skill').length`)) === 2 && (await ev(`document.getElementById('classChoice').textContent`)).includes('지옥불'));
+    await reopen(mk(22, ['mage', 'pyromancer']));
 
     console.log('오래 돌려도 안정적인가 (전투 10초)');
     await ev(`document.querySelector('[data-go="upgrade"]').click()`);

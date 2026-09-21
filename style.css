@@ -609,3 +609,44 @@ svg { display: block; }
 .tidy__opt small { color: var(--muted); font-size: 11.5px; }
 .tidy__opt.is-empty { opacity: 0.45; cursor: default; }
 .acct__lock { margin: 10px 0 0; padding: 7px 9px; font-size: 11px; font-weight: 800; line-height: 1.45; color: #ffd9a0; background: rgba(120, 70, 10, 0.3); border: 1px solid rgba(255, 190, 90, 0.4); }
+
+/* ===== 직업별 공격 모션 (투사체·궤적) ===== */
+.fx-arc { width: 64px; height: 64px; margin: -32px 0 0 -32px; border-radius: 50%; border: 5px solid transparent; border-top-color: #fff; border-right-color: rgba(255, 255, 255, 0.55); filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.9)); }
+.arc--axe { width: 86px; height: 86px; margin: -43px 0 0 -43px; border-width: 9px; border-top-color: #ffb066; border-right-color: rgba(255, 150, 60, 0.6); filter: drop-shadow(0 0 8px rgba(255, 140, 40, 0.9)); }
+.arc--holy { border-top-color: #fff2a8; border-right-color: rgba(255, 220, 90, 0.7); filter: drop-shadow(0 0 10px rgba(255, 214, 90, 1)); }
+.arc--dagger { width: 46px; height: 46px; margin: -23px 0 0 -23px; border-width: 3px; }
+.fx-proj { width: 20px; height: 20px; margin: -10px 0 0 -10px; }
+.proj--arrow { width: 36px; height: 3px; margin: -1.5px 0 0 -18px; border-radius: 2px; background: linear-gradient(90deg, transparent, #cfa35e 35%, #fff2d0); }
+.proj--arrow::after { content: ''; position: absolute; right: -5px; top: -3px; border-left: 8px solid #fff2d0; border-top: 4.5px solid transparent; border-bottom: 4.5px solid transparent; }
+.proj--bolt { width: 26px; height: 5px; margin: -2.5px 0 0 -13px; border-radius: 2px; background: linear-gradient(90deg, #5a3a1a, #c9d3e0); }
+.proj--bullet { width: 30px; height: 3px; margin: -1.5px 0 0 -15px; border-radius: 2px; background: linear-gradient(90deg, transparent, #ffe27a, #fff); box-shadow: 0 0 8px #ffd54a; }
+.proj--orb { border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff, #7ad8ff 45%, rgba(40, 140, 255, 0) 72%); box-shadow: 0 0 12px 3px rgba(102, 224, 255, 0.7); }
+.proj--fire { width: 22px; height: 22px; margin: -11px 0 0 -11px; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #fff6b0, #ffb02a 40%, rgba(255, 80, 20, 0) 74%); box-shadow: 0 0 14px 4px rgba(255, 120, 30, 0.75); }
+.proj--dark { border-radius: 50%; background: radial-gradient(circle at 40% 35%, #e6ffd8, #7ae86a 35%, #6a3aa8 62%, rgba(60, 20, 120, 0) 76%); box-shadow: 0 0 12px 3px rgba(130, 90, 200, 0.75); }
+.proj--shuriken { width: 22px; height: 22px; margin: -11px 0 0 -11px; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 1L15 9L23 12L15 15L12 23L9 15L1 12L9 9Z' fill='%234a5468' stroke='%23e8f0ff' stroke-width='1.4' stroke-linejoin='round'/%3E%3Ccircle cx='12' cy='12' r='2.2' fill='%23e8f0ff'/%3E%3C/svg%3E") center / contain no-repeat; filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.6)); }
+.proj--coin { width: 13px; height: 13px; margin: -6.5px 0 0 -6.5px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff8c8, #ffc93a 55%, #b8801a); box-shadow: 0 0 6px rgba(255, 200, 60, 0.8); }
+.fx-minion { width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50% 50% 40% 40%; background: radial-gradient(circle at 40% 35%, #fff, #c8a0ff 60%, rgba(160, 110, 255, 0)); box-shadow: 0 0 8px rgba(190, 140, 255, 0.8); }
+.fx-plus { margin: -9px 0 0 -5px; font-size: 18px; font-weight: 900; color: #8dff7a; text-shadow: 0 0 6px rgba(80, 220, 60, 0.9), 0 1px 0 #0a3a10; }
+.float--skill { font-size: 15px; font-weight: 900; letter-spacing: 0.02em; -webkit-text-stroke: 0.5px rgba(0, 0, 0, 0.55); }
+.float--heal { font-size: 15px; color: #8dff7a; }
+
+/* ===== 스킬 바 · 스킬 효과 표시 ===== */
+.skillbar { position: absolute; left: 50%; bottom: 50px; transform: translateX(-50%); z-index: 5; display: flex; gap: 6px; pointer-events: auto; }
+.stage.has-skills .tap-hint { display: none; }
+.skill { position: relative; width: 40px; height: 40px; padding: 0; overflow: hidden; cursor: pointer; border-radius: 10px; border: 2px solid var(--gold-d); -webkit-tap-highlight-color: transparent;
+  background: radial-gradient(circle at 50% 28%, #2a5a9a, #0a1a3e 85%); display: grid; place-items: center; }
+.skill .ic { width: 24px; height: 24px; }
+.skill__cd { position: absolute; inset: 0; pointer-events: none; background: conic-gradient(rgba(2, 6, 20, 0.74) calc(var(--p, 0) * 1turn), transparent 0); }
+.skill.is-on { border-color: #fff; box-shadow: 0 0 10px 2px rgba(255, 230, 140, 0.9); }
+.actor--hero.buff-might .actor__body { filter: drop-shadow(0 0 8px rgba(255, 90, 60, 0.95)); }
+.actor--hero.buff-haste .actor__body { filter: drop-shadow(0 0 8px rgba(102, 224, 255, 0.95)); }
+.actor--hero.buff-guard .actor__body { filter: drop-shadow(0 0 8px rgba(122, 168, 255, 0.95)); }
+.actor--hero.buff-greed .actor__body { filter: drop-shadow(0 0 8px rgba(255, 201, 58, 0.95)); }
+.sk-row { display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; margin-bottom: 6px; background: rgba(10, 30, 70, 0.5); border: 1px solid var(--line); }
+.sk-row .ic { width: 28px; height: 28px; flex: none; margin-top: 2px; }
+.sk-row b { font-size: 13px; } .sk-row small { color: var(--muted); font-size: 10.5px; }
+.sk-row__d { font-size: 11.5px; color: var(--ink); line-height: 1.45; margin-top: 2px; }
+.choice__skill { margin: 6px 0 4px; padding: 6px 7px; font-size: 11px; line-height: 1.45; text-align: left; color: var(--ink); background: rgba(0, 0, 0, 0.3); border: 1px solid var(--line); }
+.choice__skill b { color: var(--gold); }
+.skilld__ic { display: grid; place-items: center; margin-bottom: 4px; }
+.skilld__ic .ic { width: 52px; height: 52px; }

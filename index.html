@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#070d1c">
   <title>고블린 키우기</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css">
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=202609211749">
 </head>
 <body>
   <div class="app">
@@ -93,6 +93,7 @@
       <div class="flash" id="flash" aria-hidden="true"></div>
       <div class="float-layer" id="floatLayer" aria-hidden="true"></div>
       <div class="tap-hint" id="tapHint"><svg class="ic"><use href="#i-hand"/></svg>화면을 눌러 공격!</div>
+      <div class="skillbar" id="skillbar" hidden></div>
       <div class="down" id="downBanner" hidden>기절했다! 곧 일어난다...</div>
 
       <!-- 능력치 -->
@@ -149,6 +150,7 @@
 
         <section class="tab" data-tab="class" hidden>
           <div class="card classcard classcard--now" id="classNow"></div>
+          <div id="classSkills"></div>
           <div id="classChoice"></div>
           <h3 class="sect"><svg class="ic"><use href="#i-book"/></svg>직업 도감 <small id="codexBonus"></small></h3>
           <div class="codex" id="codex"></div>
@@ -222,14 +224,15 @@
     </div>
   </div>
 
-  <script src="images/manifest.js"></script>
-  <script src="art.js"></script>
-  <script src="classes.js"></script>
-  <script src="game.js"></script>
-  <script src="sync.js"></script>
-  <script src="cloud.js"></script>
-  <script src="cloud-firebase.js"></script>
-  <script src="firebase-config.js"></script>
-  <script src="app.js"></script>
+  <script src="images/manifest.js?v=202609211749"></script>
+  <script src="art.js?v=202609211749"></script>
+  <script src="classes.js?v=202609211749"></script>
+  <script src="skills.js?v=202609211749"></script>
+  <script src="game.js?v=202609211749"></script>
+  <script src="sync.js?v=202609211749"></script>
+  <script src="cloud.js?v=202609211749"></script>
+  <script src="cloud-firebase.js?v=202609211749"></script>
+  <script src="firebase-config.js?v=202609211749"></script>
+  <script src="app.js?v=202609211749"></script>
 </body>
 </html>
