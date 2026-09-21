@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#070d1c">
   <title>고블린 키우기</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css">
-  <link rel="stylesheet" href="style.css?v=202609211828">
+  <link rel="stylesheet" href="style.css?v=202609211913">
 </head>
 <body>
   <div class="app">
@@ -93,6 +93,7 @@
       <div class="flash" id="flash" aria-hidden="true"></div>
       <div class="float-layer" id="floatLayer" aria-hidden="true"></div>
       <div class="tap-hint" id="tapHint"><svg class="ic"><use href="#i-hand"/></svg>화면을 눌러 공격!</div>
+      <div class="potionbar" id="potionbar" hidden></div>
       <div class="skillbar" id="skillbar" hidden></div>
       <div class="down" id="downBanner" hidden>기절했다! 곧 일어난다...</div>
 
@@ -112,7 +113,8 @@
         <button class="tabnav__btn" data-go="gear" type="button"><svg class="ic"><use href="#i-shield"/></svg><span>장비</span><i class="dot" hidden></i></button>
         <button class="tabnav__btn" data-go="class" type="button"><svg class="ic"><use href="#i-cap"/></svg><span>전직</span><i class="dot" hidden></i></button>
         <button class="tabnav__btn" data-go="prestige" type="button"><svg class="ic"><use href="#i-crown"/></svg><span>환생</span><i class="dot" hidden></i></button>
-        <button class="tabnav__btn" data-go="shop" type="button"><svg class="ic"><use href="#i-gem"/></svg><span>상점</span><i class="dot" hidden></i></button>
+        <button class="tabnav__btn" data-go="shop" type="button"><svg class="ic"><use href="#i-pouch"/></svg><span>증표</span><i class="dot" hidden></i></button>
+        <button class="tabnav__btn" data-go="store" type="button"><svg class="ic"><use href="#i-gem"/></svg><span>상점</span><i class="dot" hidden></i></button>
         <button class="tabnav__btn" data-go="log" type="button"><svg class="ic"><use href="#i-scroll"/></svg><span>기록</span></button>
       </nav>
 
@@ -171,6 +173,7 @@
         </section>
 
         <section class="tab" data-tab="shop" hidden>
+          <h3 class="sect"><svg class="ic"><use href="#i-crown"/></svg>증표 상점 <small>환생으로 얻은 증표로 사는 영구 강화</small></h3>
           <div class="card shophead">
             <div class="shophead__tokens"><svg class="ic"><use href="#i-crown"/></svg><span><small>쓸 수 있는 증표</small><b id="shopTokens">0</b></span></div>
             <p>환생으로 얻은 <b>왕의 증표</b>로 영구 강화를 사요. 산 강화는 환생해도 그대로 남아요.</p>
@@ -180,6 +183,23 @@
             <span id="shopSpent"></span>
             <button class="link" id="respecBtn" type="button">강화 초기화</button>
           </div>
+        </section>
+
+        <section class="tab" data-tab="store" hidden>
+          <div class="card wallet">
+            <div class="wallet__bal"><svg class="ic"><use href="#i-gem"/></svg><span><small>내 크리스탈</small><b id="crystalBal">0</b></span></div>
+            <button class="btn btn--gold wallet__btn" id="chargeBtn" type="button">충전하기</button>
+          </div>
+          <div class="demonote" id="demoNote" hidden></div>
+          <h3 class="sect"><svg class="ic"><use href="#i-star"/></svg>무료 보상</h3>
+          <div id="adCard"></div>
+          <h3 class="sect"><svg class="ic"><use href="#i-heart"/></svg>물약 <small>잠시 동안 강해져요</small></h3>
+          <div id="potionList"></div>
+          <h3 class="sect"><svg class="ic"><use href="#i-crown"/></svg>장비 상자 <small>등급 확률 공개</small></h3>
+          <div id="boxList"></div>
+          <h3 class="sect"><svg class="ic"><use href="#i-pouch"/></svg>편의 · 패키지</h3>
+          <div id="utilList"></div>
+          <div class="card storenote" id="storeNote"></div>
         </section>
 
         <section class="tab" data-tab="log" hidden>
@@ -216,6 +236,15 @@
     </div>
   </div>
 
+  <div class="adov" id="adOverlay" hidden>
+    <div class="adov__box">
+      <div class="adov__tag">광고 (시연용)</div>
+      <div class="adov__screen"><div class="adov__logo">AD</div><div class="adov__count" id="adCount">5</div></div>
+      <p class="adov__note">실제 광고가 아니라 시연 화면이에요. 끝까지 보면 보상을 받아요.</p>
+      <div class="adov__btns"><button class="btn btn--gray" id="adCancel" type="button">그만두기</button><button class="btn btn--gold" id="adClaim" type="button" disabled>보상 받기</button></div>
+    </div>
+  </div>
+
   <div class="modal" id="modal" hidden>
     <div class="modal__box win" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
       <h2 id="modalTitle"></h2>
@@ -224,15 +253,19 @@
     </div>
   </div>
 
-  <script src="images/manifest.js?v=202609211828"></script>
-  <script src="art.js?v=202609211828"></script>
-  <script src="classes.js?v=202609211828"></script>
-  <script src="skills.js?v=202609211828"></script>
-  <script src="game.js?v=202609211828"></script>
-  <script src="sync.js?v=202609211828"></script>
-  <script src="cloud.js?v=202609211828"></script>
-  <script src="cloud-firebase.js?v=202609211828"></script>
-  <script src="firebase-config.js?v=202609211828"></script>
-  <script src="app.js?v=202609211828"></script>
+  <script src="images/manifest.js?v=202609211913"></script>
+  <script src="art.js?v=202609211913"></script>
+  <script src="classes.js?v=202609211913"></script>
+  <script src="skills.js?v=202609211913"></script>
+  <script src="store.js?v=202609211913"></script>
+  <script src="game.js?v=202609211913"></script>
+  <script src="sync.js?v=202609211913"></script>
+  <script src="cloud.js?v=202609211913"></script>
+  <script src="cloud-firebase.js?v=202609211913"></script>
+  <script src="firebase-config.js?v=202609211913"></script>
+  <script src="payments.js?v=202609211913"></script>
+  <script src="ads.js?v=202609211913"></script>
+  <script src="payments-config.js?v=202609211913"></script>
+  <script src="app.js?v=202609211913"></script>
 </body>
 </html>

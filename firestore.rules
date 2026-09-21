@@ -21,5 +21,12 @@ service cloud.firestore {
         && request.resource.data.rev == resource.data.rev + 1
         && request.resource.data.updatedAt == request.time;
     }
+
+    // 지갑(크리스탈): 나중에 실제 결제를 붙일 때 서버(Admin SDK)만 쓰게 할 자리다. 브라우저는 읽기만 하고, 쓰기는 모두 막아 둔다.
+    // 지금은 아무 데도 쓰이지 않는다. (docs/PAYMENTS.md)
+    match /wallets/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow write: if false;
+    }
   }
 }

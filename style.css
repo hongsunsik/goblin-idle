@@ -282,7 +282,7 @@ svg { display: block; }
 
 /* ===== 아래 창 ===== */
 .panel { flex: 1; min-height: 0; display: flex; flex-direction: column; background: radial-gradient(ellipse at 50% 0%, #14285a, #0a1230 70%); position: relative; }
-.tabnav { flex: none; display: grid; grid-template-columns: repeat(6, 1fr); background: linear-gradient(180deg, #14224a, #0b1533); border-bottom: 1px solid var(--line); }
+.tabnav { flex: none; display: grid; grid-template-columns: repeat(7, 1fr); background: linear-gradient(180deg, #14224a, #0b1533); border-bottom: 1px solid var(--line); }
 .tabnav__btn {
   position: relative; background: none; border: 0; padding: 7px 0 6px; display: flex; flex-direction: column; align-items: center; gap: 1px;
   font-size: 11px; font-weight: 800; color: var(--muted);
@@ -674,3 +674,53 @@ svg { display: block; }
 .sk-row .skill-img { width: 34px; height: 34px; border-radius: 8px; margin-top: 0; }
 .skilld__ic .skill-img { width: 72px; height: 72px; border-radius: 14px; }
 .skill-fallback { display: inline-flex; }
+
+/* ===== 크리스탈 상점 ===== */
+.tabnav__btn span { font-size: 10.5px; }
+.wallet { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; }
+.wallet__bal { display: flex; align-items: center; gap: 8px; }
+.wallet__bal .ic { width: 38px; height: 38px; }
+.wallet__bal span { display: flex; flex-direction: column; line-height: 1.1; }
+.wallet__bal small { font-size: 10px; color: var(--muted); font-weight: 700; }
+.wallet__bal b { font-size: 26px; font-weight: 900; color: #8fd8ff; }
+.wallet__btn { flex: none; padding: 9px 16px 7px; }
+.demonote, .storenote { margin-top: 8px; padding: 8px 10px; font-size: 11px; line-height: 1.5; color: #ffd9a0; background: rgba(120, 70, 10, 0.3); border: 1px solid rgba(255, 190, 90, 0.4); }
+.storenote { color: var(--muted); background: rgba(10, 30, 70, 0.4); border: 1px dashed var(--line); }
+.prod { display: grid; grid-template-columns: 54px 1fr auto; align-items: center; gap: 10px; padding: 9px 10px; margin-bottom: 8px; }
+.prod__tile { width: 54px; height: 54px; display: grid; place-items: center; border-radius: 8px; border: 2px solid var(--gold-d); box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.5);
+  background: radial-gradient(circle at 50% 28%, var(--tone, #2a5a9a), #0a1a3e 85%); }
+.prod__tile .ic { width: 38px; height: 38px; }
+.prod__name { font-weight: 900; font-size: 14px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.prod__desc { font-size: 11.5px; color: var(--muted); margin-top: 2px; line-height: 1.4; }
+.prod__odds { display: flex; flex-wrap: wrap; gap: 4px 8px; margin-top: 4px; font-size: 10.5px; font-weight: 800; }
+.prod__chip { display: inline-block; margin-left: 2px; padding: 0 7px; font-size: 10px; font-weight: 900; color: #063a10; background: linear-gradient(180deg, #c8ffb8, #6fe06a); clip-path: polygon(4px 0, 100% 0, calc(100% - 4px) 100%, 0 100%); }
+.prod__btn { min-width: 76px; display: flex; flex-direction: column; align-items: center; line-height: 1.15; padding: 7px 8px 5px; }
+.prod__btn small { font-size: 9px; font-weight: 800; opacity: 0.75; }
+.prod__btn span { display: flex; align-items: center; gap: 3px; }
+.prod__btn .ic { width: 16px; height: 16px; filter: none; }
+.pack { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 10px; margin-bottom: 6px; font: inherit; color: var(--ink); text-align: left; cursor: pointer; background: rgba(0, 0, 0, 0.3); border: 1px solid var(--line); }
+.pack:active { transform: scale(0.98); }
+.pack .ic { width: 34px; height: 34px; flex: none; }
+.pack__main { flex: 1; display: flex; flex-direction: column; line-height: 1.3; }
+.pack__main b { font-size: 15px; color: #8fd8ff; }
+.pack__main small { font-size: 11px; color: var(--muted); }
+.pack__price { font-size: 14px; font-weight: 900; color: var(--gold); }
+.demoban { margin: 0 0 10px; padding: 7px 9px; font-size: 11.5px; font-weight: 800; line-height: 1.45; color: #ffd9a0; background: rgba(120, 70, 10, 0.35); border: 1px solid rgba(255, 190, 90, 0.5); }
+.got { display: flex; align-items: center; gap: 10px; padding: 7px 9px; margin-bottom: 6px; text-align: left; background: rgba(0, 0, 0, 0.3); border: 2px solid var(--rc, var(--line)); }
+.got .ic { width: 36px; height: 36px; flex: none; }
+.got b { display: block; font-size: 13px; color: var(--rc); }
+.got small { color: var(--green); font-size: 11.5px; font-weight: 800; }
+
+/* ===== 물약 표시줄 · 시연 광고 ===== */
+.potionbar { position: absolute; left: 8px; top: 82px; z-index: 5; display: flex; flex-direction: column; gap: 3px; pointer-events: none; }
+.pchip { display: flex; align-items: center; gap: 3px; padding: 1px 7px 1px 3px; font-size: 10.5px; font-weight: 900; color: #fff; background: rgba(6, 14, 36, 0.72); border-radius: 999px; border: 1px solid var(--pc, var(--line)); }
+.pchip .ic { width: 16px; height: 16px; filter: none; }
+.adov { position: fixed; inset: 0; z-index: 30; display: flex; align-items: center; justify-content: center; padding: 20px; background: rgba(2, 4, 14, 0.9); }
+.adov__box { width: 100%; max-width: 340px; padding: 16px; text-align: center; background: linear-gradient(180deg, #14224a, #0b1533); border: 2px solid rgba(255, 212, 121, 0.7); }
+.adov__tag { display: inline-block; margin-bottom: 10px; padding: 1px 10px; font-size: 11px; font-weight: 900; color: #063a10; background: #ffd479; }
+.adov__screen { position: relative; height: 170px; display: grid; place-items: center; overflow: hidden; background: repeating-linear-gradient(45deg, #1a2a5e, #1a2a5e 14px, #22366f 14px, #22366f 28px); border: 1px solid var(--line); }
+.adov__logo { font-size: 44px; font-weight: 900; letter-spacing: 0.1em; color: rgba(255, 255, 255, 0.35); }
+.adov__count { position: absolute; right: 8px; top: 6px; min-width: 28px; padding: 2px 8px; font-size: 16px; font-weight: 900; background: rgba(0, 0, 0, 0.6); border-radius: 999px; }
+.adov__note { margin: 10px 0; font-size: 12px; color: var(--muted); line-height: 1.5; }
+.adov__btns { display: flex; gap: 8px; }
+.adov__btns .btn { flex: 1; }

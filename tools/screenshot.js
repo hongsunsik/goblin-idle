@@ -21,11 +21,13 @@ function seeded(seed) {
 
 // 봇이 강화를 사면서 플레이한 것처럼 진행시켜 보기 좋은 저장 데이터를 만든다.
 // until(s)이 참이 되는 순간에서 멈추고, 전직은 레벨 조건을 채웠을 때만 한다 (불가능한 상태를 만들지 않음).
-function makeSave({ until, cls, adv, route, depth = 2, promoteAdv = true, tokens = 0, prestiges = 0, mastered = [], dex = {}, perks = {}, autoSell = 0, seed = 11 }) {
+function makeSave({ until, cls, adv, route, depth = 2, promoteAdv = true, tokens = 0, prestiges = 0, mastered = [], dex = {}, perks = {}, autoSell = 0, seed = 11, crystals = 0, potions = {} }) {
   G.setRandom(seeded(seed));
   const s = G.createState(0);
   s.autoSell = autoSell;
   s.tokens = tokens;
+  s.crystals = crystals;
+  s.potions = potions;
   s.prestiges = prestiges;
   s.perks = perks;
   Object.assign(s.dex, dex);
@@ -125,6 +127,7 @@ async function main() {
     await shot('achievements', makeSave({ until: (s) => s.stage >= 36, ...mage, tokens: 4, prestiges: 1 }), { tab: 'log' });
     await shot('gear', makeSave({ until: (s) => s.stage >= 40, ...mage, tokens: 4, autoSell: -1, seed: 21 }), { tab: 'gear' });
     await shot('shop', makeSave({ until: (s) => s.stage >= 20, ...mage, tokens: 24, perks: { might: 4, greed: 3, vitality: 2, click: 1 } }), { tab: 'shop' });
+    await shot('store', makeSave({ until: (s) => s.stage >= 20, ...mage, tokens: 4, crystals: 420, potions: { gold: 1500, might: 900 } }), { tab: 'store' });   // 크리스탈 상점 (시연 결제)
     await shot('codex', makeSave({
       until: (s) => s.level >= 30, route: ROUTE, depth: 3, tokens: 8, mastered: ['knight', 'sniper', 'necromancer', 'paladin', 'lich', 'captain'],
       dex: { knight: { best: 41, kills: 2310, runs: 3 }, sniper: { best: 22, kills: 604, runs: 1 }, necromancer: { best: 57, kills: 5120, runs: 4 },

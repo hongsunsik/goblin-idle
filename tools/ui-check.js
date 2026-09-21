@@ -401,6 +401,90 @@ const FAKE_CLOUD = `(() => {
     check('3차 전직 선택지 카드에 각 직업의 스킬이 미리 보인다', (await ev(`document.querySelectorAll('#classChoice .choice__skill').length`)) === 2 && (await ev(`document.getElementById('classChoice').textContent`)).includes('지옥불 폭격'));
     await reopen(mk(22, ['mage', 'pyromancer']));
 
+    console.log('크리스탈 상점 (결제·광고는 시연)');
+    const click = (sel) => ev(`document.querySelector(${JSON.stringify(sel)}).click()`);
+    const txt = (sel) => ev(`(document.querySelector(${JSON.stringify(sel)}) || {}).textContent || ''`);
+    const only = mk(30, ['mage', 'pyromancer']); only.crystals = 0;
+    await reopen(only);
+    await ev(`Game.STORE.AD_SECONDS = 1`);   // 시연 광고를 1초로 줄인다 (점검이 길어지지 않게)
+    await click('[data-go="store"]'); await sleep(400);
+    check('증표 탭 이름이 "증표"이고 새 "상점" 탭이 따로 있다', (await ev(`[...document.querySelectorAll('.tabnav__btn span')].map((x) => x.textContent).join(',')`)) === '강화,장비,전직,환생,증표,상점,기록');
+    check('상점 탭이 열리고 크리스탈은 0이다', (await ev(`!document.querySelector('.tab[data-tab="store"]').hidden`)) && (await txt('#crystalBal')) === '0');
+    check('시연 결제·광고라는 안내가 보인다', (await txt('#demoNote')).includes('실제 돈은 청구되지 않고'));
+    check('크리스탈이 없으면 모든 구매 버튼이 잠긴다', (await ev(`[...document.querySelectorAll('#potionList [data-buy], #boxList [data-buy], #utilList [data-buy]')].every((b) => b.disabled)`)));
+    check('장비 상자에 등급 확률이 그대로 공개된다', (await txt('#boxList')).includes('전설 100%') && (await txt('#boxList')).includes('영웅 85%'));
+    // 충전: 취소하면 그대로
+    await click('#chargeBtn'); await sleep(250);
+    check('충전 창에 상품 5개와 시연 안내가 보인다', (await ev(`document.querySelectorAll('#modalBody [data-pack]').length`)) === 5 && (await txt('#modalBody')).includes('실제 돈은 청구되지 않아요'));
+    await click('#modalBody [data-pack="c330"]'); await sleep(250);
+    check('결제 확인 창은 "시연"이고 청구되지 않는다고 알린다', (await txt('#modalTitle')).includes('시연') && (await txt('#modalBody')).includes('청구되지 않아요'));
+    await click('#modalActions .btn'); await sleep(250);   // 취소
+    check('결제를 취소하면 크리스탈이 늘지 않는다', (await txt('#crystalBal')) === '0');
+    await click('#chargeBtn'); await sleep(250);
+    await click('#modalBody [data-pack="c330"]'); await sleep(250);
+    await click('#modalActions .btn--gold'); await sleep(350);
+    check('시연 결제를 마치면 크리스탈 330개가 들어온다', (await txt('#crystalBal')) === '330');
+    await shot('store');
+    // 물약
+    await click('#potionList [data-buy="gold"]'); await sleep(250);
+    await click('#modalActions .btn--gold'); await sleep(350);
+    await click('#modalActions .btn'); await sleep(200);   // 구매 완료 창 닫기
+    check('황금 물약(60)을 사면 크리스탈이 270이 되고 "적용 중"이 뜬다', (await txt('#crystalBal')) === '270' && (await txt('#potionList')).includes('적용 중'));
+    check('장면에 물약 표시가 뜬다', await ev(`!document.getElementById('potionbar').hidden && document.querySelectorAll('#potionbar .pchip').length === 1`));
+    // 장비 상자
+    await click('#boxList [data-buy="box_fine"]'); await sleep(250);
+    check('확인 창에도 등급 확률이 보인다', (await txt('#modalBody')).includes('고급 60%'));
+    await click('#modalActions .btn--gold'); await sleep(350);
+    check('고급 장비 상자를 열면 장비 3개가 결과 창에 나오고 크리스탈 170', (await ev(`document.querySelectorAll('#modalBody .got').length`)) === 3 && (await txt('#crystalBal')) === '170');
+    await click('#modalActions .btn'); await sleep(200);
+    // 가방 확장
+    await click('[data-go="gear"]'); await sleep(300);
+    const cap0 = Number((await txt('#bagCount')).split('/')[1]);
+    await click('[data-go="store"]'); await sleep(300);
+    await click('#utilList [data-buy="bag"]'); await sleep(250);
+    await click('#modalActions .btn--gold'); await sleep(350);
+    await click('#modalActions .btn'); await sleep(200);
+    await click('[data-go="gear"]'); await sleep(300);
+    check('가방 확장을 사면 가방이 6칸 늘어난다', Number((await txt('#bagCount')).split('/')[1]) === cap0 + 6, await txt('#bagCount'));
+    await click('[data-go="store"]'); await sleep(300);
+    check('가방 확장(80) 뒤 크리스탈이 90이다', (await txt('#crystalBal')) === '90');
+    // 광고
+    check('광고는 오늘 3번 남아 있다', (await txt('#adCard')).includes('3/3'));
+    const lv0 = Number(await txt('#level'));
+    await click('#adCard [data-ad]'); await sleep(300);
+    check('광고 화면이 열리고 카운트다운이 끝나기 전에는 보상 버튼이 잠긴다', await ev(`!document.getElementById('adOverlay').hidden && document.getElementById('adClaim').disabled`));
+    await click('#adCancel'); await sleep(200);
+    check('광고를 중간에 그만두면 횟수가 줄지 않는다', (await txt('#adCard')).includes('3/3') && Number(await txt('#level')) === lv0);
+    for (let i = 1; i <= 3; i++) {
+      await click('#adCard [data-ad]'); await sleep(1500);
+      const ready = await ev(`!document.getElementById('adClaim').disabled`);
+      if (!ready) check(`광고 ${i}: 1초 뒤 보상 버튼이 열린다`, false);
+      await click('#adClaim'); await sleep(400);
+      check(`광고 ${i}번째: 레벨이 정확히 1 오르고 남은 횟수가 ${3 - i}번`, Number(await txt('#level')) === lv0 + i && (await txt('#adCard')).includes(`${3 - i}/3`), `레벨 ${await txt('#level')}, ${await txt('#adCard')}`);
+    }
+    check('하루 3번을 다 쓰면 광고 버튼이 잠긴다', await ev(`document.querySelector('#adCard [data-ad]').disabled`));
+    await shot('store-ad');
+    // 새로 열어도 유지 (크리스탈·물약·광고 횟수)
+    await sleep(600);
+    await send('Page.navigate', { url: 'file://' + ROOT + '/index.html' }); await sleep(1500);
+    await click('[data-go="store"]'); await sleep(400);
+    check('다시 열어도 크리스탈 90·광고 횟수·물약이 유지된다', (await txt('#crystalBal')) === '90' && (await ev(`document.querySelector('#adCard [data-ad]').disabled`)) && (await txt('#potionList')).includes('적용 중'));
+
+    // 기기 시계를 바꿔서 광고 횟수를 늘리려는 시도
+    await ev(`(() => { window.__realNow = Date.now; window.__realFetch = window.fetch; Date.now = () => window.__realNow() + 2 * 864e5; })()`);   // 기기 시계를 이틀 앞으로
+    await sleep(600);
+    check('기기 시계를 이틀 앞으로 돌려도(서버 시각을 못 받는 상태) 광고 횟수가 다시 열리지 않는다', (await txt('#adCard')).includes('0/3') && (await ev(`document.querySelector('#adCard [data-ad]').disabled`)));
+    await ev(`(() => { window.__srv = () => window.__realNow(); window.fetch = async () => new Response(null, { headers: { Date: new Date(window.__srv()).toUTCString() } }); document.dispatchEvent(new Event('visibilitychange')); })()`);   // 서버는 "지금은 오늘"이라고 답한다
+    await sleep(600);
+    check('서버가 아직 같은 날이라고 답하면 시계가 앞서 있어도 광고 횟수는 그대로 0/3', (await txt('#adCard')).includes('0/3') && (await ev(`document.querySelector('#adCard [data-ad]').disabled`)));
+    await ev(`(() => { window.__srv = () => window.__realNow() + 2 * 864e5; document.dispatchEvent(new Event('visibilitychange')); })()`);   // 서버 시각이 실제로 이틀 지남
+    await sleep(600);
+    check('서버 시각이 실제로 다음 날이 되면 광고 횟수가 다시 3/3이 된다', (await txt('#adCard')).includes('3/3') && (await ev(`!document.querySelector('#adCard [data-ad]').disabled`)));
+    await ev(`(() => { window.__srv = () => window.__realNow(); document.dispatchEvent(new Event('visibilitychange')); })()`);   // 서버가 예전 시각을 답해도 날짜는 뒤로 가지 않는다
+    await sleep(600);
+    check('서버가 예전 날짜를 말해도 날짜가 뒤로 가서 횟수가 늘지 않는다 (여전히 3/3)', (await txt('#adCard')).includes('3/3'));
+    await ev(`(() => { Date.now = window.__realNow; window.fetch = window.__realFetch; })()`);
+
     console.log('오래 돌려도 안정적인가 (전투 10초)');
     await ev(`document.querySelector('[data-go="upgrade"]').click()`);
     await sleep(10000);

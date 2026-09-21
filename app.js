@@ -719,6 +719,7 @@
     if (name === 'class') renderClass(true);
     if (name === 'gear') renderGear(true);
     if (name === 'shop') renderShop(true);
+    if (name === 'store') renderStore(true);
     if (name === 'log') renderAchieves(true);
     anim(document.querySelector(`.tab[data-tab="${name}"]`), [{ opacity: 0, transform: 'translateY(10px)' }, { opacity: 1, transform: 'none' }], { duration: 220, easing: 'ease-out' });
   }
@@ -1068,15 +1069,15 @@
     $('autoEquip').checked = s.autoEquip;
     $('autoSell').value = String(s.autoSell);
     const bc = $('bagCount');
-    bc.textContent = `${s.bag.length} / ${G.BAG_MAX}`;
-    bc.style.color = s.bag.length >= G.BAG_MAX ? 'var(--red)' : '';
+    bc.textContent = `${s.bag.length} / ${G.bagLimit(s)}`;
+    bc.style.color = s.bag.length >= G.bagLimit(s) ? 'var(--red)' : '';
     for (const id of [...picked]) if (!s.bag.some((x) => x.id === id)) picked.delete(id);   // 이미 팔린 장비는 선택에서 뺀다
     let html = '';
     s.bag.forEach((it) => {
       html += `<button class="gitem r${it.r} ${gearNew.has(it.id) ? 'is-new' : ''} ${picked.has(it.id) ? 'is-sel' : ''}" type="button" data-item="${it.id}">${gearArt(it)}` +
         `<div class="gitem__stat">${KIND_SHORT[it.kind]} +${fmtVal(it.val)}%</div><div class="gitem__lv">Lv.${it.ilvl}</div></button>`;
     });
-    for (let i = s.bag.length; i < G.BAG_MAX; i++) html += '<div class="gitem is-empty"></div>';
+    for (let i = s.bag.length; i < G.bagLimit(s); i++) html += '<div class="gitem is-empty"></div>';
     $('bag').innerHTML = html;
     // 선택 모드 표시줄
     $('selectBtn').textContent = selectMode ? '완료' : '선택';
@@ -1392,6 +1393,8 @@
     if (currentTab === 'class') renderClass(false);
     if (currentTab === 'gear') renderGear(false);
     if (currentTab === 'shop') renderShop(false);
+    if (currentTab === 'store') renderStore(false);
+    renderPotionbar();
     if (currentTab === 'log') renderAchieves(false);
 
     // 환생 탭
@@ -1403,14 +1406,207 @@
     pb.disabled = gain <= 0;
     setText('prestigeBtn', gain > 0 ? `환생하기 (증표 +${gain})` : '아직 환생할 수 없어요');
     setText('prestigeHint', gain > 0
-      ? `지금 환생하면 왕의 증표 ${gain}개를 얻어요. 증표 1개당 공격력·골드가 영구히 +${Math.round(G.TOKEN_BONUS * 100)}%라서 보너스가 +${Math.round((G.tokenMult(s) - 1) * 100)}% → +${Math.round(G.TOKEN_BONUS * 100 * (s.tokens + gain))}%가 돼요. 골드·레벨·강화·스테이지·직업은 처음부터 다시 시작하고, 직업 도감은 그대로 남아요. 증표는 '상점'에서 영구 강화를 사는 데 쓸 수 있어요.`
+      ? `지금 환생하면 왕의 증표 ${gain}개를 얻어요. 증표 1개당 공격력·골드가 영구히 +${Math.round(G.TOKEN_BONUS * 100)}%라서 보너스가 +${Math.round((G.tokenMult(s) - 1) * 100)}% → +${Math.round(G.TOKEN_BONUS * 100 * (s.tokens + gain))}%가 돼요. 골드·레벨·강화·스테이지·직업은 처음부터 다시 시작하고, 직업 도감은 그대로 남아요. 증표는 '증표' 탭에서 영구 강화를 사는 데 쓸 수 있어요.`
       : `스테이지 ${G.PRESTIGE_MIN_STAGE}에 도달하면 환생할 수 있어요. 환생하면 왕의 증표를 얻어 영구히 강해지고, 다른 직업으로 다시 시작해 볼 수 있어요.`);
 
     // 메뉴 알림 점
     const dots = document.querySelectorAll('.tabnav__btn .dot');
     const want = [anyBuy && currentTab !== 'upgrade', gearNew.size > 0 && currentTab !== 'gear', G.promoStage(s) !== null && currentTab !== 'class', gain > 0 && currentTab !== 'prestige',
-      G.PERK_KEYS.some((id) => G.canBuyPerk(s, id)) && currentTab !== 'shop'];
+      G.PERK_KEYS.some((id) => G.canBuyPerk(s, id)) && currentTab !== 'shop', G.adStatus(s, today()).left > 0 && adsMod.available && currentTab !== 'store'];
     dots.forEach((d, i) => { if (d.hidden === want[i]) d.hidden = !want[i]; });
+  }
+
+  // ---- 크리스탈 상점 ----
+  // 결제와 광고는 지금 '시연 모드'다: 실제 돈이 청구되지 않고, 실제 광고도 나오지 않는다. (실제로 바꾸는 방법: docs/PAYMENTS.md)
+  const Store = window.GoblinStore;
+  const GEM = A.icon('gem');
+  const POTION_ICON = { gold: 'coin', might: 'sword', haste: 'boots', exp: 'arrowup', luck: 'star', hero: 'crown', sand: 'bolt' };
+  const won = (n) => n.toLocaleString('ko-KR') + '원';
+  const clockText = (sec) => (sec >= 3600 ? `${Math.floor(sec / 3600)}시간 ${Math.floor((sec % 3600) / 60)}분` : `${Math.max(1, Math.ceil(sec / 60))}분`);
+  // 광고 횟수를 세는 '오늘'은 기기 시계가 아니라 서버 시각으로 정한다 (시계를 바꿔서 횟수를 늘리지 못하게).
+  // 서버 시각은 이 사이트를 내려 주는 서버의 응답 시각(Date 헤더)이다. 받지 못하면(오프라인·로컬 파일) 새 하루로 넘어가지 않는다.
+  let srvBase = null, perfBase = 0;
+  async function fetchServerTime() {
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), 4000);
+    try {
+      const res = await fetch(location.href.split('#')[0].split('?')[0], { method: 'HEAD', cache: 'no-store', signal: ctl.signal });
+      const date = Date.parse(res.headers.get('Date') || ''), age = Number(res.headers.get('Age') || 0);
+      if (Number.isFinite(date)) { srvBase = date + (Number.isFinite(age) ? age : 0) * 1000; perfBase = performance.now(); return true; }
+    } catch (e) { /* 서버 시각을 못 받으면 마지막으로 확인된 날짜에 머문다 */ }
+    finally { clearTimeout(timer); }
+    return false;
+  }
+  // 받아 둔 서버 시각에서 흐른 시간은 기기 시계가 아니라 performance.now()로 잰다 (도중에 시계를 바꿔도 영향이 없다)
+  const serverNow = () => (srvBase === null ? null : srvBase + (performance.now() - perfBase));
+  const today = () => G.adToday(state, serverNow(), Date.now());
+  fetchServerTime();
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) fetchServerTime(); });
+  let storeKey = '', potionKey = '';
+  const rarityName = (r) => `<b style="color:${G.RARITIES[r].color}">${G.RARITIES[r].name}</b>`;
+  const oddsHtml = (odds) => Object.keys(odds).map(Number).map((r) => `<span style="color:${G.RARITIES[r].color}">${G.RARITIES[r].name} ${odds[r]}%</span>`).join('');
+  const reasonText = { crystals: '크리스탈이 부족해요', bag: '가방에 자리가 없어요. 장비를 팔거나 가방을 넓혀 주세요', max: '더 살 수 없어요', owned: '이미 산 상품이에요', unknown: '없는 상품이에요' };
+
+  const paymentsMod = window.GoblinPayments.createPayments(window.PAYMENTS_CONFIG, { confirmDemo });
+  const adsMod = window.GoblinAds.createAds(window.ADS_CONFIG, { showDemoAd });
+
+  function renderStore(force) {
+    const s = state;
+    const ad = G.adStatus(s, today());
+    const key = [s.crystals, ad.left, s.bagExtra, s.bought.starter ? 1 : 0, s.bag.length >= G.bagLimit(s) ? 1 : 0, paymentsMod.mode, adsMod.mode].join('|');
+    if (!force && key === storeKey) return;
+    storeKey = key;
+    $('crystalBal').textContent = G.fmt(s.crystals);
+    $('chargeBtn').disabled = !paymentsMod.available;
+    $('chargeBtn').textContent = paymentsMod.available ? '충전하기' : '준비 중';
+    const demo = [];
+    if (paymentsMod.isDemo) demo.push('결제는 <b>시연용</b>이에요. 실제 돈은 청구되지 않고, 카드 정보도 받지 않아요.');
+    if (adsMod.isDemo) demo.push('광고도 <b>시연 화면</b>이에요.');
+    $('demoNote').hidden = demo.length === 0;
+    $('demoNote').innerHTML = demo.join(' ');
+
+    const lvNext = s.level + 1;
+    $('adCard').innerHTML = `<div class="card prod"><div class="prod__tile" style="--tone:#3a8a4a">${A.icon('arrowup')}</div>` +
+      `<div><div class="prod__name">광고 보고 레벨업 <span class="prod__chip">무료</span></div>` +
+      `<div class="prod__desc">광고를 끝까지 보면 바로 <b>레벨업 1번</b> (Lv.${s.level} → ${lvNext}).<br>오늘 ${ad.left}/${ad.limit}번 남음 · 자정에 초기화</div></div>` +
+      `<button class="btn prod__btn" type="button" data-ad ${ad.left > 0 && adsMod.available ? '' : 'disabled'}><span>${ad.left > 0 ? '광고 보기' : '오늘 끝'}</span></button></div>`;
+
+    const buyBtn = (id, price, disabled, label) => `<button class="btn btn--gold prod__btn" type="button" data-buy="${id}" ${disabled ? 'disabled' : ''}>${label ? `<small>${label}</small>` : ''}<span>${GEM}${price}</span></button>`;
+    const card = (icon, tone, name, desc, extra, btn) => `<div class="card prod"><div class="prod__tile" style="--tone:${tone}">${A.icon(icon)}</div><div><div class="prod__name">${name}</div><div class="prod__desc">${desc}</div>${extra || ''}</div>${btn}</div>`;
+
+    $('potionList').innerHTML = [...Store.POTIONS, ...Store.INSTANT].map((p) => {
+      const left = s.potions[p.id] || 0;
+      const active = left > 0 ? `<div class="prod__desc" style="color:var(--green)">적용 중 · ${clockText(left)} 남음</div>` : '';
+      const dur = p.dur ? ` <small>(${clockText(p.dur)})</small>` : '';
+      return card(POTION_ICON[p.id] || 'heart', p.color + '99', p.name, p.desc + dur, active, buyBtn(p.id, p.price, s.crystals < p.price));
+    }).join('');
+
+    $('boxList').innerHTML = Store.BOXES.map((b) =>
+      card('gem', '#7a4aff99', b.name, b.desc, `<div class="prod__odds">${oddsHtml(b.odds)}</div>`, buyBtn(b.id, b.price, s.crystals < b.price))).join('');
+
+    const bagMaxed = s.bagExtra >= Store.BAG_EXTRA_MAX;
+    const u = Store.UTILITIES[0], st = Store.STARTER;
+    $('utilList').innerHTML =
+      card('pouch', '#8a6a3a99', u.name, `${u.desc}<br>지금 ${G.bagLimit(s)}칸`, '', bagMaxed ? '<button class="btn btn--gray prod__btn" type="button" disabled>MAX</button>' : buyBtn(u.id, u.price, s.crystals < u.price)) +
+      card('party', '#ff8a3a99', st.name, st.desc, '', s.bought.starter ? '<button class="btn btn--gray prod__btn" type="button" disabled>구매 완료</button>' : buyBtn(st.id, st.price, s.crystals < st.price));
+
+    $('storeNote').innerHTML = '장비 상자는 위 확률대로 등급이 정해져요 (같은 등급 안에서 능력은 무작위). 산 장비는 자동 판매되지 않고, 더 좋으면 바로 장착돼요. 물약은 게임을 꺼 둔 동안에도 시간이 줄어요.';
+  }
+
+  function renderPotionbar() {
+    const list = Store.POTIONS.filter((p) => state.potions[p.id] > 0);
+    const key = list.map((p) => p.id + ':' + Math.ceil(state.potions[p.id] / 60)).join(',');
+    if (key === potionKey) return;
+    potionKey = key;
+    const bar = $('potionbar');
+    bar.hidden = list.length === 0;
+    bar.innerHTML = list.map((p) => `<div class="pchip" style="--pc:${p.color}">${A.icon(POTION_ICON[p.id] || 'heart')}${clockText(state.potions[p.id])}</div>`).join('');
+  }
+
+  // 구매 결과 창: 받은 장비를 보여 준다
+  function showBought(res) {
+    const p = res.product;
+    let body = `<div style="font-weight:900;font-size:16px;margin-bottom:8px">${p.name}</div>`;
+    if (res.items && res.items.length) {
+      body += res.items.map((it) => `<div class="got" style="--rc:${G.RARITIES[it.r].color}">${gearArt(it)}<div><b>[${G.RARITIES[it.r].name}] ${G.itemName(it)}</b><small>${KIND_SHORT[it.kind]} +${fmtVal(it.val)}% · Lv.${it.ilvl}</small></div></div>`).join('');
+      body += '<small>가방에서 확인하고, 더 좋으면 자동으로 장착됐어요.</small>';
+    } else body += `<div style="color:var(--green);font-weight:800">${p.desc}</div>`;
+    openModal('구매 완료', body, [{ text: '확인', cls: 'btn--gold' }]);
+  }
+  function askBuyProduct(id) {
+    const all = [...Store.POTIONS, ...Store.INSTANT, ...Store.BOXES, ...Store.UTILITIES, Store.STARTER];
+    const p = all.find((x) => x.id === id);
+    if (!p) return;
+    const odds = p.odds ? `<div class="prod__odds" style="justify-content:center;margin-top:6px">${oddsHtml(p.odds)}</div>` : '';
+    openModal('구매할까요?',
+      `<div style="font-weight:900;font-size:16px">${p.name}</div><div style="margin-top:4px;color:var(--muted)">${p.desc}</div>${odds}` +
+      `<div style="margin-top:12px">${GEM} 크리스탈 <b>${p.price}개</b> 사용</div><div style="margin-top:2px"><small>구매 후 남는 크리스탈 ${state.crystals - p.price}개</small></div>`,
+      [{ text: '취소' }, { text: '구매하기', cls: 'btn--gold', onClick: () => {
+        const res = G.buyProduct(state, id);
+        if (!res.ok) { openModal('살 수 없어요', reasonText[res.reason] || '다시 시도해 주세요', [{ text: '확인' }]); return; }
+        addLog(`${p.name} 구매!`, 'is-gold', 'gem');
+        cloudSoon(); writeSave(); render(); renderStore(true);
+        renderGear(true); potionKey = '';
+        showBought(res);
+      } }]);
+  }
+  document.querySelector('.tab[data-tab="store"]').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-buy]');
+    if (b && !b.disabled) askBuyProduct(b.dataset.buy);
+    if (e.target.closest('button[data-ad]') && !e.target.closest('button[data-ad]').disabled) watchAd();
+  });
+
+  // ---- 충전 (시연 결제) ----
+  function confirmDemo(pack) {
+    return new Promise((resolve) => {
+      let done = false;
+      const end = (v) => { if (!done) { done = true; resolve(v); } };
+      openModal('결제 확인 (시연)',
+        `<div class="demoban">시연용 결제예요. <b>실제 돈은 청구되지 않아요.</b> 카드 정보도 입력하지 않아요.</div>` +
+        `<div style="font-weight:900;font-size:16px">${GEM} 크리스탈 ${pack.crystals}개</div>` +
+        (pack.bonus ? `<div style="color:var(--green);font-weight:800">보너스 ${pack.bonus}개 포함</div>` : '') +
+        `<div style="margin-top:8px">표시 가격 <b>${won(pack.price)}</b> <small>(청구되지 않음)</small></div>`,
+        [{ text: '취소', onClick: () => end(false) }, { text: '시연 결제하기', cls: 'btn--gold', onClick: () => end(true) }]);
+    });
+  }
+  async function startCharge(id) {
+    const pack = Store.CRYSTAL_PACKS.find((x) => x.id === id);
+    if (!pack) return;
+    const r = await paymentsMod.checkout(pack);
+    if (r.status === 'paid') {
+      const c = G.creditCrystals(state, pack.crystals, r.orderId);
+      if (c.ok) {
+        addLog(`크리스탈 ${pack.crystals}개 충전 (시연)`, 'is-gold', 'gem');
+        cloudSoon(); writeSave(); render(); renderStore(true);
+        floatText(`+${pack.crystals} 크리스탈`, 'float--big', 'center');
+      }
+    } else if (r.status === 'unavailable') openModal('충전할 수 없어요', esc(r.reason || ''), [{ text: '확인' }]);
+  }
+  $('chargeBtn').addEventListener('click', () => {
+    if (!paymentsMod.available) return;
+    openModal('크리스탈 충전',
+      (paymentsMod.isDemo ? '<div class="demoban">시연 모드: 누르면 결제 확인 창이 나오지만 <b>실제 돈은 청구되지 않아요.</b></div>' : '') +
+      Store.CRYSTAL_PACKS.map((p) => `<button class="pack" type="button" data-pack="${p.id}">${GEM}<span class="pack__main"><b>${p.crystals}</b><small>${p.bonus ? `보너스 ${p.bonus}개 포함` : '기본'}</small></span><span class="pack__price">${won(p.price)}</span></button>`).join(''),
+      [{ text: '닫기' }]);
+  });
+  $('modalBody').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-pack]');
+    if (!b) return;
+    const id = b.dataset.pack;
+    closeModal();
+    startCharge(id);
+  });
+
+  // ---- 광고 (시연 화면) ----
+  function showDemoAd() {
+    return new Promise((resolve) => {
+      const ov = $('adOverlay'), count = $('adCount'), claim = $('adClaim'), cancel = $('adCancel');
+      let left = Store.AD_SECONDS, done = false;
+      const finish = (v) => { if (done) return; done = true; clearInterval(t); ov.hidden = true; claim.onclick = cancel.onclick = null; resolve(v); };
+      count.textContent = left; claim.disabled = true; ov.hidden = false;
+      const t = setInterval(() => { left--; count.textContent = Math.max(0, left); if (left <= 0) { clearInterval(t); claim.disabled = false; } }, 1000);
+      claim.onclick = () => { if (!claim.disabled) finish(true); };
+      cancel.onclick = () => finish(false);
+    });
+  }
+  let adBusy = false;
+  async function watchAd() {
+    if (adBusy || G.adStatus(state, today()).left <= 0) return;
+    adBusy = true;
+    try {
+      await fetchServerTime();   // 광고를 보여 주기 전에 서버 시각으로 오늘 횟수를 다시 확인한다
+      if (G.adStatus(state, today()).left <= 0) { renderStore(true); return; }
+      const r = await adsMod.showRewarded();
+      if (r.status === 'completed') {
+        const before = state.level;
+        const res = G.claimAdLevel(state, today());   // 서버 시각 기준으로 센다
+        if (res.ok) {
+          handleEvents(res.events);
+          addLog(`광고 보상! 레벨 ${before} → ${state.level}`, 'is-gold', 'arrowup');
+          cloudSoon(); writeSave(); render(); renderStore(true);
+        }
+      } else if (r.status === 'unavailable') openModal('광고를 볼 수 없어요', esc(r.reason || ''), [{ text: '확인' }]);
+    } finally { adBusy = false; }
   }
 
   // ---- 공격 (화면 누르기) ----
@@ -1523,7 +1719,7 @@
     state = next;
     logs.length = 0;
     lastLook = ''; lastMonster = '';
-    gearKey = ''; shopKey = ''; classKey = ''; achieveKey = '';
+    gearKey = ''; shopKey = ''; storeKey = ''; potionKey = ''; classKey = ''; achieveKey = '';
     gearNew.clear();
     lastHits = state.hits;
     addLog('클라우드 저장을 불러왔다', 'is-good', 'crown');

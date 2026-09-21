@@ -2,6 +2,7 @@
 (function (root) {
   const { ADVANCED3, ADVANCED4 } = typeof module !== 'undefined' && module.exports ? require('./classes.js') : root.GoblinClasses;
   const Sk = typeof module !== 'undefined' && module.exports ? require('./skills.js') : root.GoblinSkills;
+  const St = typeof module !== 'undefined' && module.exports ? require('./store.js') : root.GoblinStore;
   const SAVE_VERSION = 1;
   const OFFLINE_CAP = 8 * 3600;   // 오프라인 보상은 최대 8시간까지
   const OFFLINE_MIN = 30;         // 이 시간(초) 이상 자리를 비웠을 때만 오프라인 보상 계산
@@ -182,7 +183,8 @@
   const DROP_CHANCE = 0.08;        // 일반 몬스터가 장비를 떨어뜨릴 확률
   const BOSS_DROP_CHANCE = 0.5;    // 보스
   const LUCK_PER_LV = 0.015;       // 증표 상점 '수집가' 레벨당 드롭 확률 추가(+1.5%p)
-  const BAG_MAX = 24;              // 가방 칸 수. 가득 차면 새로 얻은 장비는 자동으로 팔린다
+  const BAG_MAX = 24;              // 기본 가방 칸 수 (가방 확장으로 늘어난다). 가득 차면 새로 얻은 장비는 자동으로 팔린다
+  const bagLimit = (s) => BAG_MAX + s.bagExtra;
   const GEAR_SCALE_STAGE = 40;     // 아이템 레벨이 이만큼 오를 때마다 수치가 기본값만큼 더 붙는다 (스테이지 40 = 2배)
   // 종류마다 올려 주는 능력(kind)과 등급별 기본 수치(%: 노말·고급·희귀·영웅·전설), 이름에 쓰는 명사
   const GEAR = {
@@ -227,8 +229,8 @@
   }
 
   // stage에서 얻는 장비 하나를 굴린다
-  function rollItem(s, stage, boss) {
-    const r = rollRarity(boss);
+  function rollItem(s, stage, boss, forceRarity) {
+    const r = forceRarity !== undefined ? forceRarity : rollRarity(boss);
     const slot = SLOT_KEYS[Math.floor(rnd() * SLOT_KEYS.length)];
     const kinds = Object.keys(GEAR[slot].kinds);
     const kind = kinds[Math.floor(rnd() * kinds.length)];
@@ -238,13 +240,13 @@
     return { id: s.itemSeq, slot, kind, r, ilvl: stage, val, n: Math.floor(rnd() * def.nouns.length) };
   }
 
-  const dropChance = (s, boss) => (boss ? BOSS_DROP_CHANCE : DROP_CHANCE) + LUCK_PER_LV * perkLv(s, 'luck');
+  const dropChance = (s, boss) => ((boss ? BOSS_DROP_CHANCE : DROP_CHANCE) + LUCK_PER_LV * perkLv(s, 'luck')) * (1 + potionV(s, 'luck'));
   // 같은 능력을 올려 주면서 수치가 더 큰 장비이거나, 칸이 비어 있으면 '더 좋은' 장비
   const isUpgrade = (s, it) => { const cur = s.equip[it.slot]; return !cur || (cur.kind === it.kind && it.val > cur.val); };
 
   // 장비를 가방에 넣는다. 자동 판매 등급 이하이거나 가방이 가득 차면 판다. 결과: 'bag' | 'sold'
   function stow(s, it) {
-    if (it.r <= s.autoSell || s.bag.length >= BAG_MAX) {
+    if (it.r <= s.autoSell || s.bag.length >= bagLimit(s)) {
       s.gold += sellValue(it);
       return 'sold';
     }
@@ -282,7 +284,7 @@
   }
   function unequipItem(s, slot) {
     const it = s.equip[slot];
-    if (!it || s.bag.length >= BAG_MAX) return false;
+    if (!it || s.bag.length >= bagLimit(s)) return false;
     s.equip[slot] = null;
     s.bag.push(it);
     s.hp = Math.min(s.hp, maxHp(s));
@@ -330,6 +332,93 @@
     return 1 + v / 100;
   };
 
+  // ---- 크리스탈 상점 ----
+  // 지금 날짜 문자열 (기기의 현지 시각 기준, 자정에 바뀐다)
+  // 하루는 한국 시간(UTC+9) 자정에 바뀐다. 기기의 시간대 설정을 바꿔도 날짜가 달라지지 않게 고정했다.
+  const dayKey = (now) => { const d = new Date(now + 9 * 3600e3); return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`; };
+
+  // 크리스탈 충전: 같은 주문 번호는 한 번만 지급한다 (결제 화면이 두 번 눌려도 두 번 받지 않는다)
+  function creditCrystals(s, amount, orderId) {
+    if (!(amount > 0) || typeof orderId !== 'string' || !orderId) return { ok: false, reason: 'invalid' };
+    if (s.orders.includes(orderId)) return { ok: false, reason: 'duplicate' };
+    s.crystals += Math.floor(amount);
+    s.orders.push(orderId);
+    if (s.orders.length > 50) s.orders.shift();
+    return { ok: true };
+  }
+  // 상점에서 산 장비를 넣는다. 더 좋으면 바로 장착하고, 아니면 가방에 넣는다 (돈 주고 산 장비는 자동 판매하지 않는다).
+  function giveItem(s, it) {
+    if (s.autoEquip && isUpgrade(s, it)) {
+      const before = maxHp(s), old = s.equip[it.slot];
+      s.equip[it.slot] = it;
+      s.hp += Math.max(0, maxHp(s) - before);
+      if (old) s.bag.push(old);
+      return 'equipped';
+    }
+    s.bag.push(it);
+    return 'bag';
+  }
+  // 확률표(odds: { 등급: 가중치 })로 등급 하나를 고른다
+  function rollFromOdds(odds) {
+    const keys = Object.keys(odds).map(Number);
+    let total = 0;
+    for (const k of keys) total += odds[k];
+    let x = rnd() * total;
+    for (const k of keys) { x -= odds[k]; if (x < 0) return k; }
+    return keys[keys.length - 1];
+  }
+  const shopItemLevel = (s) => Math.max(10, s.bestStage);   // 상자 장비의 레벨: 지금까지 도달한 최고 스테이지 기준
+
+  // 크리스탈로 상품을 산다. 결과: { ok, reason?, product, items? }
+  //   reason: 'unknown' 없는 상품 | 'crystals' 크리스탈 부족 | 'bag' 가방 공간 부족 | 'max' 더 못 삼 | 'owned' 이미 산 1회 상품
+  function buyProduct(s, id) {
+    const potion = St.byId(St.POTIONS, id), instant = St.byId(St.INSTANT, id), box = St.byId(St.BOXES, id), util = St.byId(St.UTILITIES, id);
+    const starter = id === St.STARTER.id ? St.STARTER : null;
+    const product = potion || instant || box || util || starter;
+    if (!product) return { ok: false, reason: 'unknown' };
+    if (s.crystals < product.price) return { ok: false, reason: 'crystals', product };
+    const needSpace = box ? box.count : starter ? starter.items.count : 0;
+    if (needSpace && s.bag.length + needSpace > bagLimit(s)) return { ok: false, reason: 'bag', product };
+    if (util && s.bagExtra >= St.BAG_EXTRA_MAX) return { ok: false, reason: 'max', product };
+    if (starter && s.bought.starter) return { ok: false, reason: 'owned', product };
+
+    s.crystals -= product.price;
+    const items = [];
+    if (potion) s.potions[potion.id] = Math.min(St.POTION_CAP, (s.potions[potion.id] || 0) + potion.dur);
+    else if (instant) { for (const k of Object.keys(s.skillCd)) s.skillCd[k] = 0; }   // 시간의 모래: 모든 스킬이 바로 준비된다
+    else if (box) for (let i = 0; i < box.count; i++) { const it = rollItem(s, shopItemLevel(s), false, rollFromOdds(box.odds)); giveItem(s, it); items.push(it); }
+    else if (util) s.bagExtra += St.BAG_STEP;
+    else if (starter) {
+      const it = rollItem(s, shopItemLevel(s), false, starter.items.rarity); giveItem(s, it); items.push(it);
+      for (const pid of starter.potions) { const p = St.byId(St.POTIONS, pid); s.potions[pid] = Math.min(St.POTION_CAP, (s.potions[pid] || 0) + p.dur); }
+      s.bought.starter = true;
+    }
+    return { ok: true, product, items };
+  }
+
+  // ---- 광고 보상: 광고를 보면 레벨업 1번, 하루 3번까지 ----
+  // 광고 횟수를 세는 '오늘'. 기기 시계는 사용자가 바꿀 수 있어서 서버 시각(serverNow, 없으면 null)을 기준으로 한다.
+  // 서버 시각을 못 받으면(오프라인 등) 새 날로 넘어가지 않고 마지막으로 확인된 날짜에 머문다. 시계를 앞으로 돌려도 뒤로 돌려도 횟수는 늘지 않는다.
+  function adToday(s, serverNow, localNow) {
+    if (Number.isFinite(serverNow)) { const d = dayKey(serverNow); if (d > s.adClock) s.adClock = d; return s.adClock; }
+    if (!s.adClock) s.adClock = dayKey(localNow);
+    return s.adClock;
+  }
+  function adStatus(s, day) {
+    const used = s.adLog.day === day ? s.adLog.n : 0;
+    return { used, left: Math.max(0, St.AD_DAILY_LIMIT - used), limit: St.AD_DAILY_LIMIT };
+  }
+  // 광고를 끝까지 봤을 때 부른다. 다음 레벨까지 필요한 경험치를 채워 정확히 한 번 레벨업시킨다. 결과: { ok, reason?, left, events }
+  function claimAdLevel(s, day) {
+    const st = adStatus(s, day);
+    const ev = [];
+    if (st.left <= 0) return { ok: false, reason: 'limit', left: 0, events: ev };
+    s.adLog = { day, n: st.used + 1 };
+    gainExp(s, Math.max(1, expNeeded(s) - s.exp), ev);
+    checkAchievements(s, ev);
+    return { ok: true, left: st.left - 1, events: ev };
+  }
+
   // ---- 상태 ----
   function createState(now) {
     const s = {
@@ -365,6 +454,13 @@
       downT: 0,
       atkT: 0,
       dealt: 0,          // 표시용: 최근에 준 피해량 (저장하지 않음)
+      crystals: 0,       // 크리스탈(유료 재화). 지금은 데모 결제로만 충전된다
+      potions: {},       // 지금 효과가 남아 있는 물약 { id: 남은 초 }
+      adClock: '',       // 서버 시각으로 마지막에 확인된 날짜 (광고 횟수를 세는 '오늘'이 뒤로 가지 못하게 한다)
+      adLog: { day: '', n: 0 },   // 광고 시청 기록: 그날(YYYY-MM-DD)에 몇 번 봤는지
+      bagExtra: 0,       // 가방 확장으로 늘어난 칸 수 (6칸씩)
+      bought: {},        // 1회 한정 상품을 샀는지 { starter: true }
+      orders: [],        // 크리스탈 충전 주문 번호 (같은 주문이 두 번 지급되지 않게 최근 것만 기억)
       skillCd: {},       // 스킬별 남은 쿨타임(초). 저장은 되지만 불러올 때 새로 시작한다 (표시·계산용)
       buffs: {},         // 지금 걸려 있는 스킬 효과 { haste|might|guard|greed|lifesteal|stun|barrier: { t 남은 시간, v 위력(방벽은 남은 방벽량) } }
       dot: null,         // 몬스터에게 걸린 지속 피해 { t 남은 시간, dps 초당 피해, variant } (몬스터가 바뀌면 사라진다)
@@ -428,15 +524,21 @@
     for (const f of PATH_FIELDS) { const id = s[f]; if (id) m *= NODE[id].mult[key] || 1; }
     return m;
   }
+  // 물약 효과: 남은 시간이 있는 물약들의 kind 효과(+비율)를 더한다
+  const potionV = (s, kind) => {
+    let v = 0;
+    for (const p of St.POTIONS) if (s.potions[p.id] > 0 && p.effect[kind]) v += p.effect[kind];
+    return v;
+  };
   const buffV = (s, kind) => (s.buffs[kind] ? s.buffs[kind].v : 0);   // 스킬 효과의 위력 (없으면 0)
   const baseDmg = (s) => 3 + 1.5 * (s.level - 1);
   const maxHp = (s) => (50 + 12 * (s.level - 1)) * (1 + 0.25 * s.upgrades.armor) * mile(s.upgrades.armor) * statMult(s, 'hp') * (1 + 0.1 * perkLv(s, 'vitality')) * gearMult(s, 'hp');
   const hitDmg = (s) =>
-    baseDmg(s) * (1 + 0.25 * s.upgrades.weapon) * mile(s.upgrades.weapon) * tokenMult(s) * masteryMult(s) * achieveMult(s) * statMult(s, 'dmg') * (1 + 0.1 * perkLv(s, 'might')) * kinglyMult(s) * gearMult(s, 'dmg') * (1 + buffV(s, 'might'));
-  const attacksPerSec = (s) => (1 + 0.1 * s.upgrades.speed) * statMult(s, 'aps') * gearMult(s, 'aps') * (1 + buffV(s, 'haste'));
+    baseDmg(s) * (1 + 0.25 * s.upgrades.weapon) * mile(s.upgrades.weapon) * tokenMult(s) * masteryMult(s) * achieveMult(s) * statMult(s, 'dmg') * (1 + 0.1 * perkLv(s, 'might')) * kinglyMult(s) * gearMult(s, 'dmg') * (1 + buffV(s, 'might') + potionV(s, 'might'));
+  const attacksPerSec = (s) => (1 + 0.1 * s.upgrades.speed) * statMult(s, 'aps') * gearMult(s, 'aps') * (1 + buffV(s, 'haste') + potionV(s, 'haste'));
   const companionDps = (s) => s.upgrades.companion * mile(s.upgrades.companion) * hitDmg(s) * 0.35 * statMult(s, 'comp') * (1 + 0.1 * perkLv(s, 'bond')) * gearMult(s, 'comp');
   const goldMult = (s) =>
-    (1 + 0.15 * s.upgrades.loot) * mile(s.upgrades.loot) * tokenMult(s) * masteryMult(s) * achieveMult(s) * statMult(s, 'gold') * (1 + 0.1 * perkLv(s, 'greed')) * kinglyMult(s) * gearMult(s, 'gold');
+    (1 + 0.15 * s.upgrades.loot) * mile(s.upgrades.loot) * tokenMult(s) * masteryMult(s) * achieveMult(s) * statMult(s, 'gold') * (1 + 0.1 * perkLv(s, 'greed')) * kinglyMult(s) * gearMult(s, 'gold') * (1 + potionV(s, 'gold'));
   const totalDps = (s) => hitDmg(s) * attacksPerSec(s) + companionDps(s);
   const expNeeded = (s) => Math.ceil(15 * Math.pow(1.3, s.level - 1));
 
@@ -652,7 +754,7 @@
     s.killsInStage += 1;
     for (const f of PATH_FIELDS) if (s[f] && f !== 'cls') dexEntry(s, s[f]).kills += 1;   // 고른 2~4차 직업 모두 기록
     ev.push({ type: 'kill', gold, boss: s.isBoss });
-    gainExp(s, monsterExp(s.stage), ev);
+    gainExp(s, Math.ceil(monsterExp(s.stage) * (1 + potionV(s, 'exp'))), ev);   // 지혜의 물약
     if (rnd() < dropChance(s, s.isBoss)) receiveItem(s, rollItem(s, s.stage, s.isBoss), ev);
 
     if (s.isBoss || s.killsInStage >= KILLS_PER_STAGE) {
@@ -678,6 +780,7 @@
   // dt초 만큼 전투를 진행하고 발생한 사건 목록을 돌려준다
   function tick(s, dt) {
     const ev = [];
+    for (const id of Object.keys(s.potions)) { s.potions[id] -= dt; if (s.potions[id] <= 0) delete s.potions[id]; }   // 물약 시간은 쓰러져 있는 동안에도 흐른다
     if (s.downT > 0) {
       s.downT -= dt;
       if (s.downT <= 0) { s.downT = 0; s.hp = maxHp(s); }
@@ -862,12 +965,22 @@
       const it = o.equip && fresh(o.equip[slot]);
       if (it && it.slot === slot) s.equip[slot] = it;
     }
-    if (Array.isArray(o.bag)) for (const x of o.bag.slice(0, BAG_MAX)) { const it = fresh(x); if (it) s.bag.push(it); }
+    const bagExtraSaved = Math.min(St.BAG_EXTRA_MAX, Math.floor(clamp(Math.floor(num(o.bagExtra, 0)), 0, St.BAG_EXTRA_MAX) / St.BAG_STEP) * St.BAG_STEP);
+    if (Array.isArray(o.bag)) for (const x of o.bag.slice(0, BAG_MAX + bagExtraSaved)) { const it = fresh(x); if (it) s.bag.push(it); }
     let maxId = 0;
     for (const it of [...s.bag, ...SLOT_KEYS.map((k) => s.equip[k]).filter(Boolean)]) maxId = Math.max(maxId, it.id);
     s.itemSeq = Math.max(maxId, clamp(Math.floor(num(o.itemSeq, 0)), 0, 1e12));
     s.autoEquip = o.autoEquip !== false;
     s.autoSell = clamp(Math.floor(num(o.autoSell, 0)), -1, 2);
+    // 상점 관련 값: 이상한 값은 범위 안으로 보정하고, 없는 물약·상품은 버린다
+    s.crystals = clamp(Math.floor(num(o.crystals, 0)), 0, 1e9);
+    for (const p of St.POTIONS) { const t = num(o.potions && o.potions[p.id], 0); if (t > 0) s.potions[p.id] = Math.min(St.POTION_CAP, t); }
+    if (typeof o.adClock === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(o.adClock)) s.adClock = o.adClock;
+    const ad = o.adLog;
+    if (ad && typeof ad.day === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(ad.day)) s.adLog = { day: ad.day, n: clamp(Math.floor(num(ad.n, 0)), 0, St.AD_DAILY_LIMIT) };
+    s.bagExtra = Math.min(St.BAG_EXTRA_MAX, Math.floor(clamp(Math.floor(num(o.bagExtra, 0)), 0, St.BAG_EXTRA_MAX) / St.BAG_STEP) * St.BAG_STEP);
+    if (o.bought && o.bought.starter === true) s.bought.starter = true;
+    if (Array.isArray(o.orders)) s.orders = o.orders.filter((x) => typeof x === 'string' && /^[\w-]{1,64}$/.test(x)).slice(-50);
     if (tokenBalance(s) < 0) s.perks = {};   // 번 것보다 많이 쓴 저장 데이터는 산 강화를 모두 되돌린다
     s.hp = Math.min(maxHp(s), Math.max(1, num(o.hp, maxHp(s))));
     spawnMonster(s);
@@ -903,12 +1016,13 @@
     serialize, deserialize,
     TOKEN_BONUS, maxHp, hitDmg, attacksPerSec, companionDps, totalDps, goldMult, expNeeded, tokenMult,
     monsterAtk, monsterGold, monsterInfo, biomeOf, roundOf, BIOME_LEN, NORMAL_SLOTS, isBossStage, lookId, classTitle,
+    STORE: St, potionV, dayKey, creditCrystals, buyProduct, adToday, adStatus, claimAdLevel, shopItemLevel,
     SKILL_KINDS: Sk.KINDS, SKILL_NAMES: Sk.SKILLS, describeSkill: Sk.describeSkill, MELEE_STYLES: Sk.MELEE_STYLES, ATTACK_STYLE: Sk.ATTACK_STYLE,
     skillsOf, attackStyle, styleOfClass, buffV, canCast, skillFor: (id) => Sk.makeSkill(id, TIER_OF[id]),
     NODES: NODE, nextPromo, promoStage, promoOptions, promote, statMult, masteryMult,
     ACHIEVEMENTS, ACHIEVE_BONUS, achieveMult, checkAchievements,
     PATH_FIELDS, ADV_IDS, advIdsOfTier, classTier, parentOf, childrenOf, classPath, deepest, DEX_STAGES, DEX_MEDALS, MASTERY_BASE, MEDAL_BONUS, dexStages, masteryOf, dexRecord, dexTier,
-    RARITIES, GEAR, SLOT_KEYS, BAG_MAX, DROP_CHANCE, BOSS_DROP_CHANCE, LUCK_PER_LV,
+    RARITIES, GEAR, SLOT_KEYS, BAG_MAX, bagLimit, DROP_CHANCE, BOSS_DROP_CHANCE, LUCK_PER_LV,
     GEAR_DESIGNS, itemDesign, setRandom, itemName, sellValue, rollItem, dropChance, isUpgrade, receiveItem, equipItem, unequipItem, sellBagItem, sellBagUpTo, sellBagItems, isWeaker, bagWeaker, gearMult,
     PERKS, PERK_KEYS, HEADSTART_LV, perkLv, perkCost, perkSpent, tokenBalance, perkMissing, perkUnlocked, canBuyPerk, buyPerk, respecPerks, offlineCap,
     fmt, fmtTime,
