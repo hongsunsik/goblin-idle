@@ -1,5 +1,6 @@
 // 밸런스 시뮬레이터: 강화를 자동으로 사고 전직·환생하는 봇으로 플레이 시간별 성장 곡선을 확인한다.
-// 사용법: node tools/simulate.js [분(기본 30)] [직업경로 예: warrior/knight (생략하면 전부 비교)]
+// 사용법: node tools/simulate.js [분(기본 30)] [직업경로 예: mage/pyromancer/infernomage/flameemperor (생략하면 4차까지 32가지 전부)]
+//   경로를 짧게(예: mage/pyromancer) 주면 그 단계까지만 전직한 봇이 된다. --summary 를 붙이면 3·4차 효과만 요약한다.
 const G = require('../game.js');
 
 // 장비 드롭도 무작위라 한 번의 결과는 운에 흔들린다. 씨앗이 있는 난수로 여러 번 돌려 평균을 낸다.
@@ -7,7 +8,7 @@ function seeded(seed) {
   let a = seed >>> 0;
   return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
 }
-const SEEDS = [1, 2, 3, 4, 5, 6, 7, 8];
+let SEEDS = [1, 2, 3, 4, 5, 6, 7, 8];
 const mean = (xs) => xs.reduce((a, b) => a + b, 0) / xs.length;
 
 const BUY_ORDER = ['weapon', 'armor', 'speed', 'companion', 'loot'];
@@ -27,14 +28,13 @@ function spendAll(s) {
 }
 
 function playRun(s, path, seconds, marks) {
-  const [base, adv] = path;
   let t = 0;
   while (t < seconds) {
     G.simulate(s, 1);
     t += 1;
     spendAll(s);
-    if (G.promoStage(s) === 'base') G.promote(s, base);
-    else if (G.promoStage(s) === 'adv' && adv) G.promote(s, adv);
+    const st = G.promoStage(s);
+    if (st) { const id = path[['base', 'adv', 'adv3', 'adv4'].indexOf(st)]; if (id) G.promote(s, id); }   // 경로가 끝난 단계에서는 더 전직하지 않는다
     for (const m of marks) if (m.t === null && s.stage >= m.stage) m.t = t;
   }
   return t;
@@ -91,21 +91,45 @@ function runPrestiges(path, runMinutes, runs, usePerks) {
 const fmtMin = (t) => (t === null ? '  -  ' : (t / 60).toFixed(1).padStart(5) + '분');
 
 const minutes = Number(process.argv[2]) || 30;
-const only = process.argv[3];
-const paths = [];
-for (const b of Object.keys(G.CLASSES)) for (const a of G.CLASSES[b].adv) paths.push([b, a]);
-const selected = only ? paths.filter((p) => p.join('/') === only) : paths;
+// 직업 트리를 끝까지 따라 내려가며 depth차까지의 경로를 모두 만든다 (depth 4 = 32가지)
+function pathsTo(depth) {
+  const out = [];
+  const walk = (path) => {
+    if (path.length === depth) { out.push(path); return; }
+    for (const c of (path.length === 0 ? Object.keys(G.CLASSES) : G.childrenOf(path[path.length - 1]))) walk(path.concat(c));
+  };
+  walk([]);
+  return out;
+}
+const summary = process.argv.includes('--summary');
+const only = process.argv[3] && process.argv[3] !== '--summary' ? process.argv[3] : undefined;
+const selected = only ? [only.split('/')] : pathsTo(4);
+if (!only) SEEDS = [1, 2, 3, 4];   // 32가지를 다 돌릴 때는 씨앗을 줄여 시간을 아낀다
 
+const name = (path) => path.map((id) => (G.CLASSES[id] || G.ADVANCED[id] || G.ADVANCED3[id] || G.ADVANCED4[id]).name).join('/');
 console.log(`\n== 환생 없이 ${minutes}분 (스테이지 도달 시간) ==`);
 console.log(`(씨앗 ${SEEDS.length}개 평균)`);
-console.log('경로'.padEnd(22) + '10     20     30     40     50    최종(최소~최대)  Lv');
+const results = [];
+if (!summary) console.log('경로'.padEnd(30) + '10     20     30     40     50    최종(최소~최대)  Lv');
 for (const p of selected) {
   const r = runOne(p, minutes);
-  console.log(p.join('/').padEnd(20) + r.marks.map((m) => fmtMin(m.t)).join(' ') + `  ${r.final.toFixed(1).padStart(5)} (${r.min}~${r.max})  ${r.level.toFixed(0)}`);
+  results.push({ p, r });
+  if (!summary) console.log(name(p).padEnd(26) + r.marks.map((m) => fmtMin(m.t)).join(' ') + `  ${r.final.toFixed(1).padStart(5)} (${r.min}~${r.max})  ${r.level.toFixed(0)}`);
+}
+if (!only) {
+  // 같은 2차 직업까지만 전직한 봇과 비교해서 3·4차가 얼마나 강해지는지 본다
+  const base2 = pathsTo(2).map((p) => ({ p, r: runOne(p, minutes) }));
+  const m2 = mean(base2.map((x) => x.r.final));
+  const finals = results.map((x) => x.r.final);
+  const best = results.reduce((a, b) => (b.r.final > a.r.final ? b : a)), worst = results.reduce((a, b) => (b.r.final < a.r.final ? b : a));
+  console.log(`\n2차까지만: 평균 ${m2.toFixed(1)}  (${Math.min(...base2.map((x) => x.r.final)).toFixed(1)}~${Math.max(...base2.map((x) => x.r.final)).toFixed(1)})`);
+  console.log(`4차까지:   평균 ${mean(finals).toFixed(1)}  (${Math.min(...finals).toFixed(1)}~${Math.max(...finals).toFixed(1)})  격차 ${(Math.max(...finals) - Math.min(...finals)).toFixed(1)}스테이지`);
+  console.log(`  가장 강한 경로: ${name(best.p)} ${best.r.final.toFixed(1)} / 가장 약한 경로: ${name(worst.p)} ${worst.r.final.toFixed(1)}`);
 }
 
 console.log('\n== 환생 반복 (한 판 15분씩 10번) ==');
-const demo = only ? selected[0] : ['mage', 'pyromancer'];
+const demo = only ? selected[0] : ['mage', 'pyromancer', 'infernomage', 'flameemperor'];
+SEEDS = [1, 2, 3, 4, 5, 6, 7, 8];
 const show = (rs) => rs.map((r) => `${r.run}판→${r.stage}`).join('  ');
 console.log(demo.join('/') + ' (증표 상점 안 씀): ' + show(runPrestiges(demo, 15, 10, false)));
 const withPerks = runPrestiges(demo, 15, 10, true);

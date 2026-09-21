@@ -21,7 +21,7 @@ function seeded(seed) {
 
 // 봇이 강화를 사면서 플레이한 것처럼 진행시켜 보기 좋은 저장 데이터를 만든다.
 // until(s)이 참이 되는 순간에서 멈추고, 전직은 레벨 조건을 채웠을 때만 한다 (불가능한 상태를 만들지 않음).
-function makeSave({ until, cls, adv, promoteAdv = true, tokens = 0, prestiges = 0, mastered = [], dex = {}, perks = {}, autoSell = 0, seed = 11 }) {
+function makeSave({ until, cls, adv, route, depth = 2, promoteAdv = true, tokens = 0, prestiges = 0, mastered = [], dex = {}, perks = {}, autoSell = 0, seed = 11 }) {
   G.setRandom(seeded(seed));
   const s = G.createState(0);
   s.autoSell = autoSell;
@@ -40,8 +40,13 @@ function makeSave({ until, cls, adv, promoteAdv = true, tokens = 0, prestiges = 
       if (!best) break;
       G.buy(s, best);
     }
-    if (G.promoStage(s) === 'base') G.promote(s, cls);
-    else if (G.promoStage(s) === 'adv' && promoteAdv) G.promote(s, adv);
+    // route: 고를 직업 경로 [1차, 2차, 3차, 4차]. depth까지만 전직한다 (기본은 예전처럼 2차까지)
+    const st = G.promoStage(s);
+    if (st) {
+      const i = ['base', 'adv', 'adv3', 'adv4'].indexOf(st);
+      const id = (route || [cls, adv])[i];
+      if (id && i < depth && (i < 1 || promoteAdv)) G.promote(s, id);
+    }
   }
   s.hp = G.maxHp(s);
   return G.serialize(s, Date.now());
@@ -97,13 +102,14 @@ async function main() {
     const seedPage = 'file://' + path.join(profile, 'seed.html');
     fs.writeFileSync(path.join(profile, 'seed.html'), '<!doctype html><title>seed</title>');
 
-    async function shot(name, save, { tab, scroll, wait = 1800 } = {}) {
+    async function shot(name, save, { tab, scroll, click = [], wait = 1800 } = {}) {
       await send('Page.navigate', { url: seedPage });
       await sleep(400);
       await evalJs(`localStorage.setItem('goblin-idle-save-v1', ${JSON.stringify(save)})`);
       await send('Page.navigate', { url });
       await sleep(wait);
       if (tab) { await evalJs(`document.querySelector('[data-go="${tab}"]').click()`); await sleep(500); }
+      for (const sel of click) { await evalJs(`document.querySelector('${sel}').click()`); await sleep(300); }
       if (scroll) { await evalJs(`document.querySelector('${scroll}').scrollIntoView()`); await sleep(300); }
       const r = await send('Page.captureScreenshot', { format: 'jpeg', quality: 85, captureBeyondViewport: false });
       fs.writeFileSync(path.join(OUT, name + '.jpg'), Buffer.from(r.result.data, 'base64'));
@@ -114,14 +120,16 @@ async function main() {
     const mage = { cls: 'mage', adv: 'pyromancer', mastered: ['knight', 'sniper'] };
     await shot('battle', makeSave({ until: (s) => s.stage >= 15, ...mage, tokens: 2 }));        // 어둠의 동굴 보스
     await shot('battle-ice', makeSave({ until: (s) => s.stage >= 33, ...mage, tokens: 4 }));    // 얼음 산맥
-    await shot('class', makeSave({ until: (s) => s.level >= 20, ...mage, promoteAdv: false, tokens: 2 }), { tab: 'class' });
+    const ROUTE = ['mage', 'pyromancer', 'infernomage', 'flameemperor'];
+    await shot('class', makeSave({ until: (s) => s.level >= 30, route: ROUTE, depth: 2, tokens: 2, mastered: ['knight', 'sniper'] }), { tab: 'class' });   // 3차 전직 선택
     await shot('achievements', makeSave({ until: (s) => s.stage >= 36, ...mage, tokens: 4, prestiges: 1 }), { tab: 'log' });
     await shot('gear', makeSave({ until: (s) => s.stage >= 40, ...mage, tokens: 4, autoSell: -1, seed: 21 }), { tab: 'gear' });
     await shot('shop', makeSave({ until: (s) => s.stage >= 20, ...mage, tokens: 24, perks: { might: 4, greed: 3, vitality: 2, click: 1 } }), { tab: 'shop' });
     await shot('codex', makeSave({
-      until: (s) => s.level >= 20, ...mage, tokens: 8, mastered: ['knight', 'sniper', 'necromancer'],
-      dex: { knight: { best: 41, kills: 2310, runs: 3 }, sniper: { best: 22, kills: 604, runs: 1 }, necromancer: { best: 57, kills: 5120, runs: 4 } },
-    }), { tab: 'class', scroll: '#codex' });
+      until: (s) => s.level >= 30, route: ROUTE, depth: 3, tokens: 8, mastered: ['knight', 'sniper', 'necromancer', 'paladin', 'lich', 'captain'],
+      dex: { knight: { best: 41, kills: 2310, runs: 3 }, sniper: { best: 22, kills: 604, runs: 1 }, necromancer: { best: 57, kills: 5120, runs: 4 },
+             paladin: { best: 47, kills: 1800, runs: 2 }, lich: { best: 33, kills: 900, runs: 1 }, captain: { best: 61, kills: 3400, runs: 2 } },
+    }), { tab: 'class', scroll: '#codex', click: ['[data-dextab="3"]'] });
     await shot('prestige', makeSave({ until: (s) => s.stage >= 25, ...mage, tokens: 4 }), { tab: 'prestige' });
     ws.close();
     if (errors.length) { console.error('\n화면 코드 오류:\n' + errors.join('\n')); process.exitCode = 1; }

@@ -10,18 +10,21 @@ const EXT = /\.(png|webp|jpe?g|gif|svg)$/i;
 
 const monsterNames = [];
 for (const k of A.MONSTER_KINDS) { monsterNames.push(k); for (let b = 0; b < 6; b++) monsterNames.push(`${k}_${b}`); }
+// 고블린 그림 이름: SVG로 그려 둔 13종 + 3·4차를 포함한 도감 직업 전부 (없는 직업은 윗단계 그림으로 나온다)
+const GOBLIN_IDS = [...new Set([...A.LOOK_IDS, ...G.ADV_IDS])];
 const EXPECT = {
-  goblins: [...A.LOOK_IDS, ...A.LOOK_IDS.map((id) => id + '_head')],
+  goblins: [...GOBLIN_IDS, ...GOBLIN_IDS.map((id) => id + '_head')],
   monsters: monsterNames,
   icons: A.ICON_NAMES,
+  gear: G.GEAR_DESIGNS,
   backgrounds: [0, 1, 2, 3, 4, 5].map((b) => 'biome' + b),
 };
 // 꼭 있어야 하는 이름 (나머지는 선택: 얼굴 전용 그림, 지역별 몬스터 그림)
 const REQUIRED = {
-  goblins: A.LOOK_IDS, monsters: A.MONSTER_KINDS, icons: A.ICON_NAMES, backgrounds: EXPECT.backgrounds,
+  goblins: A.LOOK_IDS, monsters: A.MONSTER_KINDS, icons: A.ICON_NAMES, backgrounds: EXPECT.backgrounds, gear: [],
 };
 
-const manifest = { v: Date.now(), goblins: {}, monsters: {}, icons: {}, backgrounds: {} };
+const manifest = { v: Date.now(), goblins: {}, monsters: {}, icons: {}, backgrounds: {}, gear: {} };
 let problems = 0;
 for (const cat of Object.keys(EXPECT)) {
   const dir = path.join(ROOT, cat);
@@ -34,6 +37,12 @@ for (const cat of Object.keys(EXPECT)) {
   }
   const have = REQUIRED[cat].filter((n) => manifest[cat][n]).length;
   console.log(`${cat.padEnd(12)} ${have}/${REQUIRED[cat].length}장${have < REQUIRED[cat].length ? ' (없는 것은 기본 SVG 그림으로 나와요)' : ''}`);
+  if (cat === 'goblins') {
+    const extra = G.ADV_IDS.filter((id) => !A.LOOK_IDS.includes(id));
+    const got = extra.filter((id) => manifest.goblins[id]).length;
+    console.log(`${''.padEnd(12)} 3·4차 직업 그림 ${got}/${extra.length}장 (없으면 윗단계 직업 그림으로 나와요)`);
+  }
+  if (cat === 'gear') console.log(`${''.padEnd(12)} 장비 그림 ${Object.keys(manifest.gear).length}/${G.GEAR_DESIGNS.length}장 (없으면 기본 아이콘으로 나와요)`);
 }
 fs.writeFileSync(path.join(ROOT, 'manifest.js'),
   '// 자동 생성 파일입니다. images/ 폴더의 그림을 바꾼 뒤 `node tools/make-manifest.js` 로 다시 만드세요.\n' +

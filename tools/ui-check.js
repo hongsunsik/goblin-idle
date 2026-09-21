@@ -4,11 +4,35 @@
 const { spawn } = require('child_process');
 const fs = require('fs'), os = require('os'), path = require('path');
 const G = require('../game.js');
+const Sync = require('../sync.js');
 const ROOT = path.resolve(__dirname, '..');
 const OUT = process.argv[2] && path.resolve(process.argv[2]);
 if (OUT) fs.mkdirSync(OUT, { recursive: true });
 const CHROME = process.env.CHROME || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// 가짜 클라우드: 브라우저 안에서 동작하는 서버와 어댑터. 서버 내용은 localStorage에 둬서 페이지를 다시 열어도 남는다(= 여러 기기가 같은 서버를 쓰는 상황).
+const FAKE_CLOUD = `(() => {
+  const KEY = 'fake-cloud-server';
+  const load = () => JSON.parse(localStorage.getItem(KEY) || 'null');
+  const store = (d) => localStorage.setItem(KEY, JSON.stringify(d));
+  const user = { uid: 'u1', name: '테스터', email: 't@example.com', photo: '', provider: 'google.com' };
+  let cb = null, cur = null;
+  window.CLOUD_ADAPTER = {
+    configured: true,
+    onAuth(f) { cb = f; setTimeout(() => f(cur), 0); return () => {}; },
+    async signIn(p) { window.__lastProvider = p; cur = user; cb && cb(user); },
+    async signOut() { cur = null; cb && cb(null); },
+    async read() { return load(); },
+    async write({ save, summary, expectedRev }) {
+      const d = load(); const c = d ? d.rev : 0;
+      if (c !== expectedRev) return { conflict: true, remote: d };
+      store({ save, summary, rev: c + 1, updatedAt: Date.now() });
+      return { ok: true, rev: c + 1 };
+    },
+  };
+})();`;
+
 (async () => {
   const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'flow-'));
   const chrome = spawn(CHROME,
@@ -159,6 +183,96 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     check('장비 탭을 열면 새 장비에 NEW가 붙는다', (await ev(`document.querySelectorAll('#bag .gitem.is-new, #slots .slot').length`)) > 0);
     await ev(`document.querySelector('[data-go="upgrade"]').click()`); await sleep(300);
     check('탭을 떠나면 알림 점이 사라진다', await ev(`document.querySelector('[data-go="gear"] .dot').hidden`));
+
+    console.log('3차·4차 전직');
+    // 저장 데이터를 넣고 게임을 다시 여는 도우미
+    const reopen = async (state) => {
+      await send('Page.navigate', { url: 'file://' + path.join(profile, 'seed.html') }); await sleep(300);
+      await ev(`localStorage.setItem('goblin-idle-save-v1', ${JSON.stringify(G.serialize(state, Date.now()))})`);
+      await send('Page.navigate', { url: 'file://' + ROOT + '/index.html' }); await sleep(1500);
+      await ev(`Game.setRandom(() => 0.999)`);
+    };
+    const mk = (level, route) => { const t = G.createState(0); t.level = level; t.stage = 6; t.runBest = t.bestStage = 6; t.autoSell = -1; for (const id of route) { t.level = 99; G.promote(t, id); } t.level = level; t.hp = G.maxHp(t); return t; };
+    await reopen(mk(30, ['mage', 'pyromancer']));
+    await ev(`document.querySelector('[data-go="class"]').click()`); await sleep(400);
+    check('레벨 30이면 3차 전직 선택지 2개가 열려 있다', (await ev(`document.querySelectorAll('#classChoice .choice.is-ready').length`)) === 2 && (await ev(`document.getElementById('classChoice').textContent`)).includes('3차 전직'));
+    await ev(`document.querySelector('[data-go="upgrade"]').click()`); await sleep(300);   // 알림 점은 화면이 갱신된 뒤에 뜬다
+    check('전직 탭 알림 점이 뜬다 (다른 탭에 있을 때)', await ev(`!document.querySelector('[data-go="class"] .dot').hidden`));
+    await ev(`document.querySelector('[data-go="class"]').click()`); await sleep(300);
+    await ev(`document.querySelector('[data-pick="phoenixmage"]').click()`); await sleep(300);
+    check('전직 확인 창에 직업 이름이 보인다', (await ev(`document.getElementById('modalTitle').textContent`)).includes('불사조술사'));
+    await ev(`document.querySelector('#modalActions .btn--gold').click()`); await sleep(500);
+    check('전직하면 현재 직업과 경로가 바뀐다', (await ev(`document.querySelector('.classcard__name').textContent`)) === '불사조술사' && (await ev(`document.querySelector('.classcard__path').textContent`)).includes('화염술사 → 불사조술사'));
+    check('다음은 4차(Lv.40)를 기다린다 (지금은 잠김)', (await ev(`document.getElementById('classChoice').textContent`)).includes('4차 전직 (Lv.40)') && (await ev(`document.querySelectorAll('#classChoice .choice.is-locked').length`)) === 2);
+    check('도감 탭이 3개(2차·3차·4차)이고 3차 1/16이 기록돼 있다', (await ev(`document.querySelectorAll('.dextab').length`)) === 3 && (await ev(`document.querySelector('[data-dextab="3"]').textContent`)).includes('1/16'));
+    await ev(`document.querySelector('[data-dextab="3"]').click()`); await sleep(300);
+    check('3차 도감에는 카드 16개가 나오고 전직한 직업만 밝혀진다', (await ev(`document.querySelectorAll('#codex .dexcard').length`)) === 16 && (await ev(`document.querySelectorAll('#codex .dexcard.is-on').length`)) === 1);
+    await ev(`document.querySelector('[data-dextab="4"]').click()`); await sleep(300);
+    check('4차 도감에는 카드 32개가 나온다', (await ev(`document.querySelectorAll('#codex .dexcard').length`)) === 32);
+    await ev(`document.querySelector('.dexcard.is-off').click()`); await sleep(300);
+    const hint = await ev(`document.getElementById('modalBody').textContent`);
+    check('미달성 4차 카드는 어떤 순서로 전직해야 하는지 힌트를 준다', hint.includes('→') && hint.includes('Lv.40'), hint);
+    await shot('dex4');
+    await ev(`document.querySelector('#modalActions .btn').click()`); await sleep(200);
+    await reopen(mk(40, ['mage', 'pyromancer', 'phoenixmage']));
+    await ev(`document.querySelector('[data-go="class"]').click()`); await sleep(400);
+    check('레벨 40이면 4차 전직 선택지가 열린다', (await ev(`document.getElementById('classChoice').textContent`)).includes('4차 전직') && (await ev(`document.querySelectorAll('#classChoice .choice.is-ready').length`)) === 2);
+    await shot('tier4-choice');
+    await ev(`document.querySelector('[data-pick="phoenixlord"]').click()`); await sleep(300);
+    await ev(`document.querySelector('#modalActions .btn--gold').click()`); await sleep(500);
+    check('4차 전직 뒤에는 더 이상 전직이 없다는 안내가 나온다', (await ev(`document.getElementById('classChoice').textContent`)).includes('모든 전직을 마쳤어요'));
+    check('전투 화면의 이름표도 4차 직업으로 바뀐다', (await ev(`document.getElementById('heroTitle').textContent`)) === '불사조의 주인');
+    await reopen(mk(22, ['mage', 'pyromancer']));   // 이후 점검을 위해 원래 상태로
+
+    console.log('계정·클라우드 저장');
+    await ev(`document.querySelector('[data-go="log"]').click()`); await sleep(300);
+    check('로그인 설정이 없으면 이 기기에만 저장된다는 안내가 보이고 로그인 버튼은 없다',
+      (await ev(`document.getElementById('acct').textContent`)).includes('이 기기') && (await ev(`document.querySelectorAll('[data-login]').length`)) === 0);
+    // 가짜 클라우드를 넣고 페이지를 다시 연다
+    await send('Page.addScriptToEvaluateOnNewDocument', { source: FAKE_CLOUD });
+    await ev(`localStorage.removeItem('fake-cloud-server')`);
+    await send('Page.navigate', { url: 'file://' + ROOT + '/index.html' }); await sleep(1500);
+    await ev(`Game.setRandom(() => 0.999)`);
+    await ev(`document.querySelector('[data-go="log"]').click()`); await sleep(300);
+    check('로그인 전에는 Google·Apple 버튼이 보인다', (await ev(`document.querySelectorAll('[data-login]').length`)) === 2);
+    await shot('account-out');
+    await ev(`document.querySelector('[data-login="google"]').click()`); await sleep(700);
+    check('Google로 로그인하면 이름이 보인다', (await ev(`document.getElementById('acct').textContent`)).includes('테스터'));
+    const up1 = JSON.parse(await ev(`localStorage.getItem('fake-cloud-server')`));
+    check('로그인하면 이 기기의 진행이 클라우드에 올라간다', up1 && up1.rev === 1 && JSON.parse(up1.save).level === 22, JSON.stringify(up1 && up1.rev));
+    check('저장 상태 문구가 보인다', (await ev(`document.querySelector('.acct__status').textContent`)).includes('마지막 저장'));
+    await shot('account-in');
+
+    // 다른 기기가 더 진행했다고 가정: 서버 저장을 바꾼다 (rev 2)
+    const other = G.createState(0); other.level = 33; other.totalKills = 9000; other.bestStage = other.runBest = other.stage = 44; other.prestiges = 2; other.tokens = 9;
+    other.hp = G.maxHp(other);
+    await ev(`localStorage.setItem('fake-cloud-server', ${JSON.stringify(JSON.stringify({ save: G.serialize(other, Date.now()), summary: Sync.summaryOf(other, 'novice'), rev: 2, updatedAt: Date.now() }))})`);
+    for (let i = 0; i < 3; i++) { await ev(`(() => { const r = document.getElementById('scene').getBoundingClientRect(); document.getElementById('scene').dispatchEvent(new PointerEvent('pointerdown', { clientX: r.left + r.width*0.68, clientY: r.top + r.height*0.6, bubbles: true, cancelable: true })); })()`); await sleep(150); }
+    await ev(`document.querySelector('[data-acct="sync"]').click()`); await sleep(600);
+    check('양쪽 진행이 다르면 어느 쪽으로 계속할지 묻는 창이 뜬다', (await ev(`document.getElementById('modalTitle').textContent`)) === '어느 저장으로 계속할까요?');
+    check('창에 이 기기와 클라우드의 스테이지가 나란히 보이고 더 앞선 쪽을 표시한다', await ev(`(() => { const t = document.getElementById('modalBody').textContent; return t.includes('이 기기') && t.includes('클라우드') && t.includes('스테이지 44') && t.includes('레벨 22') && t.includes('진행이 더 앞서요'); })()`));
+    await shot('account-conflict');
+    // 창을 나중에로 닫으면 아무것도 바뀌지 않는다
+    await ev(`document.querySelector('#modalActions .btn:last-child').click()`); await sleep(300);
+    check('나중에를 누르면 이 기기의 진행이 그대로다', (await ev(`document.getElementById('level').textContent`)) === '22');
+    await ev(`document.querySelector('[data-acct="sync"]').click()`); await sleep(600);
+    await ev(`document.querySelector('#modalActions .btn--gold').click()`); await sleep(700);   // 클라우드 사용
+    check('클라우드를 고르면 게임이 클라우드 저장(레벨 33)으로 바뀐다', (await ev(`document.getElementById('level').textContent`)) === '33');
+    check('클라우드를 고른 뒤에는 로컬 저장도 같은 진행이다', JSON.parse(await ev(`localStorage.getItem('goblin-idle-save-v1')`)).level >= 33);
+
+    // 로그아웃
+    await ev(`document.querySelector('[data-acct="out"]').click()`); await sleep(300);
+    await ev(`document.querySelector('#modalActions .btn--blue').click()`); await sleep(600);
+    check('로그아웃하면 로그인 버튼이 다시 나온다', (await ev(`document.querySelectorAll('[data-login]').length`)) === 2);
+    // 로그인 실패 안내
+    await ev(`window.CLOUD_ADAPTER.signIn = async () => { throw Object.assign(new Error('x'), { code: 'auth/popup-blocked' }); }`);
+    await ev(`document.querySelector('[data-login="apple"]').click()`); await sleep(500);
+    check('로그인 창이 막히면 팝업 차단 안내가 보인다', (await ev(`document.getElementById('acct').textContent`)).includes('팝업'));
+    // 창을 스스로 닫은 것은 오류로 보이지 않는다
+    await ev(`window.CLOUD_ADAPTER.signIn = async () => { throw Object.assign(new Error('x'), { code: 'auth/popup-closed-by-user' }); }`);
+    await ev(`document.querySelector('[data-login="apple"]').click()`); await sleep(400);
+    check('로그인 창을 닫으면 오류 문구가 사라진다', !(await ev(`document.getElementById('acct').textContent`)).includes('팝업'));
+    await ev(`document.querySelector('[data-go="upgrade"]').click()`); await sleep(200);
 
     console.log('오래 돌려도 안정적인가 (전투 10초)');
     await ev(`document.querySelector('[data-go="upgrade"]').click()`);

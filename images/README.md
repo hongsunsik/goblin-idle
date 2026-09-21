@@ -16,10 +16,11 @@
 
 | 폴더 | 파일 이름 | 개수 | 권장 크기 | 배경 |
 |---|---|---|---|---|
-| `goblins/` | 아래 13개 이름 | 13 | 512×616 (세로가 조금 긴 비율) | **투명** |
-| `goblins/` (선택) | `이름_head.png` 얼굴만 | 최대 13 | 256×256 | **투명** |
+| `goblins/` | 아래 13개 이름 (필수) + 3·4차 직업 48개 이름 (선택: 없으면 윗단계 직업 그림) | 13 + 48 | 512×616 (세로가 조금 긴 비율) | **투명** |
+| `goblins/` (선택) | `이름_head.png` 얼굴만 | 최대 61 | 256×256 | **투명** |
 | `monsters/` | 아래 13개 이름 | 13 | 480×448 | **투명** |
 | `monsters/` (선택) | `이름_지역번호.png` (예: `golem_3.png`) | 지역별 | 480×448 | **투명** |
+| `gear/` | 아래 17개 디자인 이름 (없으면 기본 아이콘) | 17 | 128×128 (정사각형) | **투명** |
 | `icons/` | 아래 22개 이름 | 22 | 128×128 (정사각형) | **투명** |
 | `backgrounds/` | `biome0` ~ `biome5` | 6 | 1600×1200 (4:3 가로) | 불투명 (WebP 권장) |
 
@@ -34,6 +35,8 @@
 
 - `goblins/`: `novice` `warrior` `archer` `mage` `rogue` `knight` `berserker` `sniper` `ranger` `pyromancer` `necromancer` `assassin` `pirate`
 - `monsters/`: `slime` `bat` `wolf` `boar` `spider` `snake` `skeleton` `ghost` `scorpion` `golem` `imp` `ogre` `dragon`
+- 3·4차 직업 (`goblins/`, 선택): 이름은 `classes.js`의 ID와 같아요. 3차 `paladin` `crusader` `warlord` `destroyer` `deadeye` `piercer` `windwalker` `beastmaster` `infernomage` `phoenixmage` `lich` `soulreaper` `shade` `nightblade` `captain` `buccaneer`, 4차는 32개(`seraph` `holyking` `inquisitor` … `raiderlord`, 전체 목록은 `tools/generate-images.py`의 `GOBLINS`)
+- `gear/`: `club` `dagger` `hatchet` `sword` `staff` (무기) / `leather` `chainmail` `plate` `robe` (방어구) / `goldring` `luckynecklace` `galebracelet` `featherearring` `charm` `friendring` `glove` `armband` (액세서리)
 - `icons/`: `sword` `shield` `boots` `party` `pouch` `coin` `crown` `heart` `bolt` `burst` `anvil` `cap` `scroll` `star` `skull` `hand` `lock` `check` `book` `gem` `arrowup` `dot`
 - `backgrounds/`: `biome0` `biome1` `biome2` `biome3` `biome4` `biome5`
 
