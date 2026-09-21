@@ -109,7 +109,15 @@ svg { display: block; }
 .stage[data-biome='4'] { --sky-a: #2a0808; --sky-b: #b02a14; --sky-c: #ff8a3a; --sun: #ffd28a; --cloud: #6a2a2a; --cloud-s: #401414; --far: #5a2a26; --mid: #3a1a18; --tree: #200c0c; --ground: #3a1a16; --ground-top: #ff6a2a; --grass: #7a2a10; --isle-top: #5a2a20; --isle-rock: #2a1210; --fx: #ff9a3a; }
 .stage[data-biome='5'] { --sky-a: #150a2a; --sky-b: #5a2a7a; --sky-c: #d878b8; --sun: #f8e0ff; --cloud: #7a4a9a; --cloud-s: #4a2a6a; --far: #3a2456; --mid: #2a1a44; --tree: #1a102e; --ground: #2e2050; --ground-top: #a878e8; --grass: #4a3078; --isle-top: #4a3070; --isle-rock: #221638; --fx: #e0a0ff; }
 
-.stage__sky { position: absolute; inset: 0; background: linear-gradient(180deg, var(--sky-a) 0%, var(--sky-b) 52%, var(--sky-c) 100%); transition: background 0.6s; }
+/* 지역 안 진행(phase)과 회차(round)에 따라 하늘 색조를 바꾼다. 변수로 나눠 두 가지를 겹쳐 쓴다. */
+.stage { --phase-f: brightness(1); --round-f: hue-rotate(0deg); }
+.stage[data-phase='1'] { --phase-f: brightness(0.86) saturate(1.1); }
+.stage[data-phase='boss'] { --phase-f: brightness(0.74) saturate(1.15) contrast(1.05); }
+.stage[data-round='1'] { --round-f: hue-rotate(40deg) saturate(1.15); }
+.stage[data-round='2'] { --round-f: hue-rotate(-45deg) saturate(1.2); }
+.stage[data-round='3'] { --round-f: hue-rotate(95deg) saturate(1.1); }
+.stage[data-round='4'] { --round-f: hue-rotate(160deg) saturate(1.25) brightness(0.9); }
+.stage__sky { position: absolute; inset: 0; background: linear-gradient(180deg, var(--sky-a) 0%, var(--sky-b) 52%, var(--sky-c) 100%); transition: background 0.6s, filter 0.9s; filter: var(--round-f) var(--phase-f); }
 .stage__sun {
   position: absolute; left: 76%; top: 15%; width: 54px; height: 54px; margin: -27px 0 0 -27px; border-radius: 50%;
   background: var(--sun); box-shadow: 0 0 46px 18px color-mix(in srgb, var(--sun) 60%, transparent), 0 0 120px 40px color-mix(in srgb, var(--sun) 25%, transparent);
@@ -581,3 +589,23 @@ svg { display: block; }
 .setrow { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px; }
 .setrow small { display: block; margin-top: 2px; font-size: 11px; color: var(--muted); }
 .setrow .btn { flex: none; padding: 8px 12px 6px; font-size: 12px; }
+
+/* ===== 설정: 전투 효과 / 장비 선택·정리 / 계정 안내 ===== */
+.seg { display: flex; flex: none; border: 1px solid var(--line); }
+.seg button { padding: 8px 10px; font: inherit; font-size: 12px; font-weight: 900; color: var(--muted); background: rgba(0, 0, 0, 0.35); border: 0; cursor: pointer; }
+.seg button.is-on { color: #3a2400; background: linear-gradient(180deg, #fff0b8, #ffc84a); }
+.sect__btns { margin-left: auto; display: flex; gap: 10px; }
+.sect__btns .link { font-size: 12px; }
+.sect__btns .link.is-on { color: var(--gold); font-weight: 900; }
+.selbar { display: flex; align-items: center; gap: 10px; margin: 0 0 8px; padding: 8px 10px; background: rgba(90, 64, 10, 0.4); border: 1px solid rgba(255, 212, 121, 0.6); font-size: 12px; font-weight: 800; }
+.selbar #selCount { flex: 1; }
+.selbar__sell { flex: none; padding: 7px 12px 5px; font-size: 12px; }
+.gitem.is-sel { outline: 3px solid var(--gold); outline-offset: -3px; }
+.gitem.is-sel::before { content: '✓'; position: absolute; top: 2px; left: 4px; z-index: 2; width: 16px; height: 16px; display: grid; place-items: center; font-size: 11px; font-weight: 900; color: #3a2400; background: var(--gold); border-radius: 50%; }
+.tidy { display: flex; flex-direction: column; gap: 6px; text-align: left; margin-bottom: 10px; }
+.tidy__opt { display: flex; align-items: center; gap: 10px; padding: 9px 10px; background: rgba(0, 0, 0, 0.3); border: 1px solid var(--line); cursor: pointer; }
+.tidy__opt input { width: 18px; height: 18px; accent-color: #ffc84a; flex: none; }
+.tidy__opt span { display: flex; flex-direction: column; line-height: 1.35; }
+.tidy__opt small { color: var(--muted); font-size: 11.5px; }
+.tidy__opt.is-empty { opacity: 0.45; cursor: default; }
+.acct__lock { margin: 10px 0 0; padding: 7px 9px; font-size: 11px; font-weight: 800; line-height: 1.45; color: #ffd9a0; background: rgba(120, 70, 10, 0.3); border: 1px solid rgba(255, 190, 90, 0.4); }

@@ -524,6 +524,32 @@ test('일괄 판매는 지정한 등급 이하만 팔고 장착한 장비는 건
   assert.strictEqual(s.gold, r.gold);
 });
 
+test('고른 장비만 한꺼번에 팔고, 없는 번호는 무시하며, 골드는 합계만큼 늘어난다', () => {
+  const s = G.createState(0);
+  s.bag.push(mkItem({ id: 1, r: 0 }), mkItem({ id: 2, r: 1 }), mkItem({ id: 3, r: 2 }), mkItem({ id: 4, r: 3 }));
+  const expected = G.sellValue(s.bag[0]) + G.sellValue(s.bag[2]);
+  const r = G.sellBagItems(s, [1, 3, 999]);
+  assert.deepStrictEqual([r.n, r.gold], [2, expected]);
+  assert.strictEqual(s.gold, expected);
+  assert.deepStrictEqual(s.bag.map((x) => x.id), [2, 4]);
+  assert.deepStrictEqual(G.sellBagItems(s, []), { n: 0, gold: 0 });
+});
+
+test('지금 낀 장비보다 약한 가방 장비를 찾는다 (같은 칸·같은 능력만 비교)', () => {
+  const s = G.createState(0);
+  s.equip.weapon = mkItem({ id: 1, kind: 'dmg', val: 20 });
+  s.equip.accessory = mkItem({ id: 2, slot: 'accessory', kind: 'gold', val: 10 });
+  s.bag.push(
+    mkItem({ id: 10, kind: 'dmg', val: 20 }),                                  // 같은 수치 → 약한 것으로 본다
+    mkItem({ id: 11, kind: 'dmg', val: 25 }),                                  // 더 강함 → 남긴다
+    mkItem({ id: 12, slot: 'accessory', kind: 'gold', val: 4 }),               // 약함
+    mkItem({ id: 13, slot: 'accessory', kind: 'aps', val: 1 }),                // 다른 능력 → 비교 불가라 남긴다
+    mkItem({ id: 14, slot: 'armor', kind: 'hp', val: 1 }),                     // 방어구 칸이 비어 있음 → 남긴다
+  );
+  assert.deepStrictEqual(G.bagWeaker(s).map((x) => x.id), [10, 12]);
+  assert.strictEqual(G.isWeaker(s, s.bag[1]), false);
+});
+
 test('갑옷을 장착하면 늘어난 체력만큼 바로 회복한다', () => {
   const s = G.createState(0); s.hp = 10;
   s.bag.push(mkItem({ id: 1, slot: 'armor', kind: 'hp', val: 100 }));
@@ -994,6 +1020,42 @@ test('실제 어댑터와 가짜 서버가 같은 규격을 지킨다 (Cloud 클
   assert.strictEqual(sdk.store['saves/abc'].rev, 1);
   assert.strictEqual(sdk.store['saves/abc'].summary.kills, 300);
   assert.strictEqual(c.state().status, 'ok');
+});
+
+section('스테이지·몬스터 배치');
+test('모든 지역에서 일반 몬스터 5종과 보스 2종이 빠짐없이 나온다 (예전에는 5번째 몬스터가 한 번도 안 나왔다)', () => {
+  for (let b = 0; b < 6; b++) {
+    const normals = new Set(), bosses = new Set();
+    for (let p = 1; p <= 10; p++) { const m = G.monsterInfo(b * 10 + p); (m.boss ? bosses : normals).add(m.name); }
+    assert.strictEqual(normals.size, 5, `지역 ${b}: 일반 몬스터 ${[...normals].join(', ')}`);
+    assert.strictEqual(bosses.size, 2, `지역 ${b}: 보스 ${[...bosses].join(', ')}`);
+  }
+});
+
+test('보스는 5의 배수 스테이지에만 나오고, 같은 몬스터가 두 스테이지 연속으로 나오지 않는다', () => {
+  let prev = null;
+  for (let st = 1; st <= 130; st++) {
+    const m = G.monsterInfo(st);
+    assert.strictEqual(m.boss, st % 5 === 0, `스테이지 ${st}`);
+    if (prev) assert.notStrictEqual(m.name + m.round, prev, `스테이지 ${st}에서 ${m.name} 반복`);
+    prev = m.name + m.round;
+  }
+});
+
+test('지역 안 위치는 1~10이고, 스테이지 61부터 회차가 올라가며 같은 지역이 다시 나온다', () => {
+  assert.deepStrictEqual([1, 5, 10, 11].map((st) => G.monsterInfo(st).pos), [1, 5, 10, 1]);
+  assert.strictEqual(G.roundOf(60), 0);
+  assert.strictEqual(G.roundOf(61), 1);
+  const m61 = G.monsterInfo(61);
+  assert.deepStrictEqual([m61.biome, m61.pos, m61.round], [0, 1, 1]);
+  assert.strictEqual(G.monsterInfo(121).round, 2);
+  assert.strictEqual(G.monsterInfo(61).name, G.monsterInfo(1).name, '같은 몬스터가 색만 바뀌어 다시 나온다');
+});
+
+test('일반 몬스터 자리표가 지역 표의 5종을 모두 가리키고 보스 자리는 5의 배수와 일치한다', () => {
+  const used = new Set(G.NORMAL_SLOTS.filter((x) => x !== null));
+  assert.deepStrictEqual([...used].sort(), [0, 1, 2, 3, 4]);
+  G.NORMAL_SLOTS.forEach((slot, i) => assert.strictEqual(slot === null, (i + 1) % 5 === 0, `위치 ${i + 1}`));
 });
 
 section('그 밖의 로직');

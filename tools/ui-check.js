@@ -159,10 +159,40 @@ const FAKE_CLOUD = `(() => {
     check('영웅 장비를 팔려 하면 확인 창이 한 번 더 뜬다', (await ev(`document.getElementById('modalTitle').textContent`)) === '정말 팔까요?');
     await ev(`document.querySelector('#modalActions .btn:not(.btn--blue)').click()`); await sleep(200);
     check('취소하면 그대로 남는다', (await ev(`document.querySelectorAll('#bag .gitem[data-item]').length`)) === 5);
-    // 일괄 판매 (노말·고급만)
-    await ev(`document.getElementById('sellAllBtn').click()`); await sleep(250);
+    // 정리: 등급별 / 장착 중인 장비보다 약한 것 (가방: 1 노말무기, 3 고급방어구, 4 노말장신구, 5 고급무기, 6 영웅장신구)
+    await ev(`document.getElementById('tidyBtn').click()`); await sleep(250);
+    check('정리 창에 4가지 선택지가 보이고 개수·골드를 미리 알려 준다', (await ev(`document.querySelectorAll('.tidy__opt').length`)) === 4 && (await ev(`document.getElementById('modalBody').textContent`)).includes('골드') === false);
+    const weakText = await ev(`document.querySelector('input[name="tidy"][value="weak"]').closest('label').textContent`);
+    check('"장착 중인 장비보다 약한 것"은 같은 칸·같은 능력만 비교해 2개(옛 무기 둘)로 센다', weakText.includes('2개'), weakText);
+    await ev(`document.querySelector('input[name="tidy"][value="weak"]').click()`);
     await ev(`document.querySelector('#modalActions .btn--gold').click()`); await sleep(350);
-    check('일괄 판매하면 희귀 이상만 남는다', (await ev(`[...document.querySelectorAll('#bag .gitem[data-item]')].every((b) => b.classList.contains('r2') || b.classList.contains('r3') || b.classList.contains('r4'))`)));
+    check('약한 장비를 정리하면 그 둘만 사라진다 (가방 3개)', (await ev(`document.querySelectorAll('#bag .gitem[data-item]').length`)) === 3 && (await ev(`!document.querySelector('.gitem[data-item="1"]') && !document.querySelector('.gitem[data-item="5"]')`)));
+    // 선택 모드: 여러 개를 눌러 고르고 한 번에 판다
+    const goldBeforeSel = await ev(`document.getElementById('gold').textContent`);
+    await ev(`document.getElementById('selectBtn').click()`); await sleep(200);
+    check('선택 모드를 켜면 선택 표시줄이 보이고 버튼이 "완료"가 된다', (await ev(`!document.getElementById('selbar').hidden && document.getElementById('selectBtn').textContent === '완료'`)));
+    await ev(`document.querySelector('.gitem[data-item="3"]').click()`); await sleep(120);
+    await ev(`document.querySelector('.gitem[data-item="4"]').click()`); await sleep(200);
+    check('누른 장비 두 개에 선택 표시가 붙고 개수와 받을 골드가 보인다', (await ev(`document.querySelectorAll('.gitem.is-sel').length`)) === 2 && (await ev(`document.getElementById('selCount').textContent`)).includes('2개 선택'));
+    await ev(`document.querySelector('.gitem[data-item="4"]').click()`); await sleep(150);
+    check('선택한 장비를 다시 누르면 선택이 풀린다', (await ev(`document.querySelectorAll('.gitem.is-sel').length`)) === 1);
+    await ev(`document.getElementById('selAll').click()`); await sleep(150);
+    check('전체 선택을 누르면 가방 전부가 선택된다', (await ev(`document.querySelectorAll('.gitem.is-sel').length`)) === (await ev(`document.querySelectorAll('#bag .gitem[data-item]').length`)));
+    await ev(`document.getElementById('selAll').click()`); await sleep(150);
+    await ev(`document.querySelector('.gitem[data-item="3"]').click()`); await sleep(100);
+    await ev(`document.querySelector('.gitem[data-item="4"]').click()`); await sleep(100);
+    await ev(`document.getElementById('selSell').click()`); await sleep(350);
+    check('선택 판매를 누르면 확인 없이(노말·고급만이면) 바로 팔린다', (await ev(`document.querySelectorAll('#bag .gitem[data-item]').length`)) === 1 && (await ev(`document.getElementById('modal').hidden`)));
+    check('팔면 골드가 늘어난다', (await ev(`document.getElementById('gold').textContent`)) !== goldBeforeSel);
+    // 영웅 이상이 섞이면 한 번 더 확인
+    await ev(`document.querySelector('.gitem[data-item="6"]').click()`); await sleep(150);
+    await ev(`document.getElementById('selSell').click()`); await sleep(300);
+    check('영웅 이상을 팔려 하면 확인 창이 한 번 더 뜬다', (await ev(`document.getElementById('modalTitle').textContent`)) === '정말 팔까요?');
+    await ev(`document.querySelector('#modalActions .btn:not(.btn--gold)').click()`); await sleep(200);
+    check('취소하면 영웅 장비가 남는다', (await ev(`document.querySelectorAll('#bag .gitem[data-item]').length`)) === 1);
+    await ev(`document.getElementById('selectBtn').click()`); await sleep(200);
+    check('완료를 누르면 선택 모드가 꺼지고 다시 눌러 정보 창이 열린다', (await ev(`document.getElementById('selbar').hidden`)) && (await (async () => { await ev(`document.querySelector('.gitem[data-item="6"]').click()`); await sleep(250); const t2 = await ev(`!document.getElementById('modal').hidden`); await ev(`document.querySelector('#modalActions .btn').click()`); await sleep(150); return t2; })()));
+    check('정리·선택 판매 뒤 희귀 이상만 남는다', (await ev(`[...document.querySelectorAll('#bag .gitem[data-item]')].every((b) => b.classList.contains('r2') || b.classList.contains('r3') || b.classList.contains('r4'))`)));
     // 설정은 바로 저장된다
     await ev(`(() => { const sel = document.getElementById('autoSell'); sel.value = '2'; sel.dispatchEvent(new Event('change')); document.getElementById('autoEquip').click(); })()`); await sleep(200);
     const saved = JSON.parse(await ev(`localStorage.getItem('goblin-idle-save-v1')`));
@@ -255,6 +285,15 @@ const FAKE_CLOUD = `(() => {
     await ev(`document.getElementById('settingsBtn').click()`); await sleep(300);
     check('로그인 전에는 Google 연동 버튼 하나만 보인다 (Apple 버튼은 없다)', (await ev(`document.querySelectorAll('[data-login]').length`)) === 1);
     await shot('account-out');
+    check('연동 전에 "한 번 연동하면 해제할 수 없어요" 경고가 보인다', (await ev(`(document.querySelector('.acct__lock') || {}).textContent || ''`)).includes('해제할 수 없어요'));
+    // 로그인 실패 안내 (로그인하기 전에 확인: 연동은 해제할 수 없으므로 한 번 로그인하면 되돌아올 수 없다)
+    await ev(`window.__origSignIn = window.CLOUD_ADAPTER.signIn; window.CLOUD_ADAPTER.signIn = async () => { throw Object.assign(new Error('x'), { code: 'auth/popup-blocked' }); }`);
+    await ev(`document.querySelector('[data-login="google"]').click()`); await sleep(500);
+    check('로그인 창이 막히면 팝업 차단 안내가 보인다', (await ev(`document.getElementById('acct').textContent`)).includes('팝업'));
+    await ev(`window.CLOUD_ADAPTER.signIn = async () => { throw Object.assign(new Error('x'), { code: 'auth/popup-closed-by-user' }); }`);
+    await ev(`document.querySelector('[data-login="google"]').click()`); await sleep(400);
+    check('로그인 창을 닫으면 오류 문구가 사라진다', !(await ev(`document.getElementById('acct').textContent`)).includes('팝업'));
+    await ev(`window.CLOUD_ADAPTER.signIn = window.__origSignIn`);
     await ev(`document.querySelector('[data-login="google"]').click()`); await sleep(700);
     check('Google로 로그인하면 이름이 보인다', (await ev(`document.getElementById('acct').textContent`)).includes('테스터'));
     const up1 = JSON.parse(await ev(`localStorage.getItem('fake-cloud-server')`));
@@ -279,19 +318,40 @@ const FAKE_CLOUD = `(() => {
     check('클라우드를 고르면 게임이 클라우드 저장(레벨 33)으로 바뀐다', (await ev(`document.getElementById('level').textContent`)) === '33');
     check('클라우드를 고른 뒤에는 로컬 저장도 같은 진행이다', JSON.parse(await ev(`localStorage.getItem('goblin-idle-save-v1')`)).level >= 33);
 
-    // 연동 해제
-    await ev(`document.querySelector('[data-acct="out"]').click()`); await sleep(300);
-    await ev(`document.querySelector('#modalActions .btn--blue').click()`); await sleep(600);
-    check('연동을 해제하면 연동 버튼이 다시 나온다', (await ev(`document.querySelectorAll('[data-login]').length`)) === 1);
-    // 로그인 실패 안내
-    await ev(`window.CLOUD_ADAPTER.signIn = async () => { throw Object.assign(new Error('x'), { code: 'auth/popup-blocked' }); }`);
-    await ev(`document.querySelector('[data-login="google"]').click()`); await sleep(500);
-    check('로그인 창이 막히면 팝업 차단 안내가 보인다', (await ev(`document.getElementById('acct').textContent`)).includes('팝업'));
-    // 창을 스스로 닫은 것은 오류로 보이지 않는다
-    await ev(`window.CLOUD_ADAPTER.signIn = async () => { throw Object.assign(new Error('x'), { code: 'auth/popup-closed-by-user' }); }`);
-    await ev(`document.querySelector('[data-login="google"]').click()`); await sleep(400);
-    check('로그인 창을 닫으면 오류 문구가 사라진다', !(await ev(`document.getElementById('acct').textContent`)).includes('팝업'));
+    check('연동한 뒤에는 "연동 해제" 버튼이 없고 "해제 불가"로 표시된다', (await ev(`!document.querySelector('[data-acct="out"]') && document.getElementById('acct').textContent.includes('해제 불가') && !document.getElementById('acct').textContent.includes('연동 해제')`)));
     await ev(`document.getElementById('settingsClose').click()`); await sleep(200);
+
+    console.log('스테이지·지역 표시');
+    // 쓰러져서 스테이지가 한 칸 물러나면 점검이 어긋나므로, 고블린을 아주 튼튼하게(방어구 Lv.400) 만들어 연다
+    // monsterHp를 크게 잡는 이유: 스테이지만 바꾸면 이전 몬스터의 체력이 남아 보스가 한 방에 쓰러지므로, 불러올 때 가득 차게 한다
+    const atStage = async (st) => { const t = mk(30, ['mage', 'pyromancer']); t.stage = st; t.runBest = t.bestStage = Math.max(st, 6); t.upgrades.armor = 400; t.hp = G.maxHp(t); t.monsterHp = 1e12; await reopen(t); await sleep(300); };
+    await atStage(3);
+    check('지역 이름 옆에 지역 안 진행(3/10)이 보이고, 초반 배경 단계다', (await ev(`document.getElementById('biomeName').textContent`)).includes('고블린 숲') && (await ev(`document.getElementById('biomeName').textContent`)).includes('3/10') && (await ev(`document.getElementById('scene').dataset.phase`)) === '0');
+    await atStage(8);
+    check('후반(8/10)에는 배경이 후반 단계로 바뀐다', (await ev(`document.getElementById('biomeName').textContent`)).includes('8/10') && (await ev(`document.getElementById('scene').dataset.phase`)) === '1');
+    await atStage(10);
+    check('보스 스테이지는 보스 배경 단계다', (await ev(`document.getElementById('scene').dataset.phase`)) === 'boss');
+    await atStage(61);
+    check('스테이지 61부터는 지역 이름에 회차(II)가 붙고 배경 색조가 바뀐다', (await ev(`document.getElementById('biomeName').textContent`)).includes('고블린 숲 II') && (await ev(`document.getElementById('scene').dataset.round`)) === '1');
+    await shot('round2');
+    await reopen(mk(22, ['mage', 'pyromancer']));
+
+    console.log('전투 효과 (차분하게 / 화려하게)');
+    // 3초 동안 전투 층에 생기는 이펙트를 센다 (자동 공격만, 탭 없이)
+    const countFx = (ms) => ev(`new Promise((res) => { const n = { spark: 0, hit: 0, coin: 0, all: 0 }; const o = new MutationObserver((list) => { for (const m of list) for (const a of m.addedNodes) { if (!a.classList) continue; n.all++; if (a.classList.contains('fx-spark')) n.spark++; if (a.classList.contains('float--hit')) n.hit++; if (a.classList.contains('fx-coin')) n.coin++; } }); o.observe(document.getElementById('floatLayer'), { childList: true }); setTimeout(() => { o.disconnect(); res(n); }, ${ms}); })`);
+    await reopen(mk(30, ['mage', 'pyromancer']));   // 앞 점검으로 고블린이 기절해 있을 수 있어서, 건강한 상태로 새로 연다 (기절 중에는 공격 연출이 없다)
+    await ev(`document.querySelector('[data-go="upgrade"]').click()`); await sleep(300);
+    check('기본은 "차분하게"로 선택돼 있다', (await ev(`document.querySelector('#fxSeg button.is-on').dataset.fx`)) === 'calm');
+    await sleep(1500);
+    check('점검 전제: 고블린이 기절하지 않았고 자동 공격 중이다', (await ev(`document.getElementById('downBanner').hidden`)) === true);
+    const calmFx = await countFx(4000);
+    check('차분하게: 자동 전투 4초 동안 불꽃·타격 숫자·동전이 하나도 생기지 않는다', calmFx.spark === 0 && calmFx.hit === 0 && calmFx.coin === 0, JSON.stringify(calmFx));
+    await ev(`document.querySelector('#fxSeg [data-fx="full"]').click()`); await sleep(200);
+    check('"화려하게"로 바꾸면 기기에 기억된다', (await ev(`localStorage.getItem('goblin-idle-fx-v1')`)) === 'full' && (await ev(`document.querySelector('#fxSeg button.is-on').dataset.fx`)) === 'full');
+    const fullFx = await countFx(4000);
+    check('화려하게: 같은 4초 동안 불꽃이나 타격 숫자가 나온다 (차분하게보다 확실히 많다)', (fullFx.spark + fullFx.hit) > 0 && fullFx.all > calmFx.all, `차분 ${JSON.stringify(calmFx)} / 화려 ${JSON.stringify(fullFx)}`);
+    await ev(`document.querySelector('#fxSeg [data-fx="calm"]').click()`); await sleep(200);
+    check('다시 "차분하게"로 돌릴 수 있다', (await ev(`localStorage.getItem('goblin-idle-fx-v1')`)) === 'calm');
 
     console.log('오래 돌려도 안정적인가 (전투 10초)');
     await ev(`document.querySelector('[data-go="upgrade"]').click()`);

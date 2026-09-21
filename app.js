@@ -73,6 +73,11 @@
   const reduceMotion = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
   const layer = $('floatLayer');
   const sceneEl = $('scene');
+  // 전투 효과 강도: 'calm'(기본, 꼭 필요한 움직임만) / 'full'(화려하게). 설정 창에서 바꾸고 기기에 기억한다.
+  const FX_KEY = 'goblin-idle-fx-v1';
+  let fxMode = 'calm';
+  try { if (localStorage.getItem(FX_KEY) === 'full') fxMode = 'full'; } catch (e) { /* 저장소를 못 써도 기본값 */ }
+  const calm = () => fxMode === 'calm';
   const MAX_FX = 34;   // 화면에 한꺼번에 떠 있는 이펙트 수 제한 (빠르게 싸울 때 과부하 방지)
 
   function anim(el, keyframes, opts) {
@@ -131,7 +136,12 @@
   }
 
   // ---- 고블린 공격: 웅크렸다가(예비 동작) 돌진하고, 멈칫했다가 돌아온다 ----
-  function heroLunge(seconds) {
+  function heroLunge(seconds, soft) {
+    if (soft) {   // 차분하게: 작게 앞으로 나갔다 돌아온다
+      const d = Math.max(200, Math.min(320, seconds * 1000 * 0.7));
+      anim($('hero'), [{ transform: 'translate(0, 0)' }, { transform: 'translate(10px, 0)', offset: 0.4, easing: 'ease-out' }, { transform: 'translate(0, 0)' }], { duration: d });
+      return d * 0.4;
+    }
     const dur = Math.max(190, Math.min(440, seconds * 1000 * 0.85));
     anim($('hero'), [
       { transform: 'translate(0, 0) scale(1, 1) rotate(0deg)' },
@@ -144,8 +154,12 @@
   }
 
   // ---- 몬스터 피격: 밀려났다가 되돌아오고, 순간 하얗게 번쩍인다 ----
-  function monsterHit(strong, delay) {
+  function monsterHit(strong, delay, soft) {
     const body = $('monster'), img = body.firstElementChild;
+    if (soft) {   // 차분하게: 밀려나지 않고 살짝 밝아지기만 한다
+      if (img) { const base = baseFilter(img); anim(img, [{ filter: base + ' brightness(1.6)' }, { filter: base }], { duration: 180, delay, easing: 'ease-out' }); }
+      return;
+    }
     const push = strong ? 16 : 9;
     anim(body, [
       { transform: 'translate(0, 0) scale(1, 1)' },
@@ -162,7 +176,7 @@
   // 몬스터가 있는 곳에 튀는 불꽃과 (탭할 때는) 베는 선을 그린다
   function impactFx(strong, delay) {
     const p = spot($('monsterSprite'), 0.5, 0.5);
-    const spark = addFx('fx-spark', p.x + rand(-18, 10), p.y + rand(-22, 14));
+    const spark = calm() && !strong ? null : addFx('fx-spark', p.x + rand(-18, 10), p.y + rand(-22, 14));
     playFx(spark, [
       { transform: `scale(0.3) rotate(${rand(-30, 30)}deg)`, opacity: 1 },
       { transform: `scale(${strong ? 2.3 : 1.7}) rotate(${rand(-30, 30)}deg)`, opacity: 0 },
@@ -182,6 +196,26 @@
   function killFx(boss) {
     const mSprite = $('monsterSprite');
     const p = spot(mSprite, 0.5, 0.5);
+    if (calm()) {   // 차분하게: 부드럽게 사라지고 새 몬스터가 스르륵 나타난다. 동전·고리는 보스만.
+      const g = addFx('fx-dying', p.l, p.t);
+      if (g) {
+        g.style.width = p.w + 'px'; g.style.height = p.h + 'px';
+        g.innerHTML = $('monster').innerHTML;
+        playFx(g, [{ transform: 'scale(1)', opacity: 1 }, { transform: 'scale(0.9) translateY(-6px)', opacity: 0 }], { duration: 260, easing: 'ease-out' });
+      }
+      if (boss) {
+        for (let i = 0; i < 5; i++) {
+          const c = addFx('fx-coin', p.x, p.y);
+          const dx = rand(-50, 50);
+          playFx(c, [{ transform: 'translate(0, 0)', opacity: 1 }, { transform: `translate(${dx}px, ${rand(-46, -20)}px)`, opacity: 0 }], { duration: 600, delay: rand(0, 80), easing: 'ease-out' });
+        }
+        const ring = addFx('fx-ring', p.x, p.y);
+        playFx(ring, [{ transform: 'scale(0.3)', opacity: 0.9 }, { transform: 'scale(2.6)', opacity: 0 }], { duration: 520, easing: 'ease-out' });
+      }
+      anim($('monster'), [{ opacity: 0 }, { opacity: 1 }], { duration: 240, delay: 120, easing: 'ease-out', fill: 'backwards' });
+      anim(document.querySelector('.plate'), [{ transform: 'scale(1)' }, { transform: 'scale(1.1)', offset: 0.4 }, { transform: 'scale(1)' }], { duration: 220, easing: 'ease-out' });
+      return;
+    }
     const ghost = addFx('fx-dying', p.l, p.t);
     if (ghost) {
       ghost.style.width = p.w + 'px';
@@ -221,6 +255,7 @@
 
   // 화면 전체가 짧게 흔들린다 (세기가 점점 줄어든다)
   function shakeScene(power) {
+    if (calm()) return;   // 차분하게: 화면 흔들림 없음
     anim(sceneEl, [
       { transform: 'translate(0, 0)' },
       { transform: `translate(${-power}px, ${power * 0.4}px)`, offset: 0.15 },
@@ -233,7 +268,7 @@
 
   // 보스 등장: 화면이 붉게 번쩍이고 흔들린다
   function bossIntro() {
-    anim($('flash'), [{ opacity: 0 }, { opacity: 1, offset: 0.2 }, { opacity: 0 }], { duration: 700, easing: 'ease-out' });
+    anim($('flash'), [{ opacity: 0 }, { opacity: calm() ? 0.45 : 1, offset: 0.2 }, { opacity: 0 }], { duration: 700, easing: 'ease-out' });
     shakeScene(6);
     floatText('BOSS!', 'float--tap', 'center');
   }
@@ -252,7 +287,7 @@
     ], { duration: 720, easing: 'ease-out' });
     floatText('LEVEL UP!', 'float--lv', 'hero');
     const img = $('hero').firstElementChild;
-    if (img) {
+    if (img && !calm()) {
       const base = baseFilter(img);
       anim(img, [{ filter: base + ' brightness(1.9) saturate(1.3)' }, { filter: base }], { duration: 520, easing: 'ease-out' });
     }
@@ -261,6 +296,7 @@
   // 몬스터도 가끔 달려들고, 고블린은 맞는 순간 움찔하며 붉게 번쩍인다
   let enemyAtkT = 0;
   function enemyAttackFx(dt) {
+    if (calm()) return;   // 차분하게: 몬스터가 달려드는 연출은 없다
     if (state.downT > 0) { enemyAtkT = 0; return; }
     enemyAtkT += dt;
     const period = G.isBossStage(state.stage) ? 1.5 : 1.15;
@@ -284,19 +320,18 @@
       const base = baseFilter(img);
       anim(img, [{ filter: base + ' brightness(1.5) sepia(1) saturate(4) hue-rotate(-40deg)' }, { filter: base }], { duration: 260, delay: 220, easing: 'ease-out' });
     }
-    setTimeout(() => floatText('-' + G.fmt(G.monsterAtk(state.stage) * period), 'float--hurt', 'hero'), 220);
   }
 
   // 영웅·전설 장비가 떨어지면 등급 색 고리가 퍼지고 (전설은 화면도 번쩍이며 흔들린다)
   function rareDropFx(rarity) {
     const color = G.RARITIES[rarity].color;
     const p = spot($('monsterSprite'), 0.5, 0.5);
-    for (let i = 0; i < 2; i++) {
+    for (let i = 0; i < (calm() ? 1 : 2); i++) {
       const ring = addFx('fx-ring', p.x, p.y);
       if (ring) ring.style.borderColor = color;
       playFx(ring, [{ transform: 'scale(0.3)', opacity: 1 }, { transform: `scale(${3.2 + i * 1.6})`, opacity: 0 }], { duration: 620 + i * 200, delay: i * 120, easing: 'ease-out' });
     }
-    if (rarity >= 4) {
+    if (rarity >= 4 && !calm()) {
       const flash = $('flash');
       flash.style.background = 'radial-gradient(ellipse at 50% 55%, transparent 30%, rgba(255, 201, 58, 0.7))';
       const a = anim(flash, [{ opacity: 0 }, { opacity: 1, offset: 0.2 }, { opacity: 0 }], { duration: 800, easing: 'ease-out' });
@@ -319,7 +354,16 @@
   }
 
   // 고블린이 한 번 때릴 때마다 부르는 연출 (여러 번 때린 프레임에도 한 번만)
+  let lastHitFx = 0;
   function onHeroHit(n) {
+    if (calm()) {   // 차분하게: 작은 움직임만, 최대 0.5초에 한 번. 숫자와 불꽃은 없다.
+      const t = Date.now();
+      if (t - lastHitFx < 500) return;
+      lastHitFx = t;
+      const contact = heroLunge(1 / G.attacksPerSec(state), true);
+      monsterHit(false, contact, true);
+      return;
+    }
     const contact = heroLunge(1 / G.attacksPerSec(state));
     monsterHit(false, contact);
     impactFx(false, contact);
@@ -668,6 +712,8 @@
   });
 
   // ---- 장비 ----
+  let selectMode = false;        // 가방에서 여러 개를 골라 파는 중인지
+  const picked = new Set();       // 고른 장비 번호
   let gearKey = '';
   const gearNew = new Set();   // 장비 탭을 열기 전에 새로 얻은 장비 번호 (NEW 표시·알림 점용, 저장하지 않음)
   const KIND_SHORT = { dmg: '공격력', hp: '체력', gold: '골드', aps: '공속', comp: '동료', click: '직접' };
@@ -708,7 +754,7 @@
   function renderGear(force) {
     const s = state;
     const ids = (it) => (it ? it.id : 0);
-    const key = [G.SLOT_KEYS.map((k) => ids(s.equip[k])).join(','), s.bag.map((x) => x.id).join(','), s.autoEquip, s.autoSell, [...gearNew].join('+'), G.perkLv(s, 'luck')].join('|');
+    const key = [G.SLOT_KEYS.map((k) => ids(s.equip[k])).join(','), s.bag.map((x) => x.id).join(','), s.autoEquip, s.autoSell, [...gearNew].join('+'), G.perkLv(s, 'luck'), selectMode, [...picked].join('+')].join('|');
     if (!force && key === gearKey) return;
     gearKey = key;
     $('gearSummary').textContent = gearSummaryText();
@@ -718,16 +764,24 @@
     const bc = $('bagCount');
     bc.textContent = `${s.bag.length} / ${G.BAG_MAX}`;
     bc.style.color = s.bag.length >= G.BAG_MAX ? 'var(--red)' : '';
+    for (const id of [...picked]) if (!s.bag.some((x) => x.id === id)) picked.delete(id);   // 이미 팔린 장비는 선택에서 뺀다
     let html = '';
     s.bag.forEach((it) => {
-      html += `<button class="gitem r${it.r} ${gearNew.has(it.id) ? 'is-new' : ''}" type="button" data-item="${it.id}">${gearArt(it)}` +
+      html += `<button class="gitem r${it.r} ${gearNew.has(it.id) ? 'is-new' : ''} ${picked.has(it.id) ? 'is-sel' : ''}" type="button" data-item="${it.id}">${gearArt(it)}` +
         `<div class="gitem__stat">${KIND_SHORT[it.kind]} +${fmtVal(it.val)}%</div><div class="gitem__lv">Lv.${it.ilvl}</div></button>`;
     });
     for (let i = s.bag.length; i < G.BAG_MAX; i++) html += '<div class="gitem is-empty"></div>';
     $('bag').innerHTML = html;
-    const cheap = s.bag.filter((x) => x.r <= 1);
-    $('sellAllBtn').textContent = cheap.length ? `노말·고급 ${cheap.length}개 판매` : '일괄 판매';
-    $('sellAllBtn').disabled = cheap.length === 0;
+    // 선택 모드 표시줄
+    $('selectBtn').textContent = selectMode ? '완료' : '선택';
+    $('selectBtn').classList.toggle('is-on', selectMode);
+    $('selbar').hidden = !selectMode;
+    const chosen = s.bag.filter((x) => picked.has(x.id));
+    const chosenGold = chosen.reduce((a, x) => a + G.sellValue(x), 0);
+    $('selCount').textContent = chosen.length ? `${chosen.length}개 선택 · ${G.fmt(chosenGold)} 골드` : '팔 장비를 눌러 고르세요';
+    $('selAll').textContent = chosen.length && chosen.length === s.bag.length ? '선택 해제' : '전체 선택';
+    $('selSell').disabled = chosen.length === 0;
+    $('tidyBtn').disabled = s.bag.length === 0;
     $('dropInfo').innerHTML = dropInfoHtml();
   }
 
@@ -786,19 +840,59 @@
   $('bag').addEventListener('click', (e) => {
     const b = e.target.closest('button[data-item]');
     const it = b && state.bag.find((x) => x.id === Number(b.dataset.item));
-    if (it) showItem(it, false);
+    if (!it) return;
+    if (selectMode) { if (picked.has(it.id)) picked.delete(it.id); else picked.add(it.id); renderGear(true); return; }
+    showItem(it, false);
   });
   $('autoEquip').addEventListener('change', (e) => { state.autoEquip = e.target.checked; writeSave(); });
   $('autoSell').addEventListener('change', (e) => { state.autoSell = Number(e.target.value); writeSave(); });
-  $('sellAllBtn').addEventListener('click', () => {
-    const items = state.bag.filter((x) => x.r <= 1);
+  // 선택 모드: 팔 장비를 여러 개 눌러 고른 뒤 한 번에 판다
+  $('selectBtn').addEventListener('click', () => { selectMode = !selectMode; picked.clear(); renderGear(true); });
+  $('selAll').addEventListener('click', () => {
+    if (picked.size && picked.size === state.bag.length) picked.clear();
+    else state.bag.forEach((x) => picked.add(x.id));
+    renderGear(true);
+  });
+  $('selSell').addEventListener('click', () => {
+    const items = state.bag.filter((x) => picked.has(x.id));
     if (!items.length) return;
+    const sellNow = () => {
+      const r = G.sellBagItems(state, items.map((x) => x.id));
+      picked.clear();
+      addLog(`장비 ${r.n}개를 팔았다 (+${G.fmt(r.gold)} 골드)`, 'is-gold', 'coin');
+      writeSave(); render(); renderGear(true);
+    };
+    const rare = items.filter((x) => x.r >= 3);
+    if (!rare.length) { sellNow(); return; }   // 영웅 이상이 섞여 있을 때만 한 번 더 확인한다
     const gold = items.reduce((a, x) => a + G.sellValue(x), 0);
-    openModal('일괄 판매', `가방의 노말·고급 장비 <b>${items.length}개</b>를 팔고<br>${COIN} 골드 <b>${G.fmt(gold)}</b>을(를) 받아요.<br><small>장착 중인 장비와 희귀 이상은 그대로예요.</small>`, [
+    openModal('정말 팔까요?', `고른 장비 <b>${items.length}개</b> 중 <b style="color:${G.RARITIES[3].color}">영웅 이상 ${rare.length}개</b>가 있어요.<br>${COIN} 골드 <b>${G.fmt(gold)}</b>을(를) 받고 팔아요.<br><small>되돌릴 수 없어요.</small>`,
+      [{ text: '취소' }, { text: '판매', cls: 'btn--gold', onClick: sellNow }]);
+  });
+
+  // 정리: 등급별로 또는 '지금 낀 장비보다 약한 것'을 한꺼번에 판다 (개수와 받을 골드를 미리 보여 준다)
+  $('tidyBtn').addEventListener('click', () => {
+    const s = state;
+    const opts = [
+      { id: 'r0', label: '노말 이하', items: s.bag.filter((x) => x.r <= 0) },
+      { id: 'r1', label: '고급 이하', items: s.bag.filter((x) => x.r <= 1) },
+      { id: 'r2', label: '희귀 이하', items: s.bag.filter((x) => x.r <= 2) },
+      { id: 'weak', label: '장착 중인 장비보다 약한 것', items: G.bagWeaker(s) },
+    ];
+    const goldOf = (items) => items.reduce((a, x) => a + G.sellValue(x), 0);
+    const first = opts.find((o) => o.items.length);
+    if (!first) { openModal('정리할 장비가 없어요', '가방에서 팔 만한 장비를 찾지 못했어요.', [{ text: '확인' }]); return; }
+    const html = '<div class="tidy">' + opts.map((o) =>
+      `<label class="tidy__opt ${o.items.length ? '' : 'is-empty'}"><input type="radio" name="tidy" value="${o.id}" ${o === first ? 'checked' : ''} ${o.items.length ? '' : 'disabled'}>` +
+      `<span><b>${o.label}</b><small>${o.items.length}개 · ${COIN}${G.fmt(goldOf(o.items))}</small></span></label>`).join('') +
+      '</div><small>장착 중인 장비는 팔리지 않아요.</small>';
+    openModal('장비 정리', html, [
       { text: '취소' },
-      { text: '판매', cls: 'btn--gold', onClick: () => {
-        const r = G.sellBagUpTo(state, 1);
-        addLog(`장비 ${r.n}개를 팔았다 (+${G.fmt(r.gold)} 골드)`, 'is-gold', 'coin');
+      { text: '판매하기', cls: 'btn--gold', onClick: () => {
+        const v = document.querySelector('input[name="tidy"]:checked');
+        const o = opts.find((x) => v && x.id === v.value);
+        if (!o || !o.items.length) return;
+        const r = G.sellBagItems(state, o.items.map((x) => x.id));
+        addLog(`장비 ${r.n}개를 정리했다 (+${G.fmt(r.gold)} 골드)`, 'is-gold', 'coin');
         writeSave(); render(); renderGear(true);
       } },
     ]);
@@ -835,7 +929,7 @@
         if (!killShown) {   // 한 프레임에 여러 마리를 잡아도 처치 연출은 한 번만
           killShown = true;
           killFx(e.boss);
-          floatText('+' + G.fmt(e.gold), 'float--gold', 'gold');
+          if (!calm() || e.boss) floatText('+' + G.fmt(e.gold), 'float--gold', 'gold');
         }
         if (e.boss) addLog(`보스를 쓰러뜨렸다! +${G.fmt(e.gold)} 골드`, 'is-gold', 'skull');
       } else if (e.type === 'stage') {
@@ -857,7 +951,7 @@
           const verb = e.action === 'equipped' ? '장착' : e.action === 'bag' ? '획득' : `판매 +${G.fmt(e.gold)} 골드`;
           addLog(`[${R.name}] ${name} ${verb}`, it.r >= 2 ? 'is-gold' : 'is-good', G.GEAR[it.slot].icon);
         }
-        if (e.action !== 'sold' || it.r >= 2) floatText(`${R.name} ${name}`, 'float--drop', 'center', R.color);
+        if (calm() ? it.r >= 2 : (e.action !== 'sold' || it.r >= 2)) floatText(`${R.name} ${name}`, 'float--drop', 'center', R.color);
         if (it.r >= 3) rareDropFx(it.r);
         if (e.action !== 'sold') gearNew.add(it.id);
       } else if (e.type === 'achieve') {
@@ -918,7 +1012,14 @@
     scene.classList.toggle('is-down', s.downT > 0);
     const biome = G.biomeOf(s.stage);
     if (scene.dataset.biome !== String(biome)) scene.dataset.biome = String(biome);
-    setText('biomeName', BIOMES[biome]);
+    // 지역 안에서의 진행: 초반(1~4)은 밝게, 후반(6~9)은 어둡게, 보스 자리는 보스 배경으로 하늘 색을 조금씩 바꾼다
+    const mon = G.monsterInfo(s.stage);
+    const phase = boss ? 'boss' : mon.pos <= 4 ? '0' : '1';
+    if (scene.dataset.phase !== phase) scene.dataset.phase = phase;
+    const roundKey = String(Math.min(mon.round, 4));
+    if (scene.dataset.round !== roundKey) scene.dataset.round = roundKey;
+    const ROUND_NAME = ['', ' II', ' III', ' IV', ' V'];
+    setText('biomeName', `${BIOMES[biome]}${ROUND_NAME[Math.min(mon.round, 4)]} · ${mon.pos}/${G.BIOME_LEN}`);
     setText('stageLabel', boss ? `BOSS ${s.stage}` : `STAGE ${s.stage}`);
     renderPips(s);
     $('downBanner').hidden = s.downT <= 0;
@@ -928,11 +1029,10 @@
     const dur = Math.max(0.3, Math.min(1.4, 1 / G.attacksPerSec(s))).toFixed(2) + 's';
     if (cache.dur !== dur) { cache.dur = dur; $('heroBox').style.setProperty('--atk', dur); }
 
-    const mon = G.monsterInfo(s.stage);
-    const monKey = mon.kind + '|' + mon.biome + '|' + mon.boss;
+    const monKey = mon.kind + '|' + mon.biome + '|' + mon.boss + '|' + mon.round;
     if (monKey !== lastMonster) {
       lastMonster = monKey;
-      $('monster').innerHTML = A.monster(mon.kind, mon.biome, mon.boss);
+      $('monster').innerHTML = A.monster(mon.kind, mon.biome, mon.boss, mon.round);
     }
     setText('monsterName', mon.name);
     const max = G.maxHp(s);
@@ -1162,18 +1262,18 @@
     if (!st.user) {
       box.innerHTML = '<div class="acct__title">☁ 계정 연동</div>' +
         '<div class="acct__desc">Google 계정을 연동하면 진행 상황이 클라우드에 저장돼서, 다른 기기에서도 이어서 할 수 있어요.</div>' +
-        '<div class="acct__btns acct__btns--one"><button class="btn btn--google" type="button" data-login="google">Google 계정 연동하기</button></div>' + err;
+        '<div class="acct__btns acct__btns--one"><button class="btn btn--google" type="button" data-login="google">Google 계정 연동하기</button></div>' +
+        '<div class="acct__lock">※ 한 번 연동하면 <b>해제할 수 없어요.</b> 계정 선택 화면에서 쓰실 계정을 신중하게 골라 주세요.</div>' + err;
       return;
     }
     const u = st.user;
     const statusText = st.status === 'syncing' ? '동기화하는 중…' : st.status === 'error' ? '저장하지 못했어요' : st.lastSyncedAt ? `마지막 저장 ${agoText(st.lastSyncedAt)}` : '로그인됨';
     box.innerHTML =
-      '<div class="acct__title" style="margin-bottom:8px">☁ 연동된 계정</div>' +
+      '<div class="acct__title" style="margin-bottom:8px">☁ 연동된 계정 <span class="acct__soon" style="background:linear-gradient(180deg,#bfe3ff,#6fb6f0)">해제 불가</span></div>' +
       `<div class="acct__user"><div class="acct__photo">${u.photo ? `<img src="${esc(u.photo)}" alt="" referrerpolicy="no-referrer">` : esc((u.name || '?').slice(0, 1))}</div>` +
       `<div><div class="acct__name">${esc(u.name)}</div><div class="acct__mail">${esc(u.email || '')}</div></div></div>` +
       `<div class="acct__status ${st.status === 'syncing' ? 'is-busy' : st.status === 'error' ? 'is-error' : ''}">☁ ${statusText}</div>` +
-      `<div class="acct__btns"><button class="btn" type="button" data-acct="sync" ${st.status === 'syncing' ? 'disabled' : ''}>지금 저장</button>` +
-      '<button class="btn btn--gray" type="button" data-acct="out">연동 해제</button></div>' + err;
+      `<div class="acct__btns acct__btns--one"><button class="btn" type="button" data-acct="sync" ${st.status === 'syncing' ? 'disabled' : ''}>지금 저장</button></div>` + err;
   }
   $('acct').addEventListener('click', async (e) => {
     const login = e.target.closest('button[data-login]');
@@ -1187,10 +1287,6 @@
     const act = e.target.closest('button[data-acct]');
     if (!act) return;
     if (act.dataset.acct === 'sync') { await cloud.sync(); renderAccount(); }
-    if (act.dataset.acct === 'out') {
-      openModal('연동을 해제할까요?', '이 기기의 진행은 그대로 남아요.<br><small>마지막 진행은 클라우드에 저장하고 해제해요.</small>',
-        [{ text: '취소' }, { text: '연동 해제', cls: 'btn--blue', onClick: () => cloud.signOut() }]);
-    }
   });
   // ---- 설정 창 ----
   const settings = $('settings');
@@ -1201,6 +1297,19 @@
   settings.addEventListener('click', (e) => { if (e.target === settings) closeSettings(); });   // 바깥을 누르면 닫는다
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !settings.hidden && $('modal').hidden) closeSettings(); });
   $('resetBtn2').addEventListener('click', () => { closeSettings(); $('resetBtn').click(); });
+  const FX_INFO = { calm: '차분하게: 꼭 필요한 움직임만 보여요', full: '화려하게: 불꽃·동전·화면 흔들림까지 모두 보여요' };
+  function renderFxSetting() {
+    $('fxSeg').querySelectorAll('button').forEach((b) => b.classList.toggle('is-on', b.dataset.fx === fxMode));
+    $('fxInfo').textContent = FX_INFO[fxMode];
+  }
+  $('fxSeg').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-fx]');
+    if (!b) return;
+    fxMode = b.dataset.fx;
+    try { localStorage.setItem(FX_KEY, fxMode); } catch (err) { /* 무시 */ }
+    renderFxSetting();
+  });
+  renderFxSetting();
 
   // 저장 시각 문구("3분 전")가 멈춰 보이지 않게 기록 탭이 열려 있으면 가끔 다시 그린다
   setInterval(() => { if (!settings.hidden && cloud.state().user) renderAccount(); }, 15000);
@@ -1253,7 +1362,7 @@
       if (dealtTimer >= 0.5) {
         dealtTimer = 0;
         const comp = G.companionDps(state) * 0.5;
-        if (comp > 0 && state.downT <= 0) floatText('-' + G.fmt(comp), 'float--comp', 'comp');
+        if (comp > 0 && state.downT <= 0 && !calm()) floatText('-' + G.fmt(comp), 'float--comp', 'comp');
       }
     }
     render();

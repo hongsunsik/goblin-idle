@@ -307,6 +307,21 @@
     s.gold += gold;
     return { n, gold };
   }
+  // 여러 개를 골라서 판다. 가방에 없는 번호는 무시한다. { n, gold }
+  function sellBagItems(s, ids) {
+    const set = new Set(ids);
+    let n = 0, gold = 0;
+    s.bag = s.bag.filter((it) => {
+      if (!set.has(it.id)) return true;
+      gold += sellValue(it); n += 1;
+      return false;
+    });
+    s.gold += gold;
+    return { n, gold };
+  }
+  // 지금 낀 장비(같은 칸·같은 능력)보다 수치가 같거나 낮아서 쓸모없어진 가방 장비. 다른 능력의 장비는 비교할 수 없어서 포함하지 않는다.
+  const isWeaker = (s, it) => { const cur = s.equip[it.slot]; return !!cur && cur.kind === it.kind && it.val <= cur.val; };
+  const bagWeaker = (s) => s.bag.filter((it) => isWeaker(s, it));
   // 장착한 장비가 kind 능력에 주는 배율 (1 = 효과 없음)
   const gearMult = (s, kind) => {
     let v = 0;
@@ -430,15 +445,22 @@
   const monsterExp = (stage) =>
     Math.ceil(3 * Math.pow(1.15, stage - 1)) * (isBossStage(stage) ? 4 : 1);
 
-  const biomeOf = (stage) => Math.floor((stage - 1) / 10) % BIOME_COUNT;
+  const BIOME_LEN = 10;   // 한 지역은 10스테이지
+  const biomeOf = (stage) => Math.floor((stage - 1) / BIOME_LEN) % BIOME_COUNT;
+  // 6개 지역을 다 돌면 '회차'가 올라간다: 스테이지 61부터는 같은 지역이 색과 이름을 바꿔 다시 나온다 (숲 → 숲 II ...)
+  const roundOf = (stage) => Math.floor((stage - 1) / (BIOME_LEN * BIOME_COUNT));
+  // 지역 안의 위치(0~9) → 그 지역의 몇 번째 일반 몬스터가 나오는지 (null은 보스 자리).
+  // 예전에는 (스테이지-1) % 5로 골라서 5번째 몬스터가 보스 자리와 겹쳐 한 번도 나오지 않았다.
+  // 앞쪽에서 1~4번째를 차례로 만나고, 첫 보스 뒤에 새로운 5번째가 등장해 뒷부분에서 힘을 낸다.
+  const NORMAL_SLOTS = [0, 1, 2, 3, null, 4, 2, 3, 4, null];
 
-  // 이 스테이지에 나오는 몬스터 { kind(그림 종류), name, boss, biome }
+  // 이 스테이지에 나오는 몬스터 { kind(그림 종류), name, boss, biome, pos(지역 안 1~10번째), round(회차) }
   function monsterInfo(stage) {
     const t = MONSTER_TABLE[biomeOf(stage)];
-    const pick = isBossStage(stage)
-      ? t.bosses[(stage / BOSS_EVERY - 1) % t.bosses.length]
-      : t.normals[(stage - 1) % t.normals.length];
-    return { kind: pick[0], name: pick[1], boss: isBossStage(stage), biome: biomeOf(stage) };
+    const idx = (stage - 1) % BIOME_LEN;
+    const boss = isBossStage(stage);
+    const pick = boss ? t.bosses[(stage / BOSS_EVERY - 1) % t.bosses.length] : t.normals[NORMAL_SLOTS[idx]];
+    return { kind: pick[0], name: pick[1], boss, biome: biomeOf(stage), pos: idx + 1, round: roundOf(stage) };
   }
 
   // 지금 가장 높은 단계의 직업 (없으면 null)
@@ -782,12 +804,12 @@
     prestigeGain, canPrestige, prestige,
     serialize, deserialize,
     TOKEN_BONUS, maxHp, hitDmg, attacksPerSec, companionDps, totalDps, goldMult, expNeeded, tokenMult,
-    monsterAtk, monsterGold, monsterInfo, biomeOf, isBossStage, lookId, classTitle,
+    monsterAtk, monsterGold, monsterInfo, biomeOf, roundOf, BIOME_LEN, NORMAL_SLOTS, isBossStage, lookId, classTitle,
     NODES: NODE, nextPromo, promoStage, promoOptions, promote, statMult, masteryMult,
     ACHIEVEMENTS, ACHIEVE_BONUS, achieveMult, checkAchievements,
     PATH_FIELDS, ADV_IDS, advIdsOfTier, classTier, parentOf, childrenOf, classPath, deepest, DEX_STAGES, DEX_MEDALS, MASTERY_BASE, MEDAL_BONUS, dexStages, masteryOf, dexRecord, dexTier,
     RARITIES, GEAR, SLOT_KEYS, BAG_MAX, DROP_CHANCE, BOSS_DROP_CHANCE, LUCK_PER_LV,
-    GEAR_DESIGNS, itemDesign, setRandom, itemName, sellValue, rollItem, dropChance, isUpgrade, receiveItem, equipItem, unequipItem, sellBagItem, sellBagUpTo, gearMult,
+    GEAR_DESIGNS, itemDesign, setRandom, itemName, sellValue, rollItem, dropChance, isUpgrade, receiveItem, equipItem, unequipItem, sellBagItem, sellBagUpTo, sellBagItems, isWeaker, bagWeaker, gearMult,
     PERKS, PERK_KEYS, HEADSTART_LV, perkLv, perkCost, perkSpent, tokenBalance, perkMissing, perkUnlocked, canBuyPerk, buyPerk, respecPerks, offlineCap,
     fmt, fmtTime,
   };

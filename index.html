@@ -137,7 +137,12 @@
               </select>
             </label>
           </div>
-          <h3 class="sect"><svg class="ic"><use href="#i-pouch"/></svg>가방 <small id="bagCount"></small><button class="link sect__link" id="sellAllBtn" type="button">일괄 판매</button></h3>
+          <h3 class="sect"><svg class="ic"><use href="#i-pouch"/></svg>가방 <small id="bagCount"></small><span class="sect__btns"><button class="link" id="selectBtn" type="button">선택</button><button class="link" id="tidyBtn" type="button">정리</button></span></h3>
+          <div class="selbar" id="selbar" hidden>
+            <span id="selCount">0개 선택</span>
+            <button class="link" id="selAll" type="button">전체 선택</button>
+            <button class="btn btn--gold selbar__sell" id="selSell" type="button" disabled>선택 판매</button>
+          </div>
           <div class="bag" id="bag"></div>
           <div class="card dropinfo" id="dropInfo"></div>
         </section>
@@ -195,6 +200,11 @@
       <div class="sheet__body">
         <h3 class="sect">계정 연동</h3>
         <div class="card acct" id="acct"></div>
+        <h3 class="sect">전투 효과</h3>
+        <div class="card setrow">
+          <div><b>움직임과 이펙트</b><small id="fxInfo">차분하게: 꼭 필요한 움직임만 보여요</small></div>
+          <div class="seg" id="fxSeg"><button type="button" data-fx="calm">차분하게</button><button type="button" data-fx="full">화려하게</button></div>
+        </div>
         <h3 class="sect">저장</h3>
         <div class="card setrow">
           <div><b>이 기기에 자동 저장</b><small id="saveInfo2">5초마다 자동으로 저장돼요</small></div>
