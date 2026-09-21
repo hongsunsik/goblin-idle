@@ -92,7 +92,7 @@
       bestStage: 1,      // 모든 판을 통틀어 최고 스테이지
       totalKills: 0,
       upgrades: { weapon: 0, armor: 0, speed: 0, companion: 0, loot: 0 },
-      tokens: 0,         // 환생으로 얻은 왕의 증표 (공격력·골드 +25%씩)
+      tokens: 0,         // 환생으로 얻은 왕의 증표 (공격력·골드 +40%씩)
       prestiges: 0,
       cls: null,         // 1차 직업 (전사·궁수·마법사·도적)
       adv: null,         // 2차 직업
@@ -112,7 +112,8 @@
   }
 
   // ---- 능력치 계산 ----
-  const tokenMult = (s) => 1 + 0.25 * s.tokens;
+  const TOKEN_BONUS = 0.4;   // 왕의 증표 1개당 공격력·골드 보너스
+  const tokenMult = (s) => 1 + TOKEN_BONUS * s.tokens;
   const masteryMult = (s) => 1 + MASTERY_BONUS * Object.keys(s.mastered).length;
   // 1차·2차 직업의 배율을 곱한 값 (해당 항목이 없으면 1)
   function statMult(s, key) {
@@ -133,9 +134,9 @@
 
   const isBossStage = (stage) => stage % BOSS_EVERY === 0;
   const monsterMaxHp = (stage) =>
-    Math.round(24 * Math.pow(1.30, stage - 1)) * (isBossStage(stage) ? 6 : 1);
+    Math.round(24 * Math.pow(1.25, stage - 1)) * (isBossStage(stage) ? 6 : 1);
   const monsterAtk = (stage) =>
-    2 * Math.pow(1.22, stage - 1) * (isBossStage(stage) ? 1.5 : 1);
+    2 * Math.pow(1.19, stage - 1) * (isBossStage(stage) ? 1.5 : 1);
   const monsterGold = (stage) =>
     Math.ceil(4 * Math.pow(1.21, stage - 1)) * (isBossStage(stage) ? 5 : 1);
   const monsterExp = (stage) =>
@@ -187,6 +188,25 @@
 
   function canBuy(s, key) {
     return s.upgrades[key] < UPGRADES[key].max && s.gold >= upgradeCost(s, key);
+  }
+
+  // 최대 want번 살 때 실제로 살 수 있는 횟수와 총 비용 (want에 Infinity를 주면 살 수 있는 만큼 전부)
+  function planBuy(s, key, want) {
+    const u = UPGRADES[key];
+    let lv = s.upgrades[key], gold = s.gold, n = 0, cost = 0;
+    while (n < want && lv < u.max) {
+      const c = Math.ceil(u.base * Math.pow(u.growth, lv));
+      if (c > gold) break;
+      gold -= c; cost += c; lv += 1; n += 1;
+    }
+    return { n, cost };
+  }
+
+  // 최대 want번 연속으로 산다. 산 횟수를 돌려준다.
+  function buyMany(s, key, want) {
+    let n = 0;
+    while (n < want && buy(s, key)) n += 1;
+    return n;
   }
 
   function buy(s, key) {
@@ -407,10 +427,10 @@
   const api = {
     UPGRADES, UPGRADE_KEYS, MILESTONE_EVERY, MILESTONE_MULT, mile, CLASSES, ADVANCED, PROMO_LEVEL, MASTERY_BONUS, KILLS_PER_STAGE, DOWN_TIME, PRESTIGE_MIN_STAGE, OFFLINE_CAP,
     createState, tick, simulate, clickAttack, applyOffline,
-    upgradeCost, canBuy, buy,
+    upgradeCost, canBuy, buy, planBuy, buyMany,
     prestigeGain, canPrestige, prestige,
     serialize, deserialize,
-    maxHp, hitDmg, attacksPerSec, companionDps, totalDps, goldMult, expNeeded, tokenMult,
+    TOKEN_BONUS, maxHp, hitDmg, attacksPerSec, companionDps, totalDps, goldMult, expNeeded, tokenMult,
     monsterAtk, monsterGold, monsterInfo, biomeOf, isBossStage, lookId, classTitle,
     promoStage, promoOptions, promote, statMult, masteryMult,
     fmt, fmtTime,

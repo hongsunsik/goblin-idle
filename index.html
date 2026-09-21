@@ -57,7 +57,7 @@
         </div>
         <div class="hud__cur">
           <div class="plate" title="골드"><svg class="ic"><use href="#i-coin"/></svg><b id="gold">0</b></div>
-          <div class="plate plate--token" title="왕의 증표: 공격력·골드 +25%씩"><svg class="ic"><use href="#i-crown"/></svg><b id="tokens">0</b></div>
+          <div class="plate plate--token" title="왕의 증표: 공격력·골드 +40%씩"><svg class="ic"><use href="#i-crown"/></svg><b id="tokens">0</b></div>
         </div>
       </div>
 
@@ -111,6 +111,12 @@
 
       <main class="tabs">
         <section class="tab" data-tab="upgrade">
+          <div class="buymode" id="buyMode" role="group" aria-label="구매 수량">
+            <span>구매 수량</span>
+            <button class="is-on" data-n="1" type="button">×1</button>
+            <button data-n="10" type="button">×10</button>
+            <button data-n="max" type="button">MAX</button>
+          </div>
           <ul class="upgrades" id="upgrades"></ul>
         </section>
 

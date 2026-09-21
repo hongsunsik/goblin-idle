@@ -133,6 +133,16 @@
 
   // ---- 강화 목록 (한 번만 만들고 이후에는 값만 갱신) ----
   const upRefs = {};
+  let buyMode = '1';   // 구매 수량: '1' | '10' | 'max'
+  const buyWant = () => (buyMode === 'max' ? Infinity : Number(buyMode));
+  $('buyMode').addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    buyMode = b.dataset.n;
+    document.querySelectorAll('#buyMode button').forEach((x) => x.classList.toggle('is-on', x === b));
+    for (const k of G.UPGRADE_KEYS) upRefs[k].last = '';   // 버튼 문구를 다시 그리게 한다
+    render();
+  });
   function buildUpgrades() {
     const ul = $('upgrades');
     for (const key of G.UPGRADE_KEYS) {
@@ -151,7 +161,7 @@
         btn: li.querySelector('.up__btn'),
         last: '',
       };
-      refs.btn.addEventListener('click', () => { if (G.buy(state, key)) render(); });
+      refs.btn.addEventListener('click', () => { if (G.buyMany(state, key, buyWant()) > 0) render(); });
       upRefs[key] = refs;
       ul.appendChild(li);
     }
@@ -358,7 +368,8 @@
       const maxed = lv >= u.max;
       const can = !maxed && G.canBuy(s, key);
       if (can) anyBuy = true;
-      const sig = `${lv}|${maxed}|${can}|${maxed ? '' : G.upgradeCost(s, key)}`;
+      const plan = maxed ? null : G.planBuy(s, key, buyWant());
+      const sig = `${lv}|${maxed}|${can}|${maxed ? '' : G.upgradeCost(s, key)}|${plan ? plan.n + '/' + plan.cost : ''}`;
       if (sig === r.last) continue;
       r.last = sig;
       r.name.innerHTML = `${u.name} <span class="lv">Lv.${lv}${maxed ? ' MAX' : ''}</span>`;
@@ -370,7 +381,9 @@
       } else {
         r.mile.hidden = true;
       }
-      r.btn.innerHTML = maxed ? 'MAX' : `<small>강화</small><span>${COIN}${G.fmt(G.upgradeCost(s, key))}</span>`;
+      // 여러 개를 살 수 있으면 "강화 ×N"과 총 비용을, 못 사면 다음 1개의 비용을 보여준다
+      r.btn.innerHTML = maxed ? 'MAX'
+        : `<small>${plan.n > 1 ? `강화 ×${plan.n}` : '강화'}</small><span>${COIN}${G.fmt(plan.n > 0 ? plan.cost : G.upgradeCost(s, key))}</span>`;
       r.btn.disabled = maxed || !can;
     }
 
@@ -381,12 +394,12 @@
     const gain = G.prestigeGain(s);
     const pb = $('prestigeBtn');
     setText('pTokens', s.tokens);
-    setText('pBonus', '+' + s.tokens * 25 + '%');
+    setText('pBonus', '+' + Math.round((G.tokenMult(s) - 1) * 100) + '%');
     setText('pBest', s.bestStage);
     pb.disabled = gain <= 0;
     setText('prestigeBtn', gain > 0 ? `환생하기 (증표 +${gain})` : '아직 환생할 수 없어요');
     setText('prestigeHint', gain > 0
-      ? `지금 환생하면 왕의 증표 ${gain}개를 얻어요. 증표 1개당 공격력·골드가 영구히 +25%예요. 골드·레벨·강화·스테이지·직업은 처음부터 다시 시작하고, 직업 도감은 그대로 남아요.`
+      ? `지금 환생하면 왕의 증표 ${gain}개를 얻어요. 증표 1개당 공격력·골드가 영구히 +${Math.round(G.TOKEN_BONUS * 100)}%라서 보너스가 +${Math.round((G.tokenMult(s) - 1) * 100)}% → +${Math.round(G.TOKEN_BONUS * 100 * (s.tokens + gain))}%가 돼요. 골드·레벨·강화·스테이지·직업은 처음부터 다시 시작하고, 직업 도감은 그대로 남아요.`
       : `스테이지 ${G.PRESTIGE_MIN_STAGE}에 도달하면 환생할 수 있어요. 환생하면 왕의 증표를 얻어 영구히 강해지고, 다른 직업으로 다시 시작해 볼 수 있어요.`);
 
     // 메뉴 알림 점
