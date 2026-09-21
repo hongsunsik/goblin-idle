@@ -225,8 +225,21 @@ const FAKE_CLOUD = `(() => {
     await reopen(mk(22, ['mage', 'pyromancer']));   // 이후 점검을 위해 원래 상태로
 
     console.log('계정·클라우드 저장');
-    await ev(`document.querySelector('[data-go="log"]').click()`); await sleep(300);
-    check('서버가 연결되지 않아도 로그인 버튼 두 개와 "준비 중" 표시가 보인다',
+    await ev(`document.getElementById('settingsBtn').click()`); await sleep(300);
+    check('설정 버튼(⚙)을 누르면 설정 창이 열린다', await ev(`!document.getElementById('settings').hidden && document.getElementById('settingsTitle').textContent === '설정'`));
+    await ev(`document.getElementById('settings').click()`); await sleep(200);   // 창 바깥(어두운 배경)을 누르면 닫힌다
+    check('바깥을 누르면 설정 창이 닫힌다', await ev(`document.getElementById('settings').hidden`));
+    await ev(`document.getElementById('settingsBtn').click()`); await sleep(200);
+    await ev(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))`); await sleep(200);
+    check('Esc를 누르면 설정 창이 닫힌다', await ev(`document.getElementById('settings').hidden`));
+    await ev(`document.getElementById('settingsBtn').click()`); await sleep(200);
+    await ev(`document.getElementById('settingsClose').click()`); await sleep(200);
+    check('✕ 버튼으로 닫을 수 있다', await ev(`document.getElementById('settings').hidden`));
+    await ev(`document.getElementById('settingsBtn').click()`); await sleep(300);
+    check('설정 창에서 "처음부터 다시"가 초기화 확인 창으로 이어진다', await ev(`(() => { document.getElementById('resetBtn2').click(); return document.getElementById('settings').hidden && document.getElementById('modalTitle').textContent.includes('처음부터'); })()`));
+    await ev(`document.querySelector('#modalActions .btn').click()`); await sleep(200);   // 취소
+    await ev(`document.getElementById('settingsBtn').click()`); await sleep(300);
+    check('서버가 연결되지 않아도 계정 연동 버튼 두 개와 "준비 중" 표시가 보인다',
       (await ev(`document.getElementById('acct').textContent`)).includes('준비 중') && (await ev(`document.querySelectorAll('[data-login]').length`)) === 2);
     await ev(`document.querySelector('[data-login="google"]').click()`); await sleep(300);
     check('준비 중일 때 버튼을 누르면 안내 창이 뜨고 로그인 시도는 하지 않는다',
@@ -238,7 +251,7 @@ const FAKE_CLOUD = `(() => {
     await ev(`localStorage.removeItem('fake-cloud-server')`);
     await send('Page.navigate', { url: 'file://' + ROOT + '/index.html' }); await sleep(1500);
     await ev(`Game.setRandom(() => 0.999)`);
-    await ev(`document.querySelector('[data-go="log"]').click()`); await sleep(300);
+    await ev(`document.getElementById('settingsBtn').click()`); await sleep(300);
     check('로그인 전에는 Google·Apple 버튼이 보인다', (await ev(`document.querySelectorAll('[data-login]').length`)) === 2);
     await shot('account-out');
     await ev(`document.querySelector('[data-login="google"]').click()`); await sleep(700);
@@ -265,10 +278,10 @@ const FAKE_CLOUD = `(() => {
     check('클라우드를 고르면 게임이 클라우드 저장(레벨 33)으로 바뀐다', (await ev(`document.getElementById('level').textContent`)) === '33');
     check('클라우드를 고른 뒤에는 로컬 저장도 같은 진행이다', JSON.parse(await ev(`localStorage.getItem('goblin-idle-save-v1')`)).level >= 33);
 
-    // 로그아웃
+    // 연동 해제
     await ev(`document.querySelector('[data-acct="out"]').click()`); await sleep(300);
     await ev(`document.querySelector('#modalActions .btn--blue').click()`); await sleep(600);
-    check('로그아웃하면 로그인 버튼이 다시 나온다', (await ev(`document.querySelectorAll('[data-login]').length`)) === 2);
+    check('연동을 해제하면 연동 버튼이 다시 나온다', (await ev(`document.querySelectorAll('[data-login]').length`)) === 2);
     // 로그인 실패 안내
     await ev(`window.CLOUD_ADAPTER.signIn = async () => { throw Object.assign(new Error('x'), { code: 'auth/popup-blocked' }); }`);
     await ev(`document.querySelector('[data-login="apple"]').click()`); await sleep(500);
@@ -277,7 +290,7 @@ const FAKE_CLOUD = `(() => {
     await ev(`window.CLOUD_ADAPTER.signIn = async () => { throw Object.assign(new Error('x'), { code: 'auth/popup-closed-by-user' }); }`);
     await ev(`document.querySelector('[data-login="apple"]').click()`); await sleep(400);
     check('로그인 창을 닫으면 오류 문구가 사라진다', !(await ev(`document.getElementById('acct').textContent`)).includes('팝업'));
-    await ev(`document.querySelector('[data-go="upgrade"]').click()`); await sleep(200);
+    await ev(`document.getElementById('settingsClose').click()`); await sleep(200);
 
     console.log('오래 돌려도 안정적인가 (전투 10초)');
     await ev(`document.querySelector('[data-go="upgrade"]').click()`);

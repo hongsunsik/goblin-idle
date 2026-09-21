@@ -1019,6 +1019,7 @@
     render();
   }
   $('scene').addEventListener('pointerdown', (e) => {
+    if (e.target.closest('.gearbtn')) return;   // 설정 버튼은 공격이 아니다
     e.preventDefault();
     const box = sceneEl.getBoundingClientRect();
     attack(e.clientX - box.left, e.clientY - box.top);
@@ -1150,35 +1151,36 @@
     const box = $('acct');
     if (!st.configured) {
       // 서버(Firebase)가 아직 연결되지 않았어도 버튼은 보여 주고, 누르면 준비 중이라고 알려 준다
-      box.innerHTML = '<div class="acct__title">☁ 클라우드 저장 <span class="acct__soon">준비 중</span></div>' +
-        '<div class="acct__desc">로그인하면 진행 상황이 안전하게 저장되고, 다른 기기에서도 이어서 할 수 있어요. 지금은 이 기기(브라우저)에만 자동 저장돼요.</div>' +
-        '<div class="acct__btns"><button class="btn btn--google is-soon" type="button" data-login="google">Google로 로그인</button>' +
-        '<button class="btn btn--apple is-soon" type="button" data-login="apple">Apple로 로그인</button></div>' +
+      box.innerHTML = '<div class="acct__title">☁ 계정 연동 <span class="acct__soon">준비 중</span></div>' +
+        '<div class="acct__desc">Google 계정을 연동하면 진행 상황이 클라우드에 저장돼서, 다른 기기에서도 이어서 할 수 있어요. 지금은 이 기기(브라우저)에만 자동 저장돼요.</div>' +
+        '<div class="acct__btns"><button class="btn btn--google is-soon" type="button" data-login="google">Google 계정 연동하기</button>' +
+        '<button class="btn btn--apple is-soon" type="button" data-login="apple">Apple 계정 연동하기</button></div>' +
         '<div class="acct__desc" style="margin:8px 0 0"><small>개발자: docs/FIREBASE-SETUP.md</small></div>';
       return;
     }
     const err = st.error ? `<div class="acct__err">${esc(st.error)}</div>` : '';
     if (!st.user) {
-      box.innerHTML = '<div class="acct__title">☁ 클라우드 저장</div>' +
-        '<div class="acct__desc">로그인하면 진행 상황이 안전하게 저장되고, 다른 기기에서도 이어서 할 수 있어요.</div>' +
-        '<div class="acct__btns"><button class="btn btn--google" type="button" data-login="google">Google로 로그인</button>' +
-        '<button class="btn btn--apple" type="button" data-login="apple">Apple로 로그인</button></div>' + err;
+      box.innerHTML = '<div class="acct__title">☁ 계정 연동</div>' +
+        '<div class="acct__desc">Google 계정을 연동하면 진행 상황이 클라우드에 저장돼서, 다른 기기에서도 이어서 할 수 있어요.</div>' +
+        '<div class="acct__btns"><button class="btn btn--google" type="button" data-login="google">Google 계정 연동하기</button>' +
+        '<button class="btn btn--apple" type="button" data-login="apple">Apple 계정 연동하기</button></div>' + err;
       return;
     }
     const u = st.user;
     const statusText = st.status === 'syncing' ? '동기화하는 중…' : st.status === 'error' ? '저장하지 못했어요' : st.lastSyncedAt ? `마지막 저장 ${agoText(st.lastSyncedAt)}` : '로그인됨';
     box.innerHTML =
+      '<div class="acct__title" style="margin-bottom:8px">☁ 연동된 계정</div>' +
       `<div class="acct__user"><div class="acct__photo">${u.photo ? `<img src="${esc(u.photo)}" alt="" referrerpolicy="no-referrer">` : esc((u.name || '?').slice(0, 1))}</div>` +
       `<div><div class="acct__name">${esc(u.name)}</div><div class="acct__mail">${esc(u.email || '')}</div></div></div>` +
       `<div class="acct__status ${st.status === 'syncing' ? 'is-busy' : st.status === 'error' ? 'is-error' : ''}">☁ ${statusText}</div>` +
       `<div class="acct__btns"><button class="btn" type="button" data-acct="sync" ${st.status === 'syncing' ? 'disabled' : ''}>지금 저장</button>` +
-      '<button class="btn btn--gray" type="button" data-acct="out">로그아웃</button></div>' + err;
+      '<button class="btn btn--gray" type="button" data-acct="out">연동 해제</button></div>' + err;
   }
   $('acct').addEventListener('click', async (e) => {
     const login = e.target.closest('button[data-login]');
     if (login) {
       if (!cloud.state().configured) {
-        openModal('준비 중이에요', 'Google·Apple 로그인은 아직 서버가 연결되지 않아서 쓸 수 없어요.<br>연결되면 이 버튼으로 로그인해서 기기를 바꿔도 이어서 할 수 있어요.<br><small>지금 진행 상황은 이 기기에 자동 저장돼요.</small>', [{ text: '확인' }]);
+        openModal('준비 중이에요', 'Google·Apple 계정 연동은 아직 서버가 연결되지 않아서 쓸 수 없어요.<br>연결되면 이 버튼으로 연동해서 기기를 바꿔도 이어서 할 수 있어요.<br><small>지금 진행 상황은 이 기기에 자동 저장돼요.</small>', [{ text: '확인' }]);
         return;
       }
       await cloud.signIn(login.dataset.login); renderAccount(); return;
@@ -1187,12 +1189,22 @@
     if (!act) return;
     if (act.dataset.acct === 'sync') { await cloud.sync(); renderAccount(); }
     if (act.dataset.acct === 'out') {
-      openModal('로그아웃할까요?', '이 기기의 진행은 그대로 남아요.<br><small>마지막 진행은 클라우드에 저장하고 로그아웃해요.</small>',
-        [{ text: '취소' }, { text: '로그아웃', cls: 'btn--blue', onClick: () => cloud.signOut() }]);
+      openModal('연동을 해제할까요?', '이 기기의 진행은 그대로 남아요.<br><small>마지막 진행은 클라우드에 저장하고 해제해요.</small>',
+        [{ text: '취소' }, { text: '연동 해제', cls: 'btn--blue', onClick: () => cloud.signOut() }]);
     }
   });
+  // ---- 설정 창 ----
+  const settings = $('settings');
+  const openSettings = () => { renderAccount(); settings.hidden = false; };
+  const closeSettings = () => { settings.hidden = true; };
+  $('settingsBtn').addEventListener('click', openSettings);
+  $('settingsClose').addEventListener('click', closeSettings);
+  settings.addEventListener('click', (e) => { if (e.target === settings) closeSettings(); });   // 바깥을 누르면 닫는다
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !settings.hidden && $('modal').hidden) closeSettings(); });
+  $('resetBtn2').addEventListener('click', () => { closeSettings(); $('resetBtn').click(); });
+
   // 저장 시각 문구("3분 전")가 멈춰 보이지 않게 기록 탭이 열려 있으면 가끔 다시 그린다
-  setInterval(() => { if (currentTab === 'log' && cloud.state().user) renderAccount(); }, 15000);
+  setInterval(() => { if (!settings.hidden && cloud.state().user) renderAccount(); }, 15000);
 
   // 중요한 일(환생·전직·상점 구매·초기화) 뒤에는 바로, 평소에는 3분마다, 창을 가릴 때도 클라우드에 올린다
   const cloudSoon = () => cloud.schedulePush(4000);

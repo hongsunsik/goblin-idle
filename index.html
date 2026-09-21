@@ -58,6 +58,9 @@
         <div class="hud__cur">
           <div class="plate" title="골드"><svg class="ic"><use href="#i-coin"/></svg><b id="gold">0</b></div>
           <div class="plate plate--token" title="쓸 수 있는 왕의 증표 (공격력·골드 +40%는 지금까지 번 증표 기준)"><svg class="ic"><use href="#i-crown"/></svg><b id="tokens">0</b></div>
+          <button class="gearbtn" id="settingsBtn" type="button" aria-label="설정" title="설정 · 계정 연동">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+          </button>
         </div>
       </div>
 
@@ -173,7 +176,6 @@
         </section>
 
         <section class="tab" data-tab="log" hidden>
-          <div class="card acct" id="acct"></div>
           <h3 class="sect"><svg class="ic"><use href="#i-star"/></svg>업적 <small id="achieveBonus"></small></h3>
           <div class="achv" id="achv"></div>
           <h3 class="sect"><svg class="ic"><use href="#i-scroll"/></svg>모험 기록</h3>
@@ -185,6 +187,21 @@
         </section>
       </main>
     </section>
+  </div>
+
+  <div class="sheet" id="settings" hidden>
+    <div class="sheet__box win" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+      <div class="sheet__head"><h2 id="settingsTitle">설정</h2><button class="sheet__x" id="settingsClose" type="button" aria-label="닫기">✕</button></div>
+      <div class="sheet__body">
+        <h3 class="sect">계정 연동</h3>
+        <div class="card acct" id="acct"></div>
+        <h3 class="sect">저장</h3>
+        <div class="card setrow">
+          <div><b>이 기기에 자동 저장</b><small id="saveInfo2">5초마다 자동으로 저장돼요</small></div>
+          <button class="btn btn--gray" id="resetBtn2" type="button">처음부터 다시</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <div class="modal" id="modal" hidden>
