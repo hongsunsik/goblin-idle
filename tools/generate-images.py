@@ -61,10 +61,10 @@ MONSTERS = {
     'wolf': 'brown wolf, side view, growling, sharp fangs',
     'boar': 'wild boar with tusks and a spiky mane, charging pose',
     'spider': 'forest spider with eight legs, red eyes, small fangs',
-    'snake': 'green snake curled in an S shape, forked tongue',
+    'snake': 'a legless limbless green snake, long slithering body in an S curve lying on the ground, forked red tongue, no arms, no legs',
     'skeleton': 'skeleton soldier holding a rusty sword, glowing eye sockets',
     'ghost': 'round white ghost with a wavy bottom, sad-angry big eyes',
-    'scorpion': 'orange scorpion with raised tail and big claws',
+    'scorpion': 'orange scorpion seen from the side, eight legs, two big pincer claws in front, long segmented curved tail arched over its back with a stinger',
     'golem': 'stone golem with a glowing green core on the chest and mossy shoulders',
     'imp': 'small red demon imp with yellow horns, bat wings and a pointed tail, mischievous grin',
     'ogre': 'big green ogre holding a wooden club, angry expression with two tusks',
@@ -78,7 +78,7 @@ ICONS = {
     'scroll': 'rolled parchment scroll', 'star': 'gold star', 'skull': 'white skull',
     'hand': 'pointing hand, finger tapping', 'lock': 'golden padlock', 'check': 'green check mark',
     'book': 'open old book', 'gem': 'blue faceted gemstone', 'arrowup': 'bold green arrow pointing up',
-    'dot': 'small glossy red dot',
+    'dot': 'a single perfectly round glossy red circle, just one red ball, nothing else',
 }
 BACKGROUNDS = {
     'biome0': 'sunny green forest hills with tall pine trees, blue sky with clouds, a small floating island in the sky',
