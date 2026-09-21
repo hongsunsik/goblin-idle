@@ -40,14 +40,27 @@ function runOne(path, minutes) {
   return { s, marks };
 }
 
+// 증표로 상점 강화를 산다: 가장 싼 것부터, 살 수 있는 만큼 (기본 3가지를 먼저 올리는 것과 비슷한 효과)
+function spendTokens(s) {
+  for (;;) {
+    let best = null, bestCost = Infinity;
+    for (const id of G.PERK_KEYS) {
+      if (G.canBuyPerk(s, id) && G.perkCost(s, id) < bestCost) { best = id; bestCost = G.perkCost(s, id); }
+    }
+    if (!best) return;
+    G.buyPerk(s, best);
+  }
+}
+
 // 정체되면 환생하는 봇. 한 판을 minutes분씩 돌려 몇 번째 판에 어디까지 가는지 본다.
-function runPrestiges(path, runMinutes, runs) {
+function runPrestiges(path, runMinutes, runs, usePerks) {
   const s = G.createState(0);
   const out = [];
   for (let i = 0; i < runs; i++) {
     playRun(s, path, runMinutes * 60, []);
-    out.push({ run: i + 1, stage: s.runBest, tokens: s.tokens });
+    out.push({ run: i + 1, stage: s.runBest, tokens: s.tokens, spent: G.perkSpent(s) });
     G.prestige(s);
+    if (usePerks) spendTokens(s);
   }
   return out;
 }
@@ -67,6 +80,11 @@ for (const p of selected) {
   console.log(p.join('/').padEnd(20) + marks.map((m) => fmtMin(m.t)).join(' ') + `  ${String(s.runBest).padStart(3)}  ${s.level}`);
 }
 
-console.log('\n== 환생 반복 (한 판 15분씩 6번) ==');
+console.log('\n== 환생 반복 (한 판 15분씩 10번) ==');
 const demo = only ? selected[0] : ['mage', 'pyromancer'];
-console.log(demo.join('/') + ': ' + runPrestiges(demo, 15, 6).map((r) => `${r.run}판→${r.stage}`).join('  '));
+const show = (rs) => rs.map((r) => `${r.run}판→${r.stage}`).join('  ');
+console.log(demo.join('/') + ' (증표 상점 안 씀): ' + show(runPrestiges(demo, 15, 10, false)));
+const withPerks = runPrestiges(demo, 15, 10, true);
+console.log(demo.join('/') + ' (증표 상점 사용): ' + show(withPerks));
+const last = withPerks[withPerks.length - 1];
+console.log(`  10판 뒤 누적 증표 ${last.tokens}개, 상점에 쓴 증표 ${last.spent}개`);
