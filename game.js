@@ -366,7 +366,8 @@
       atkT: 0,
       dealt: 0,          // 표시용: 최근에 준 피해량 (저장하지 않음)
       skillCd: {},       // 스킬별 남은 쿨타임(초). 저장은 되지만 불러올 때 새로 시작한다 (표시·계산용)
-      buffs: {},         // 지금 걸려 있는 스킬 효과 { haste|might|guard|greed: { t 남은 시간, v 위력 } }
+      buffs: {},         // 지금 걸려 있는 스킬 효과 { haste|might|guard|greed|lifesteal|stun|barrier: { t 남은 시간, v 위력(방벽은 남은 방벽량) } }
+      dot: null,         // 몬스터에게 걸린 지속 피해 { t 남은 시간, dps 초당 피해, variant } (몬스터가 바뀌면 사라진다)
       hits: 0,           // 표시용: 지금까지 고블린이 때린 횟수. 화면이 타격 연출을 넣는 시점을 알려고 쓴다 (저장하지 않음)
       savedAt: now || 0,
     };
@@ -519,29 +520,54 @@
     }
     return out;
   }
-  // 이 스킬을 지금 써도 되는지 (체력이 충분한데 회복을 쓰지 않도록)
+  // 이 스킬을 지금 써도 되는지: 종류마다 '상황'이 맞을 때만 쓴다 (체력이 충분한데 회복을 쓰지 않고, 보스가 아닌데 보스 사냥을 쓰지 않도록)
   function canCast(s, sk) {
-    if (sk.kind === 'heal') return s.hp < maxHp(s) * 0.7;
-    if (sk.kind === 'guard') return s.hp < maxHp(s) * 0.85;
-    return s.monsterHp > 0;
+    const hpRatio = s.hp / maxHp(s);
+    const monRatio = s.monsterMax > 0 ? s.monsterHp / s.monsterMax : 1;
+    switch (sk.kind) {
+      case 'heal': return hpRatio < 0.7;
+      case 'guard': return hpRatio < 0.85;
+      case 'stun': return hpRatio < 0.85 && s.monsterHp > 0;
+      case 'barrier': return hpRatio < 0.75 && !s.buffs.barrier;
+      case 'lifesteal': return hpRatio < 0.9 && !s.buffs.lifesteal;
+      case 'execute': return s.monsterHp > 0 && monRatio < 0.4;
+      case 'bossbane': return s.isBoss && s.monsterHp > 0;
+      case 'dot': return !s.dot && monRatio > 0.5;
+      default: return s.monsterHp > 0;
+    }
   }
   // 스킬 하나를 쓴다. 효과를 적용하고 { type: 'skill' } 사건을 남긴다.
   function castSkill(s, sk, ev) {
     let amount = 0;
-    if (sk.kind === 'strike') { amount = hitDmg(s) * sk.power; dealDamage(s, amount, ev); }
-    else if (sk.kind === 'multi') { amount = hitDmg(s) * sk.power * sk.hits; dealDamage(s, amount, ev); }
-    else if (sk.kind === 'summon') { amount = Math.max(companionDps(s), totalDps(s) * 0.25) * sk.secs * sk.power; dealDamage(s, amount, ev); }
-    else if (sk.kind === 'heal') { const before = s.hp; s.hp = Math.min(maxHp(s), s.hp + maxHp(s) * sk.power); amount = s.hp - before; }
-    else {   // haste·might·guard·greed: 잠시 지속되는 효과. 같은 종류가 겹치면 더 센 위력과 더 긴 시간을 따른다.
-      const cur = s.buffs[sk.kind];
-      s.buffs[sk.kind] = { t: Math.max(sk.dur, cur ? cur.t : 0), v: Math.max(sk.power, cur ? cur.v : 0) };
-      amount = sk.power;
+    const setBuff = (kind, v, t) => { const cur = s.buffs[kind]; s.buffs[kind] = { t: Math.max(t, cur ? cur.t : 0), v: Math.max(v, cur ? cur.v : 0) }; };   // 같은 종류가 겹치면 더 센 위력과 더 긴 시간을 따른다
+    switch (sk.kind) {
+      case 'strike': case 'execute': case 'bossbane':
+        amount = hitDmg(s) * sk.power; dealDamage(s, amount, ev); break;
+      case 'multi':
+        amount = hitDmg(s) * sk.power * sk.hits; dealDamage(s, amount, ev); break;
+      case 'summon':
+        amount = totalDps(s) * 0.3 * sk.secs * sk.power; dealDamage(s, amount, ev); break;   // 동료 배율에 좌우되지 않게, 내 초당 피해의 30%를 기준으로 한다
+      case 'dot':   // 매초 (내 초당 피해 × 위력). 몬스터가 바뀌면 사라진다.
+        s.dot = { t: sk.dur, dps: totalDps(s) * sk.power, variant: sk.variant }; amount = s.dot.dps * sk.dur; break;
+      case 'heal': { const before = s.hp; s.hp = Math.min(maxHp(s), s.hp + maxHp(s) * sk.power); amount = s.hp - before; break; }
+      case 'barrier': amount = maxHp(s) * sk.power; s.buffs.barrier = { t: sk.dur, v: amount }; break;
+      case 'stun': setBuff('stun', 1, sk.power); amount = sk.power; break;
+      case 'bounty': amount = Math.ceil(monsterGold(s.stage) * goldMult(s) * sk.power); s.gold += amount; break;
+      case 'frenzy': setBuff('haste', sk.power, sk.dur); setBuff('might', sk.power, sk.dur); amount = sk.power; break;
+      default: setBuff(sk.kind, sk.power, sk.dur); amount = sk.power;   // haste·might·guard·greed·lifesteal
     }
-    ev.push({ type: 'skill', id: sk.id, kind: sk.kind, name: sk.name, amount, hits: sk.hits, power: sk.power });
+    ev.push({ type: 'skill', id: sk.id, kind: sk.kind, name: sk.name, variant: sk.variant, amount, hits: sk.hits, power: sk.power, secs: sk.secs });
   }
   // dt초 동안의 쿨타임과 효과 시간을 흘려보내고, 준비된 스킬을 쓴다. 처음 만난 스킬은 조금씩 시간 차를 두고 시작해서 한꺼번에 터지지 않는다.
   function updateSkills(s, dt, ev) {
     for (const k of Object.keys(s.buffs)) { s.buffs[k].t -= dt; if (s.buffs[k].t <= 0) delete s.buffs[k]; }
+    const d = s.dot;
+    if (d) {   // 지속 피해: 이 몬스터가 죽거나 시간이 다하면 끝난다
+      const step = Math.min(dt, d.t);
+      d.t -= dt;
+      dealDamage(s, d.dps * step, ev);
+      if (d.t <= 0 && s.dot === d) s.dot = null;
+    }
     const list = skillsOf(s);
     list.forEach((sk, i) => {
       if (s.skillCd[sk.id] === undefined) s.skillCd[sk.id] = sk.cd * 0.15 * (i + 1);
@@ -601,6 +627,7 @@
 
   // ---- 전투 ----
   function spawnMonster(s) {
+    s.dot = null;
     s.isBoss = isBossStage(s.stage);
     s.monsterMax = monsterMaxHp(s.stage);
     s.monsterHp = s.monsterMax;
@@ -642,6 +669,8 @@
   function dealDamage(s, amount, ev) {
     if (amount <= 0 || s.monsterHp <= 0) return;
     s.dealt += Math.min(amount, s.monsterHp);
+    const ls = buffV(s, 'lifesteal');
+    if (ls > 0) s.hp = Math.min(maxHp(s), s.hp + Math.min(amount, s.monsterHp) * ls);   // 흡혈 스킬
     s.monsterHp -= amount;
     if (s.monsterHp <= 0) onKill(s, ev);
   }
@@ -669,7 +698,14 @@
 
     const max = maxHp(s);
     s.hp = Math.min(max, s.hp + max * 0.02 * statMult(s, 'regen') * dt);   // 초당 최대 체력의 2% 회복
-    s.hp -= monsterAtk(s.stage) * dt * (1 - buffV(s, 'guard'));
+    let dmg = buffV(s, 'stun') > 0 ? 0 : monsterAtk(s.stage) * dt * (1 - buffV(s, 'guard'));   // 기절한 몬스터는 공격하지 못한다
+    const barrier = s.buffs.barrier;
+    if (barrier && dmg > 0) {   // 방벽이 피해를 먼저 대신 맞는다
+      const absorbed = Math.min(barrier.v, dmg);
+      barrier.v -= absorbed; dmg -= absorbed;
+      if (barrier.v <= 0) delete s.buffs.barrier;
+    }
+    s.hp -= dmg;
 
     if (s.hp <= 0) {
       s.hp = 0;
@@ -754,6 +790,7 @@
     s.adv4 = null;
     s.skillCd = {};
     s.buffs = {};
+    s.dot = null;
     s.downT = 0;
     s.atkT = 0;
     s.hp = maxHp(s);

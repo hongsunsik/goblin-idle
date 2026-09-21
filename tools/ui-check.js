@@ -336,22 +336,21 @@ const FAKE_CLOUD = `(() => {
     await shot('round2');
     await reopen(mk(22, ['mage', 'pyromancer']));
 
-    console.log('전투 효과 (차분하게 / 화려하게)');
-    // 3초 동안 전투 층에 생기는 이펙트를 센다 (자동 공격만, 탭 없이)
+    console.log('전투 효과 (화려하게 / 차분하게)');
+    // 4초 동안 전투 층에 생기는 이펙트를 센다 (자동 공격만, 탭 없이)
     const countFx = (ms) => ev(`new Promise((res) => { const n = { spark: 0, hit: 0, coin: 0, all: 0 }; const o = new MutationObserver((list) => { for (const m of list) for (const a of m.addedNodes) { if (!a.classList) continue; n.all++; if (a.classList.contains('fx-spark')) n.spark++; if (a.classList.contains('float--hit')) n.hit++; if (a.classList.contains('fx-coin')) n.coin++; } }); o.observe(document.getElementById('floatLayer'), { childList: true }); setTimeout(() => { o.disconnect(); res(n); }, ${ms}); })`);
     await reopen(mk(30, []));   // 직업이 없는(스킬이 없는) 건강한 고블린으로 연다. 기절 중에는 공격 연출이 없고, 스킬 연출이 섞이면 자동 공격 이펙트만 세기 어렵다.
-    await ev(`document.querySelector('[data-go="upgrade"]').click()`); await sleep(300);
-    check('기본은 "차분하게"로 선택돼 있다', (await ev(`document.querySelector('#fxSeg button.is-on').dataset.fx`)) === 'calm');
+    check('기본은 "화려하게"로 선택돼 있다', (await ev(`document.querySelector('#fxSeg button.is-on').dataset.fx`)) === 'full');
     await sleep(1500);
     check('점검 전제: 고블린이 기절하지 않았고 자동 공격 중이다', (await ev(`document.getElementById('downBanner').hidden`)) === true);
-    const calmFx = await countFx(4000);
-    check('차분하게: 자동 전투 4초 동안 불꽃·타격 숫자·동전이 하나도 생기지 않는다', calmFx.spark === 0 && calmFx.hit === 0 && calmFx.coin === 0, JSON.stringify(calmFx));
-    await ev(`document.querySelector('#fxSeg [data-fx="full"]').click()`); await sleep(200);
-    check('"화려하게"로 바꾸면 기기에 기억된다', (await ev(`localStorage.getItem('goblin-idle-fx-v1')`)) === 'full' && (await ev(`document.querySelector('#fxSeg button.is-on').dataset.fx`)) === 'full');
     const fullFx = await countFx(4000);
-    check('화려하게: 같은 4초 동안 불꽃이나 타격 숫자가 나온다 (차분하게보다 확실히 많다)', (fullFx.spark + fullFx.hit) > 0 && fullFx.all > calmFx.all, `차분 ${JSON.stringify(calmFx)} / 화려 ${JSON.stringify(fullFx)}`);
+    check('화려하게: 자동 전투 4초 동안 불꽃이나 타격 숫자가 나온다', (fullFx.spark + fullFx.hit) > 0, JSON.stringify(fullFx));
     await ev(`document.querySelector('#fxSeg [data-fx="calm"]').click()`); await sleep(200);
-    check('다시 "차분하게"로 돌릴 수 있다', (await ev(`localStorage.getItem('goblin-idle-fx-v1')`)) === 'calm');
+    check('"차분하게"로 바꾸면 기기에 기억된다', (await ev(`localStorage.getItem('goblin-idle-fx-v1')`)) === 'calm' && (await ev(`document.querySelector('#fxSeg button.is-on').dataset.fx`)) === 'calm');
+    const calmFx = await countFx(4000);
+    check('차분하게: 같은 4초 동안 불꽃·타격 숫자·동전이 하나도 생기지 않고 이펙트가 훨씬 적다', calmFx.spark === 0 && calmFx.hit === 0 && calmFx.coin === 0 && calmFx.all < fullFx.all, `화려 ${JSON.stringify(fullFx)} / 차분 ${JSON.stringify(calmFx)}`);
+    await ev(`document.querySelector('#fxSeg [data-fx="full"]').click()`); await sleep(200);
+    check('다시 "화려하게"로 돌릴 수 있다', (await ev(`localStorage.getItem('goblin-idle-fx-v1')`)) === 'full');
 
     console.log('직업별 공격 모션과 스킬');
     // 전투 층에 생기는 요소의 클래스를 seconds초 동안 모아 센다
@@ -367,33 +366,39 @@ const FAKE_CLOUD = `(() => {
     await styleCase('사령술사: 어둠 마법을 쏜다', ['mage', 'necromancer'], '.proj--dark');
     await styleCase('궁수: 화살을 쏜다', ['archer'], '.proj--arrow');
     await styleCase('저격수: 총알을 쏜다', ['archer', 'sniper'], '.proj--bullet');
-    await styleCase('기사: 칼을 휘둘러 베는 궤적이 남는다 (투사체는 없다)', ['warrior', 'knight'], '.arc--slash');
-    await styleCase('광전사: 도끼를 휘두른다', ['warrior', 'berserker'], '.arc--axe');
+    await styleCase('기사: 칼을 휘둘러 베는 궤적이 남는다 (투사체는 없다)', ['warrior', 'knight'], '.arc--slash, .fx-sprite');
+    await styleCase('광전사: 도끼를 휘두른다', ['warrior', 'berserker'], '.arc--axe, .fx-sprite');
     // 예전처럼 앞뒤로 크게 달려갔다 오지 않는다: 3초 동안 고블린 몸의 가로 이동량을 재 본다 (예전 돌진은 34px)
     await reopen(mk(30, ['warrior', 'knight'])); await sleep(300);
     const maxShift = await ev(`new Promise((res) => { let mx = 0; const b = document.getElementById('hero'); const iv = setInterval(() => { const m = new DOMMatrix(getComputedStyle(b).transform); mx = Math.max(mx, Math.abs(m.m41)); }, 25); setTimeout(() => { clearInterval(iv); res(mx); }, 3500); })`);
     check('근접 공격도 제자리에서 휘두른다 (가로 이동 14px 이하, 예전 돌진은 34px)', maxShift > 0 && maxShift <= 14, `최대 ${maxShift.toFixed(1)}px`);
 
-    // 스킬 바와 자동 시전 (마법사 → 화염술사: 마나 집중(강화), 화염 폭발(강타))
+    // 스킬 바와 자동 시전 (마법사 → 화염술사: 마법 화살(연타), 점화(지속 피해))
     await reopen(mk(30, ['mage', 'pyromancer'])); await sleep(300);
     check('직업이 있으면 스킬 바에 스킬이 직업 수(2개)만큼 보이고 "화면을 눌러 공격" 안내는 숨는다', (await ev(`document.querySelectorAll('#skillbar .skill').length`)) === 2 && (await ev(`!document.getElementById('skillbar').hidden`)) && (await ev(`getComputedStyle(document.querySelector('.tap-hint')).display`)) === 'none');
-    let seenSkillText = false, seenAura = false;
-    for (let i = 0; i < 40 && !(seenSkillText && seenAura); i++) {
+    let seenBanner = false, seenDot = false;
+    for (let i = 0; i < 48 && !(seenBanner && seenDot); i++) {
       await sleep(250);
-      seenSkillText = seenSkillText || await ev(`!!document.querySelector('#floatLayer .float--skill')`);
-      seenAura = seenAura || await ev(`document.getElementById('heroBox').classList.contains('buff-might')`);
+      seenBanner = seenBanner || await ev(`!!document.querySelector('#floatLayer .skill-banner')`);
+      seenDot = seenDot || await ev(`document.getElementById('monster').dataset.dot === 'burn'`);
     }
-    check('스킬은 쿨타임이 차면 자동으로 쓰이고 스킬 이름이 화면에 뜬다', seenSkillText);
-    check('강화(마나 집중) 스킬을 쓰면 고블린 몸이 붉게 빛난다', seenAura);
+    check('스킬은 쿨타임이 차면 자동으로 쓰이고 스킬 이름 배너가 화면에 뜬다', seenBanner);
+    check('점화(지속 피해)를 쓰면 몬스터 몸이 불타는 색으로 바뀐다', seenDot);
+    // 공격 속도 스킬(궁수 속사)을 쓰면 고블린 몸이 빛난다
+    await reopen(mk(30, ['archer'])); await sleep(300);
+    let seenHaste = false;
+    for (let i = 0; i < 40 && !seenHaste; i++) { await sleep(250); seenHaste = await ev(`document.getElementById('heroBox').classList.contains('buff-haste')`); }
+    check('가속(속사) 스킬을 쓰면 고블린 몸이 빛난다', seenHaste);
+    await reopen(mk(30, ['mage', 'pyromancer'])); await sleep(300);
     await ev(`document.querySelector('#skillbar .skill').click()`); await sleep(250);
-    check('스킬 아이콘을 누르면 설명 창이 열리고, 공격으로 잘못 처리되지 않는다', (await ev(`document.getElementById('modalTitle').textContent`)) === '마나 집중' && (await ev(`document.getElementById('modalBody').textContent`)).includes('공격력이'));
+    check('스킬 아이콘을 누르면 설명 창이 열리고, 공격으로 잘못 처리되지 않는다', (await ev(`document.getElementById('modalTitle').textContent`)) === '마법 화살' && (await ev(`document.getElementById('modalBody').textContent`)).includes('4번'));
     await ev(`document.querySelector('#modalActions .btn').click()`); await sleep(200);
     await ev(`document.querySelector('[data-go="class"]').click()`); await sleep(400);
-    check('전직 탭에 지금 직업들의 스킬 목록이 보인다', (await ev(`document.querySelectorAll('#classSkills .sk-row').length`)) === 2 && (await ev(`document.getElementById('classSkills').textContent`)).includes('화염 폭발'));
+    check('전직 탭에 지금 직업들의 스킬 목록이 보인다', (await ev(`document.querySelectorAll('#classSkills .sk-row').length`)) === 2 && (await ev(`document.getElementById('classSkills').textContent`)).includes('점화'));
     await shot('skills');
     await reopen(mk(30, ['mage', 'pyromancer']));
     await ev(`document.querySelector('[data-go="class"]').click()`); await sleep(400);
-    check('3차 전직 선택지 카드에 각 직업의 스킬이 미리 보인다', (await ev(`document.querySelectorAll('#classChoice .choice__skill').length`)) === 2 && (await ev(`document.getElementById('classChoice').textContent`)).includes('지옥불'));
+    check('3차 전직 선택지 카드에 각 직업의 스킬이 미리 보인다', (await ev(`document.querySelectorAll('#classChoice .choice__skill').length`)) === 2 && (await ev(`document.getElementById('classChoice').textContent`)).includes('지옥불 폭격'));
     await reopen(mk(22, ['mage', 'pyromancer']));
 
     console.log('오래 돌려도 안정적인가 (전투 10초)');

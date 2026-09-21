@@ -1,56 +1,70 @@
 // 고블린 키우기 - 직업별 스킬과 공격 모션 데이터 (game.js가 불러 쓴다)
 //
 // 스킬: 직업(1~4차) 60개마다 스킬이 하나씩 있고, 전직할 때마다 그 직업의 스킬이 하나씩 쌓인다 (4차는 최대 4개).
-// 스킬은 쿨타임이 차면 자동으로 쓴다. 위력은 효과 종류(KINDS)의 기본값에 직업 단계(TIER_POWER)를 곱해서 정한다.
+// 스킬은 쿨타임이 차고 '상황이 맞으면' 자동으로 쓴다 (예: 방벽은 체력이 낮을 때, 보스 사냥은 보스가 나왔을 때, 처형은 몬스터 체력이 낮을 때).
+// 위력은 효과 종류(KINDS)의 기본값에 직업 단계(TIER_POWER)를 곱해서 정한다.
 // 공격 모션: 평타를 칠 때 어떤 모양으로 공격하는지 (칼 휘두르기, 표창 던지기, 마법구 쏘기 등). 화면 연출이 쓴다.
 (function (root) {
-  // ---- 효과 종류 ----
-  //   cd 쿨타임(초) / base 1차 기준 위력 / dur 지속 시간(초) / hits 연타 횟수 / secs 소환 지속 시간 / cap 위력 상한
+  // ---- 효과 종류 (16가지) ----
+  //   cd 쿨타임(초) / base 1차 기준 위력 / dur 지속 시간(초) / hits 연타 횟수 / secs 소환 지속 시간 / cap 위력 상한 / icon 그림이 없을 때 쓰는 기본 아이콘 / when 쓰는 상황(설명용)
   const KINDS = {
-    strike: { label: '강타',   icon: 'sword',  cd: 14, base: 3.0 },                 // 공격력 × 위력 만큼 한 번에 피해
-    multi:  { label: '연타',   icon: 'burst',  cd: 12, base: 1.0, hits: 4 },         // 공격력 × 위력 만큼을 hits번 나눠 피해
-    heal:   { label: '회복',   icon: 'heart',  cd: 25, base: 0.20, cap: 0.6 },      // 최대 체력의 (위력)만큼 회복. 체력이 70% 아래일 때만 씀
-    haste:  { label: '가속',   icon: 'bolt',   cd: 18, base: 0.35, dur: 6 },        // 공격 속도 +위력 (dur초)
-    might:  { label: '강화',   icon: 'arrowup', cd: 18, base: 0.30, dur: 6 },       // 공격력 +위력 (dur초)
-    guard:  { label: '방어',   icon: 'shield', cd: 20, base: 0.30, dur: 6, cap: 0.8 }, // 받는 피해 -위력 (dur초). 체력이 85% 아래일 때만 씀
-    greed:  { label: '약탈',   icon: 'coin',   cd: 24, base: 0.50, dur: 8 },        // 골드 획득 +위력 (dur초)
-    summon: { label: '소환',   icon: 'party',  cd: 16, base: 1.0, secs: 6 },        // 동료(없으면 내 초당 피해의 일부)가 secs초 동안 낼 피해를 한 번에
+    // 즉시 피해
+    strike:    { label: '강타',     icon: 'sword',   cd: 14, base: 3.0 },                       // 공격력 × 위력
+    multi:     { label: '연타',     icon: 'burst',   cd: 12, base: 1.0, hits: 4 },              // 공격력 × 위력을 hits번
+    execute:   { label: '처형',     icon: 'skull',   cd: 13, base: 7.0 },                       // 몬스터 체력이 40% 아래일 때만: 공격력 × 위력
+    bossbane:  { label: '보스 사냥', icon: 'crown',   cd: 15, base: 9.0 },                       // 보스가 나왔을 때만: 공격력 × 위력
+    summon:    { label: '소환',     icon: 'party',   cd: 16, base: 1.0, secs: 6 },               // 소환수가 secs초 동안 낼 피해(내 초당 피해의 30% 기준)를 한 번에
+    dot:       { label: '지속 피해', icon: 'burst',   cd: 18, base: 0.4, dur: 8 },               // 몬스터 체력이 절반 넘을 때: dur초 동안 매초 (내 초당 피해 × 위력)
+    // 공격 강화
+    haste:     { label: '가속',     icon: 'bolt',    cd: 18, base: 0.35, dur: 6 },              // 공격 속도 +위력
+    might:     { label: '강화',     icon: 'arrowup', cd: 18, base: 0.30, dur: 6 },              // 공격력 +위력
+    frenzy:    { label: '광란',     icon: 'bolt',    cd: 30, base: 0.25, dur: 8 },              // 공격 속도와 공격력이 함께 +위력
+    lifesteal: { label: '흡혈',     icon: 'heart',   cd: 22, base: 0.25, dur: 8 },              // 체력이 90% 아래일 때: 준 피해의 (위력)만큼 회복
+    // 방어·회복
+    heal:      { label: '회복',     icon: 'heart',   cd: 25, base: 0.20, cap: 0.6 },            // 체력이 70% 아래일 때: 최대 체력의 (위력) 회복
+    guard:     { label: '방어',     icon: 'shield',  cd: 20, base: 0.30, dur: 6, cap: 0.8 },    // 체력이 85% 아래일 때: 받는 피해 -위력
+    barrier:   { label: '방벽',     icon: 'shield',  cd: 24, base: 0.35, dur: 8 },              // 체력이 75% 아래일 때: 최대 체력의 (위력)만큼 피해를 대신 막아 줌
+    stun:      { label: '기절',     icon: 'star',    cd: 22, base: 3.0, dur: 3, cap: 6 },       // 체력이 85% 아래일 때: 몬스터가 (위력)초 동안 공격하지 못함
+    // 재화
+    greed:     { label: '약탈',     icon: 'coin',    cd: 24, base: 0.50, dur: 8 },              // 골드 획득 +위력
+    bounty:    { label: '전리품',   icon: 'pouch',   cd: 26, base: 6.0 },                       // 즉시 골드: 처치 골드 × 위력
   };
   // 직업 단계(1~4차)가 높을수록 같은 종류의 스킬이 강하다
   const TIER_POWER = { 1: 1, 2: 1.25, 3: 1.5, 4: 1.8 };
 
-  // ---- 직업별 스킬 [이름, 효과 종류] ----
+  // ---- 직업별 스킬 [이름, 효과 종류, (선택) 연출 종류] ----
+  // 연출 종류는 지속 피해(dot)의 모양: burn 불, poison 독, void 공허, sun 태양
   const SKILLS = {
     // 1차
-    warrior: ['용맹의 일격', 'strike'], archer: ['속사', 'haste'], mage: ['마나 집중', 'might'], rogue: ['표창 난사', 'multi'],
+    warrior: ['용맹의 일격', 'strike'], archer: ['속사', 'haste'], mage: ['마법 화살', 'multi'], rogue: ['맹독 표창', 'dot', 'poison'],
     // 2차
-    knight: ['철벽 방어', 'guard'], berserker: ['분노', 'might'], sniper: ['헤드샷', 'strike'], ranger: ['동물 소환', 'summon'],
-    pyromancer: ['화염 폭발', 'strike'], necromancer: ['해골 병사', 'summon'], assassin: ['급소 찌르기', 'strike'], pirate: ['약탈', 'greed'],
+    knight: ['수호의 방패', 'barrier'], berserker: ['흡혈 광란', 'lifesteal'], sniper: ['급소 저격', 'execute'], ranger: ['동물 소환', 'summon'],
+    pyromancer: ['점화', 'dot', 'burn'], necromancer: ['해골 병사', 'summon'], assassin: ['암살', 'bossbane'], pirate: ['약탈', 'greed'],
     // 3차
-    paladin: ['신성한 치유', 'heal'], crusader: ['성전의 함성', 'might'], warlord: ['군단 호령', 'summon'], destroyer: ['대지 분쇄', 'strike'],
-    deadeye: ['조준', 'might'], piercer: ['관통 화살', 'multi'], windwalker: ['질풍', 'haste'], beastmaster: ['맹수 습격', 'summon'],
-    infernomage: ['지옥불', 'multi'], phoenixmage: ['불사조의 숨결', 'heal'], lich: ['죽음의 손길', 'strike'], soulreaper: ['영혼 수확', 'greed'],
-    shade: ['그림자 은신', 'guard'], nightblade: ['초승달 베기', 'multi'], captain: ['포격', 'strike'], buccaneer: ['보물 사냥', 'greed'],
+    paladin: ['신성한 치유', 'heal'], crusader: ['성전의 함성', 'might'], warlord: ['전투 고양', 'frenzy'], destroyer: ['대지 분쇄', 'strike'],
+    deadeye: ['거인 저격', 'bossbane'], piercer: ['관통 화살', 'multi'], windwalker: ['질풍', 'haste'], beastmaster: ['맹수 습격', 'summon'],
+    infernomage: ['지옥불 폭격', 'strike'], phoenixmage: ['불사조의 깃털', 'barrier'], lich: ['생명 흡수', 'lifesteal'], soulreaper: ['영혼 수확', 'execute'],
+    shade: ['그림자 결박', 'stun'], nightblade: ['초승달 베기', 'multi'], captain: ['포격', 'strike'], buccaneer: ['보물 사냥', 'bounty'],
     // 4차
-    seraph: ['천상의 가호', 'guard'], holyking: ['왕의 축복', 'might'], inquisitor: ['심판의 낙인', 'strike'], templarlord: ['성전 선포', 'haste'],
-    conqueror: ['정복의 함성', 'greed'], hordelord: ['대군 소환', 'summon'], avatarofruin: ['파멸', 'strike'], titan: ['거인의 분노', 'might'],
-    godeye: ['천안 사격', 'multi'], hawkeye: ['매의 급강하', 'strike'], siegearcher: ['공성 화살', 'strike'], dragonslayer: ['용 사냥', 'might'],
-    stormarcher: ['번개 화살', 'multi'], windsage: ['바람의 치유', 'heal'], wolfking: ['늑대 무리', 'summon'], forestwarden: ['숲의 보호', 'guard'],
-    flameemperor: ['화염 제국', 'strike'], meteormage: ['유성우', 'multi'], phoenixlord: ['부활의 불꽃', 'heal'], sunpriest: ['성스러운 광선', 'strike'],
-    lichking: ['언데드 군단', 'summon'], soulbinder: ['영혼 방패', 'guard'], grimreaper: ['수확의 낫', 'strike'], boneemperor: ['뼈 군대', 'summon'],
-    voidwalker: ['공허의 칼날', 'multi'], phantom: ['환영 분신', 'haste'], bloodblade: ['피의 갈증', 'might'], ninjamaster: ['분신술', 'multi'],
-    seaking: ['해일', 'strike'], ghostcaptain: ['유령선 습격', 'summon'], treasureking: ['황금 비', 'greed'], raiderlord: ['약탈 강행', 'might'],
+    seraph: ['천상의 가호', 'guard'], holyking: ['왕의 축복', 'might'], inquisitor: ['속박의 낙인', 'stun'], templarlord: ['성전 선포', 'haste'],
+    conqueror: ['정복 전리품', 'bounty'], hordelord: ['대군 소환', 'summon'], avatarofruin: ['파멸의 일격', 'bossbane'], titan: ['거인의 분노', 'frenzy'],
+    godeye: ['천안 사격', 'multi'], hawkeye: ['매의 급강하', 'execute'], siegearcher: ['공성 화살', 'strike'], dragonslayer: ['용 사냥', 'bossbane'],
+    stormarcher: ['번개 화살', 'multi'], windsage: ['바람의 치유', 'heal'], wolfking: ['늑대 무리', 'summon'], forestwarden: ['숲의 방벽', 'barrier'],
+    flameemperor: ['화염 제국', 'strike'], meteormage: ['유성우', 'multi'], phoenixlord: ['부활의 불꽃', 'heal'], sunpriest: ['태양의 낙인', 'dot', 'sun'],
+    lichking: ['언데드 군단', 'summon'], soulbinder: ['영혼 방벽', 'barrier'], grimreaper: ['수확의 낫', 'execute'], boneemperor: ['뼈 군대', 'summon'],
+    voidwalker: ['공허 침식', 'dot', 'void'], phantom: ['환영 분신', 'haste'], bloodblade: ['흡혈의 칼날', 'lifesteal'], ninjamaster: ['분신술', 'multi'],
+    seaking: ['해일', 'strike'], ghostcaptain: ['유령선 습격', 'summon'], treasureking: ['황금 비', 'bounty'], raiderlord: ['약탈 강행', 'frenzy'],
   };
 
   // 스킬 하나의 실제 수치. tier는 그 직업이 몇 차인지(1~4).
   function makeSkill(id, tier) {
     const entry = SKILLS[id];
     if (!entry) return null;
-    const [name, kind] = entry;
+    const [name, kind, variant] = entry;
     const k = KINDS[kind];
     let power = k.base * (TIER_POWER[tier] || 1);
     if (k.cap) power = Math.min(k.cap, power);
-    return { id, name, kind, tier, power, cd: k.cd, dur: k.dur || 0, hits: k.hits || 0, secs: k.secs || 0, icon: k.icon, label: k.label };
+    return { id, name, kind, variant: variant || '', tier, power, cd: k.cd, dur: k.dur || 0, hits: k.hits || 0, secs: k.secs || 0, icon: k.icon, label: k.label };
   }
 
   // 사람이 읽는 설명 (수치는 위력에서 계산해서 넣는다)
@@ -60,12 +74,20 @@
     switch (sk.kind) {
       case 'strike': return `공격력 ×${x(sk.power)}의 강한 일격을 날려요.`;
       case 'multi': return `공격력 ×${x(sk.power)}씩 ${sk.hits}번 연달아 공격해요.`;
-      case 'heal': return `체력이 70% 아래일 때 최대 체력의 ${pct(sk.power)}를 회복해요.`;
+      case 'execute': return `몬스터 체력이 40% 아래일 때 공격력 ×${x(sk.power)}로 마무리해요.`;
+      case 'bossbane': return `보스가 나타나면 공격력 ×${x(sk.power)}의 큰 피해를 줘요.`;
+      case 'summon': return `소환수를 불러 ${sk.secs}초 동안 낼 피해(내 초당 피해의 ${Math.round(30 * sk.power)}%)를 한 번에 입혀요.`;
+      case 'dot': return `몬스터를 ${sk.variant === 'poison' ? '중독' : sk.variant === 'burn' ? '불태워' : sk.variant === 'void' ? '공허로 침식해' : '태양으로 지져'} ${sk.dur}초 동안 매초 내 초당 피해의 ${pct(sk.power)}만큼 피해를 줘요.`;
       case 'haste': return `${sk.dur}초 동안 공격 속도가 ${pct(sk.power)} 빨라져요.`;
       case 'might': return `${sk.dur}초 동안 공격력이 ${pct(sk.power)} 올라요.`;
+      case 'frenzy': return `${sk.dur}초 동안 공격 속도와 공격력이 함께 ${pct(sk.power)} 올라요.`;
+      case 'lifesteal': return `체력이 90% 아래일 때 ${sk.dur}초 동안 준 피해의 ${pct(sk.power)}만큼 체력을 회복해요.`;
+      case 'heal': return `체력이 70% 아래일 때 최대 체력의 ${pct(sk.power)}를 회복해요.`;
       case 'guard': return `체력이 85% 아래일 때 ${sk.dur}초 동안 받는 피해가 ${pct(sk.power)} 줄어요.`;
+      case 'barrier': return `체력이 75% 아래일 때 최대 체력의 ${pct(sk.power)}만큼 피해를 대신 막는 방벽을 ${sk.dur}초 동안 펼쳐요.`;
+      case 'stun': return `체력이 85% 아래일 때 몬스터를 ${x(sk.power)}초 동안 꼼짝 못 하게 해요.`;
       case 'greed': return `${sk.dur}초 동안 얻는 골드가 ${pct(sk.power)} 늘어요.`;
-      case 'summon': return `동료를 불러 ${sk.secs}초 동안 낼 피해를 한 번에 입혀요.`;
+      case 'bounty': return `처치 골드의 ${x(sk.power)}배를 즉시 얻어요.`;
       default: return '';
     }
   }
@@ -85,7 +107,11 @@
     flameemperor: 'fire', phoenixlord: 'fire', lichking: 'dark', boneemperor: 'dark',
   };
 
-  const api = { KINDS, TIER_POWER, SKILLS, makeSkill, describeSkill, ATTACK_STYLE, MELEE_STYLES };
+  // 전투 이펙트 스프라이트 이름 (images/vfx/이름.webp). tools/generate-images.py의 VFX와 같아야 한다.
+  const VFX_NAMES = ['slash_white', 'slash_gold', 'slash_fire', 'slash_dark', 'claw_slash', 'impact_burst', 'explosion_fire', 'explosion_magic', 'lightning',
+    'heal_light', 'shield_bubble', 'magic_circle', 'summon_circle', 'coin_burst', 'poison_cloud', 'stun_stars', 'wind_swirl', 'rage_aura'];
+
+  const api = { VFX_NAMES, KINDS, TIER_POWER, SKILLS, makeSkill, describeSkill, ATTACK_STYLE, MELEE_STYLES };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.GoblinSkills = api;
 })(typeof window !== 'undefined' ? window : globalThis);

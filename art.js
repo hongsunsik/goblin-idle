@@ -5,7 +5,7 @@
   // images/manifest.js(tools/make-manifest.js가 만든다)에 적힌 파일이 있으면 그 이미지를 쓰고, 없으면 아래의 SVG 그림을 그대로 쓴다.
   // manifest 형식: { v, goblins: { knight: 'knight.png' }, monsters: {...}, icons: {...}, backgrounds: { biome0: '...' } }
   const IMG_DIR = 'images/';
-  const M = Object.assign({ v: 0, goblins: {}, monsters: {}, icons: {}, backgrounds: {}, gear: {} }, root.ART_MANIFEST || {});
+  const M = Object.assign({ v: 0, goblins: {}, monsters: {}, icons: {}, backgrounds: {}, gear: {}, skills: {}, vfx: {} }, root.ART_MANIFEST || {});
   const has = (cat, name) => (M[cat] && M[cat][name]) || '';
   // manifest 값은 images/ 기준 경로 (예: 'goblins/knight.png'). ?v= 는 그림을 바꿨을 때 브라우저 캐시를 피하려는 값.
   const src = (file) => IMG_DIR + file + (M.v ? '?v=' + M.v : '');
@@ -545,6 +545,20 @@
     return `<span class="gear-fallback" style="filter:hue-rotate(${h}deg)">${svgIcon(fallbackIcon, cls)}</span>`;
   }
 
+  // 스킬 아이콘. images/skills/<직업 id>가 있으면 그 그림을, 없으면 효과 종류의 기본 아이콘을 스킬마다 색만 달리해서 쓴다.
+  function skillIcon(id, fallbackIcon, cls) {
+    const f = has('skills', id);
+    if (f) return `<img class="ic ic-img skill-img ${cls || ''}" src="${src(f)}" alt="" draggable="false">`;
+    let h = 0;
+    for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) % 360;
+    return `<span class="skill-fallback" style="filter:hue-rotate(${h}deg)">${svgIcon(fallbackIcon, cls)}</span>`;
+  }
+  // 전투 이펙트 스프라이트의 주소 (그림이 없으면 빈 문자열: 화면 쪽이 CSS 이펙트로 대신한다)
+  function vfx(name) {
+    const f = has('vfx', name);
+    return f ? src(f) : '';
+  }
+
   // index.html에 직접 적힌 아이콘(<svg class="ic"><use href="#i-xxx"/>)을 이미지로 바꾸고, 지역 배경 이미지를 적용한다. 시작할 때 한 번 부른다.
   function applyStatic(doc) {
     if (!doc || !doc.querySelectorAll) return;
@@ -576,7 +590,7 @@
     }
   }
 
-  const api = { applyStatic, goblin, gear, setParents, monster, icon, sprite: spriteMarkup, LOOK_IDS: Object.keys(LOOKS), MONSTER_KINDS: Object.keys(MONSTER), ICON_NAMES: Object.keys(ICONS) };
+  const api = { applyStatic, goblin, gear, skillIcon, vfx, setParents, monster, icon, sprite: spriteMarkup, LOOK_IDS: Object.keys(LOOKS), MONSTER_KINDS: Object.keys(MONSTER), ICON_NAMES: Object.keys(ICONS) };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Art = api;
 })(typeof window !== 'undefined' ? window : globalThis);

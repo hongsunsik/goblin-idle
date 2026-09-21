@@ -1036,12 +1036,12 @@ test('60개 직업 모두 스킬이 있고, 이름이 겹치지 않으며, 효�
   assert.ok(Object.keys(G.SKILL_NAMES).every((id) => ids.includes(id)), '직업이 아닌 이름의 스킬이 있다');
 });
 
-test('직업 단계가 높을수록 같은 종류(강타) 스킬의 위력이 커진다: 1차 3.0 < 2차 3.75 < 4차 5.4', () => {
+test('직업 단계가 높을수록 같은 종류(강타) 스킬의 위력이 커진다: 1차 3.0 < 3차 4.5 < 4차 5.4', () => {
   const power = (route, id) => G.skillsOf(skillState(route)).find((x) => x.id === id).power;
   const p1 = power(['warrior'], 'warrior');
-  const p2 = power(['mage', 'pyromancer'], 'pyromancer');
+  const p3 = power(['warrior', 'berserker', 'destroyer'], 'destroyer');
   const p4 = power(['mage', 'pyromancer', 'infernomage', 'flameemperor'], 'flameemperor');
-  assert.ok(Math.abs(p1 - 3.0) < 1e-9 && Math.abs(p2 - 3.75) < 1e-9 && Math.abs(p4 - 5.4) < 1e-9, [p1, p2, p4].join(' / '));
+  assert.ok(Math.abs(p1 - 3.0) < 1e-9 && Math.abs(p3 - 4.5) < 1e-9 && Math.abs(p4 - 5.4) < 1e-9, [p1, p3, p4].join(' / '));
 });
 
 test('전직할수록 스킬이 쌓인다 (견습 0개 → 1차 1개 → … → 4차 4개)', () => {
@@ -1080,8 +1080,8 @@ test('처음 만난 스킬은 시간 차를 두고 시작해서 한꺼번에 터
 });
 
 test('연타: 위력 × 횟수만큼 한 번에 피해를 준다', () => {
-  const t = skillState(['rogue']);
-  t.skillCd.rogue = 0;
+  const t = skillState(['mage']);
+  t.skillCd.mage = 0;
   const dmg = G.hitDmg(t);
   const e = G.tick(t, 0.1).find((x) => x.type === 'skill');
   assert.strictEqual(e.kind, 'multi');
@@ -1160,8 +1160,117 @@ test('스킬 설명은 효과 종류마다 위력 수치가 들어간 문장이�
   const t = skillState(['mage', 'pyromancer', 'infernomage', 'flameemperor']);
   const d = G.skillsOf(t).map((sk) => G.describeSkill(sk));
   assert.ok(d.every((x) => x.length > 8));
-  assert.ok(d[0].includes('30%') && d[0].includes('6초'), d[0]);   // 마나 집중(강화) 위력 0.3
+  assert.ok(d[0].includes('4번') && d[0].includes('×1'), d[0]);      // 마법 화살(연타) ×1 4번
+  assert.ok(d[1].includes('불태워') && d[1].includes('50%'), d[1]);   // 점화(지속 피해) 위력 0.4×1.25
   assert.ok(d[3].includes('5.4'), d[3]);                            // 화염 제국(강타) ×5.4
+});
+
+test('처형: 몬스터 체력이 충분하면 쓰지 않고, 40% 아래가 되면 공격력 × 위력으로 마무리한다', () => {
+  const t = skillState(['archer', 'sniper']);
+  t.skillCd.sniper = 0;
+  assert.strictEqual(castsOf(t, 30, 'sniper'), 0, '체력이 가득이면 쓰지 않는다');
+  t.monsterMax = 1e15; t.monsterHp = 1e15 * 0.3; t.skillCd.sniper = 0;
+  const e = G.tick(t, 0.1).find((x) => x.id === 'sniper');
+  assert.ok(e && e.kind === 'execute');
+  assert.ok(Math.abs(e.amount - G.hitDmg(t) * 7 * 1.25) < 1e-6);
+});
+
+test('보스 사냥: 보스가 아니면 쓰지 않고, 보스가 나오면 큰 피해를 준다', () => {
+  const t = skillState(['rogue', 'assassin']);
+  t.skillCd.assassin = 0; t.isBoss = false;
+  assert.strictEqual(castsOf(t, 30, 'assassin'), 0);
+  t.isBoss = true; t.skillCd.assassin = 0;
+  const e = G.tick(t, 0.1).find((x) => x.id === 'assassin');
+  assert.ok(e && e.kind === 'bossbane' && Math.abs(e.amount - G.hitDmg(t) * 9 * 1.25) < 1e-6);
+});
+
+test('지속 피해: 몬스터 체력이 절반 넘을 때 걸고, 시간 동안 매초 피해를 주며, 겹쳐 걸지 않고, 몬스터가 죽으면 사라진다', () => {
+  const t = skillState(['rogue']);
+  t.skillCd.rogue = 0;
+  G.tick(t, 0.1);
+  assert.ok(t.dot && t.dot.variant === 'poison' && t.dot.t > 7.5, JSON.stringify(t.dot));
+  const dps = t.dot.dps;
+  const before = t.monsterHp;
+  for (let i = 0; i < 10; i++) { t.skillCd.rogue = 0; G.tick(t, 0.1); }   // 1초 진행. 이미 걸려 있으니 다시 걸지 않는다
+  assert.ok(t.dot.dps === dps, '다시 걸리지 않았다');
+  assert.ok(before - t.monsterHp >= dps * 0.9, `지속 피해 ${before - t.monsterHp} vs 초당 ${dps}`);
+  for (let i = 0; i < 100; i++) { t.monsterHp = t.monsterMax = 1e15; G.tick(t, 0.1); }   // 시간이 다하면 끝난다
+  assert.ok(!t.dot || t.dot.t > 0);
+  t.dot = { t: 5, dps: 1, variant: 'poison' }; t.monsterHp = 1; G.clickAttack(t);            // 몬스터가 죽으면 사라진다
+  assert.strictEqual(t.dot, null);
+});
+
+test('기절: 걸린 동안 몬스터가 공격하지 못하고, 체력이 충분하면 쓰지 않는다', () => {
+  const loss = (stunned) => { const u = skillState(['warrior']); u.stage = 6; u.monsterHp = u.monsterMax = 1e15; u.hp = G.maxHp(u) * 0.5; if (stunned) u.buffs.stun = { t: 5, v: 1 }; const h0 = u.hp; G.tick(u, 1); return h0 - u.hp; };
+  assert.ok(loss(false) > loss(true), '기절하면 덜 다친다');
+  assert.ok(loss(true) < 0, '기절한 동안은 회복만 남아 체력이 오른다');
+  const t = skillState(['rogue', 'assassin', 'shade']);
+  t.skillCd.shade = 0; t.hp = G.maxHp(t);
+  assert.strictEqual(castsOf(t, 30, 'shade'), 0, '체력이 가득이면 쓰지 않는다');
+});
+
+test('흡혈: 걸린 동안 준 피해의 일부만큼 체력을 회복한다', () => {
+  const t = skillState(['warrior', 'berserker']);
+  t.hp = G.maxHp(t) * 0.5; t.buffs.lifesteal = { t: 8, v: 0.3 };
+  const h0 = t.hp;
+  const dmg = G.clickAttack(t).dmg;
+  assert.ok(Math.abs((t.hp - h0) - dmg * 0.3) < 1e-6, `회복 ${t.hp - h0} vs 기대 ${dmg * 0.3}`);
+  t.hp = G.maxHp(t); const full = t.hp; G.clickAttack(t);
+  assert.strictEqual(t.hp, full, '최대 체력을 넘어 회복하지 않는다');
+});
+
+test('방벽: 몬스터의 피해를 먼저 대신 맞고, 다 닳으면 사라진다. 체력이 충분하면 펼치지 않는다', () => {
+  const t = skillState(['warrior', 'knight']);
+  t.skillCd.knight = 0; t.hp = G.maxHp(t);
+  assert.strictEqual(castsOf(t, 30, 'knight'), 0, '체력이 충분하면 펼치지 않는다');
+  t.hp = G.maxHp(t) * 0.5; t.skillCd.knight = 0;
+  G.tick(t, 0.1);
+  assert.ok(t.buffs.barrier && Math.abs(t.buffs.barrier.v - G.maxHp(t) * 0.35 * 1.25) < G.monsterAtk(1), '방벽 크기');
+  const loss = (barrier) => { const u = skillState(['warrior']); u.stage = 6; u.monsterHp = u.monsterMax = 1e15; u.hp = G.maxHp(u) * 0.5; if (barrier) u.buffs.barrier = { t: 8, v: 1e9 }; const h0 = u.hp; G.tick(u, 1); return h0 - u.hp; };
+  assert.ok(loss(true) < loss(false), '방벽이 있으면 덜 다친다');
+  const u = skillState(['warrior']); u.stage = 6; u.monsterHp = u.monsterMax = 1e15; u.buffs.barrier = { t: 8, v: 1 };
+  G.tick(u, 1);
+  assert.ok(!u.buffs.barrier, '다 닳으면 사라진다');
+});
+
+test('전리품: 처치 골드의 위력배를 즉시 얻는다', () => {
+  const t = skillState(['rogue', 'pirate', 'buccaneer']);
+  G.checkAchievements(t);   // 전직 업적이 틱 도중에 달성돼 골드 배율이 바뀌지 않게, 먼저 반영해 둔다
+  t.skillCd.buccaneer = 0;
+  const g0 = t.gold, expected = Math.ceil(G.monsterGold(1) * G.goldMult(t) * 6 * 1.5);
+  const e = G.tick(t, 0.1).find((x) => x.id === 'buccaneer');
+  assert.ok(e && e.kind === 'bounty');
+  assert.strictEqual(t.gold - g0, expected);
+});
+
+test('광란: 공격 속도와 공격력이 함께 오른다', () => {
+  const t = skillState(['warrior', 'berserker', 'warlord']);
+  G.checkAchievements(t);   // 업적 배율을 먼저 반영해 두고 기준값을 잡는다
+  const a0 = G.attacksPerSec(t), d0 = G.hitDmg(t);
+  t.skillCd.warlord = 0;
+  G.tick(t, 0.1);
+  assert.ok(Math.abs(G.attacksPerSec(t) / a0 - 1.375) < 1e-9 && Math.abs(G.hitDmg(t) / d0 - 1.375) < 1e-9);
+});
+
+test('스킬 효과 종류는 16가지이고 모두 어느 직업이 쓴다. 상황 조건이 필요한 종류는 조건이 있다', () => {
+  assert.strictEqual(Object.keys(G.SKILL_KINDS).length, 16);
+  const used = new Set(Object.values(G.SKILL_NAMES).map((x) => x[1]));
+  for (const k of Object.keys(G.SKILL_KINDS)) assert.ok(used.has(k), `${k}를 쓰는 직업이 없다`);
+  const t = skillState(['warrior']);
+  t.hp = G.maxHp(t);   // 체력 가득, 보스 아님, 몬스터 체력 가득
+  t.isBoss = false;
+  const can = (kind) => G.canCast(t, { kind });
+  assert.deepStrictEqual(['heal', 'guard', 'stun', 'barrier', 'lifesteal', 'execute', 'bossbane'].filter(can), [], '상황이 안 맞으면 쓰지 않는다');
+  assert.deepStrictEqual(['strike', 'dot', 'greed', 'bounty'].filter((k) => !can(k)), [], '언제나 쓸 수 있는 종류');
+});
+
+test('그림 생성 스크립트의 스킬·이펙트 목록이 게임 데이터와 같다 (이름이 어긋나면 그림이 안 쓰인다)', () => {
+  const fs = require('fs'), path = require('path');
+  const py = fs.readFileSync(path.join(__dirname, 'generate-images.py'), 'utf8');
+  const keysOf = (name) => { const body = py.slice(py.indexOf(name + ' = {'), py.indexOf('\n}\n', py.indexOf(name + ' = {'))); return [...body.matchAll(/^\s+'([a-z_]+)':/gm)].map((m) => m[1]); };
+  const skills = keysOf('SKILLS'), vfx = keysOf('VFX');
+  assert.deepStrictEqual(skills.slice().sort(), Object.keys(G.SKILL_NAMES).sort(), '스킬 아이콘 프롬프트가 60개 직업과 다르다');
+  assert.deepStrictEqual(vfx.slice().sort(), require('../skills.js').VFX_NAMES.slice().sort(), '이펙트 이름이 skills.js와 다르다');
 });
 
 test('직업별 공격 모션: 도적은 표창, 마법사는 마법구, 기사는 칼, 궁수는 화살, 저격수는 총', () => {

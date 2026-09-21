@@ -650,3 +650,27 @@ svg { display: block; }
 .choice__skill b { color: var(--gold); }
 .skilld__ic { display: grid; place-items: center; margin-bottom: 4px; }
 .skilld__ic .ic { width: 52px; height: 52px; }
+
+/* ===== 화려한 전투 이펙트: 스프라이트·스킬 배너·지속 상태 ===== */
+.fx-sprite { background: center / contain no-repeat; }
+.skill-banner { display: flex; align-items: center; gap: 6px; padding: 3px 12px 3px 4px; white-space: nowrap; z-index: 8; font-weight: 900; font-size: 14px; letter-spacing: 0.02em;
+  background: linear-gradient(90deg, rgba(10, 20, 50, 0.92), rgba(34, 56, 120, 0.9)); border: 1px solid rgba(255, 212, 121, 0.85); border-radius: 999px;
+  text-shadow: 0 1px 0 #000, 0 0 8px rgba(0, 0, 0, 0.8); box-shadow: 0 0 12px rgba(255, 200, 80, 0.5); }
+.skill-banner .ic, .skill-banner .skill-fallback .ic { width: 28px; height: 28px; border-radius: 50%; }
+.skill-banner .skill-fallback { display: inline-flex; }
+.fx-drain { width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #fff, #ff5a8a 55%, rgba(200, 20, 70, 0)); box-shadow: 0 0 8px rgba(255, 60, 110, 0.85); }
+.mon-stun { position: absolute; left: 50%; top: -34px; width: 74px; height: 42px; margin-left: -37px; z-index: 4; background: center / contain no-repeat; pointer-events: none;
+  animation: stunSpin 1.6s linear infinite; color: #ffe45a; font-size: 16px; font-weight: 900; text-align: center; line-height: 42px; text-shadow: 0 0 6px #ff9a00; }
+@keyframes stunSpin { to { transform: rotate(360deg); } }
+.hero-barrier { position: absolute; left: 50%; top: 50%; width: 150%; height: 130%; transform: translate(-50%, -50%); z-index: 3; pointer-events: none;
+  background: center / contain no-repeat; border-radius: 50%; box-shadow: inset 0 0 22px rgba(120, 200, 255, 0.55), 0 0 14px rgba(120, 200, 255, 0.5); animation: barrierPulse 1.4s ease-in-out infinite; }
+@keyframes barrierPulse { 50% { filter: brightness(1.25); } }
+.actor__sprite { position: relative; }
+#monster[data-dot='burn'] .mon-img, #monster[data-dot='sun'] .mon-img { filter: drop-shadow(0 0 8px rgba(255, 130, 30, 0.95)) brightness(1.08); }
+#monster[data-dot='poison'] .mon-img { filter: drop-shadow(0 0 8px rgba(110, 230, 70, 0.95)) hue-rotate(35deg); }
+#monster[data-dot='void'] .mon-img { filter: drop-shadow(0 0 8px rgba(160, 90, 255, 0.95)) hue-rotate(-30deg); }
+.skill-img, .skill-fallback .ic { border-radius: 8px; }
+.skill .skill-img { width: 34px; height: 34px; object-fit: cover; border-radius: 8px; }
+.sk-row .skill-img { width: 34px; height: 34px; border-radius: 8px; margin-top: 0; }
+.skilld__ic .skill-img { width: 72px; height: 72px; border-radius: 14px; }
+.skill-fallback { display: inline-flex; }

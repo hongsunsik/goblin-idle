@@ -73,12 +73,12 @@
   const reduceMotion = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
   const layer = $('floatLayer');
   const sceneEl = $('scene');
-  // 전투 효과 강도: 'calm'(기본, 꼭 필요한 움직임만) / 'full'(화려하게). 설정 창에서 바꾸고 기기에 기억한다.
+  // 전투 효과 강도: 'full'(기본, 화려하게) / 'calm'(차분하게: 꼭 필요한 움직임만). 설정 창에서 바꾸고 기기에 기억한다.
   const FX_KEY = 'goblin-idle-fx-v1';
-  let fxMode = 'calm';
-  try { if (localStorage.getItem(FX_KEY) === 'full') fxMode = 'full'; } catch (e) { /* 저장소를 못 써도 기본값 */ }
+  let fxMode = 'full';
+  try { if (localStorage.getItem(FX_KEY) === 'calm') fxMode = 'calm'; } catch (e) { /* 저장소를 못 써도 기본값 */ }
   const calm = () => fxMode === 'calm';
-  const MAX_FX = 34;   // 화면에 한꺼번에 떠 있는 이펙트 수 제한 (빠르게 싸울 때 과부하 방지)
+  const MAX_FX = 64;   // 화면에 한꺼번에 떠 있는 이펙트 수 제한 (빠르게 싸울 때 과부하 방지)
 
   function anim(el, keyframes, opts) {
     if (reduceMotion || !el || !el.animate) return null;
@@ -327,6 +327,37 @@
   }
 
   // 고블린이 한 번 때릴 때마다 부르는 연출 (여러 번 때린 프레임에도 한 번만)
+  // ---- 스프라이트 이펙트 ----
+  // images/vfx/<이름>.webp 그림을 크기·회전·투명도로 움직인다. 그림이 없으면 null을 돌려주고, 부른 쪽이 CSS 이펙트로 대신 그린다.
+  function sprite(name, x, y, o) {
+    o = o || {};
+    const url = A.vfx(name);
+    if (!url) return null;
+    const size = o.size || 90;
+    const el = addFx('fx-sprite', x, y);
+    if (!el) return null;
+    el.style.width = el.style.height = size + 'px';
+    el.style.margin = `${-size / 2}px 0 0 ${-size / 2}px`;
+    el.style.backgroundImage = `url("${url}")`;
+    if (o.screen) el.style.mixBlendMode = 'screen';
+    if (o.filter) el.style.filter = o.filter;
+    const r0 = o.rot !== undefined ? o.rot : rand(-20, 20), r1 = o.rot2 !== undefined ? o.rot2 : r0 + rand(-25, 25);
+    const s0 = o.from || 0.4, s1 = o.to || 1.2, op = o.opacity || 1;
+    const x0 = o.dx0 || 0, y0 = o.dy0 || 0, x1 = o.dx1 || 0, y1 = o.dy1 || 0;
+    playFx(el, [
+      { transform: `translate(${x0}px, ${y0}px) scale(${s0}) rotate(${r0}deg)`, opacity: 0 },
+      { transform: `translate(${(x0 + x1) / 2}px, ${(y0 + y1) / 2}px) scale(${(s0 + s1) / 2}) rotate(${(r0 + r1) / 2}deg)`, opacity: op, offset: 0.25 },
+      { transform: `translate(${x1}px, ${y1}px) scale(${s1}) rotate(${r1}deg)`, opacity: 0 },
+    ], { duration: o.dur || 420, delay: o.delay || 0, easing: 'ease-out' });
+    return el;
+  }
+  // 그림이 없을 때 대신 쓰는 색 고리
+  function ringFx(x, y, color, scale, dur, delay) {
+    const ring = addFx('fx-ring', x, y);
+    if (ring) ring.style.borderColor = color;
+    playFx(ring, [{ transform: 'scale(0.4)', opacity: 1 }, { transform: `scale(${scale || 2.4})`, opacity: 0 }], { duration: dur || 600, delay: delay || 0, easing: 'ease-out' });
+  }
+
   // ---- 직업별 공격 모션 ----
   // 근접 직업(기사·광전사 등)은 제자리에서 무기를 휘두르고 몬스터 쪽에 베는 궤적이 남는다.
   // 원거리 직업은 표창·화살·마법구·총알 같은 것을 날려 보낸다. 예전처럼 앞으로 달려갔다 돌아오지 않는다.
@@ -359,9 +390,16 @@
   function arcFx(style, strong, delay) {
     const p = targetPos();
     if (style === 'hammer') {
+      if (!calm() || strong) sprite('explosion_fire', p.x, p.y + 8, { size: strong ? 190 : 130, delay, dur: 420, from: 0.4, to: 1.1, screen: true });
       const ring = addFx('fx-ring', p.x, p.y + 12);
       playFx(ring, [{ transform: 'scale(0.3, 0.15)', opacity: 1 }, { transform: `scale(${strong ? 2.4 : 1.7}, ${strong ? 1.1 : 0.8})`, opacity: 0 }], { duration: 380, delay, easing: 'ease-out' });
       return;
+    }
+    // 화려하게: 궤적 그림을 크게 그린다 (그림이 없으면 아래 CSS 궤적)
+    const ARC_SPRITE = { slash: 'slash_white', axe: 'slash_fire', holy: 'slash_gold', dagger: 'claw_slash' };
+    if (!calm() || strong) {
+      const sp = sprite(ARC_SPRITE[style] || 'slash_white', p.x, p.y, { size: strong ? 190 : 130, delay, dur: 320, from: 0.5, to: 1.15, screen: style !== 'dagger' });
+      if (sp) return;
     }
     const strokes = style === 'dagger' ? 2 : 1;
     for (let i = 0; i < strokes; i++) {
@@ -385,17 +423,24 @@
   // 원거리: 손에서 몬스터까지 날아가는 것. 도착까지 걸리는 시간(ms)을 돌려준다.
   function projectile(style, delay, big) {
     const a = handPos(), b = targetPos();
-    const el = addFx('fx-proj proj--' + style, a.x, a.y);
     const dx = b.x - a.x, dy = b.y - a.y + rand(-8, 8);
     const ang = (Math.atan2(dy, dx) * 180) / Math.PI;
     const flight = FLIGHT_MS[style] || 200;
     const spin = style === 'shuriken' || style === 'coin';
     const sc = big ? 1.5 : 1;
-    playFx(el, [
-      { transform: `translate(0, 0) rotate(${spin ? 0 : ang}deg) scale(${0.7 * sc})`, opacity: 1 },
-      { transform: `translate(${dx}px, ${dy}px) rotate(${spin ? 720 : ang}deg) scale(${sc})`, opacity: 1, offset: 0.92 },
-      { transform: `translate(${dx}px, ${dy}px) rotate(${spin ? 760 : ang}deg) scale(${sc})`, opacity: 0 },
-    ], { duration: flight + 30, delay, easing: style === 'orb' || style === 'fire' || style === 'dark' ? 'ease-in' : 'linear' });
+    const easing = style === 'orb' || style === 'fire' || style === 'dark' ? 'ease-in' : 'linear';
+    // 본체 하나와 (화려하게일 때) 뒤따르는 잔상 세 개: 같은 궤적을 조금씩 늦게, 흐리게 따라간다
+    const copies = calm() ? 1 : 4;
+    for (let i = 0; i < copies; i++) {
+      const el = addFx('fx-proj proj--' + style, a.x, a.y);
+      const fade = i === 0 ? 1 : 0.5 / i;
+      const lag = i * 26;
+      playFx(el, [
+        { transform: `translate(0, 0) rotate(${spin ? 0 : ang}deg) scale(${0.7 * sc * (1 - i * 0.12)})`, opacity: fade },
+        { transform: `translate(${dx}px, ${dy}px) rotate(${spin ? 720 : ang}deg) scale(${sc * (1 - i * 0.12)})`, opacity: fade, offset: 0.92 },
+        { transform: `translate(${dx}px, ${dy}px) rotate(${spin ? 760 : ang}deg) scale(${sc * (1 - i * 0.12)})`, opacity: 0 },
+      ], { duration: flight + 30, delay: delay + lag, easing });
+    }
     if (style === 'bullet') {   // 총구 섬광
       const f = addFx('fx-spark', a.x + 8, a.y);
       playFx(f, [{ transform: 'scale(0.4)', opacity: 1 }, { transform: 'scale(1.4)', opacity: 0 }], { duration: 120, delay });
@@ -410,7 +455,14 @@
     if (G.MELEE_STYLES.includes(style)) { land = swingBody(style, soft); arcFx(style, strong, land); }
     else { shootBody(style, soft); land = 60 + projectile(style, 60, strong); }
     monsterHit(strong, land, soft);
+    if (!calm() || strong) impactSprite(style, strong, land);   // 화려하게: 맞는 순간 폭발
     return land;
+  }
+  const IMPACT_SPRITE = { axe: 'explosion_fire', hammer: 'explosion_fire', fire: 'explosion_fire', orb: 'explosion_magic', dark: 'explosion_magic', coin: 'coin_burst' };
+  function impactSprite(style, strong, delay) {
+    const p = targetPos();
+    const name = IMPACT_SPRITE[style] || 'impact_burst';
+    sprite(name, p.x + rand(-10, 10), p.y + rand(-10, 10), { size: strong ? 140 : 88, delay, dur: 360, from: 0.3, to: strong ? 1.3 : 1.0, screen: name !== 'coin_burst' });
   }
 
   // 고블린이 한 번 때릴 때마다 부르는 연출. 차분하게는 0.45초에 한 번만, 화려하게는 0.22초에 한 번(불꽃·타격 숫자 포함).
@@ -429,53 +481,162 @@
   }
 
   // ---- 스킬 연출 ----
-  const SKILL_COLOR = { strike: '#ffd479', multi: '#ffa25a', heal: '#8dff7a', haste: '#7ad8ff', might: '#ff7a6a', guard: '#8fb4ff', greed: '#ffd24a', summon: '#cba8ff' };
+  const SKILL_COLOR = { strike: '#ffd479', multi: '#ffa25a', execute: '#ff6a7a', bossbane: '#ffe45a', summon: '#cba8ff', dot: '#8dff7a', haste: '#7ad8ff', might: '#ff7a6a', frenzy: '#ff9a4a',
+    lifesteal: '#ff6a9a', heal: '#8dff7a', guard: '#8fb4ff', barrier: '#7ad8ff', stun: '#ffe45a', greed: '#ffd24a', bounty: '#ffd24a' };
+  // 화면 위쪽에 스킬 배너(아이콘 + 이름)가 튀어나온다
+  function skillBanner(e, color) {
+    const h = spot($('heroSprite'), 0.5, 0);
+    const el = addFx('skill-banner', h.x, h.t - 6);
+    if (!el) return;
+    const sk = G.skillFor(e.id);
+    el.innerHTML = `${A.skillIcon(e.id, sk ? sk.icon : 'star')}<b style="color:${color}">${e.name}</b>`;
+    playFx(el, [
+      { transform: 'translate(-50%, 8px) scale(0.6)', opacity: 0 },
+      { transform: 'translate(-50%, -6px) scale(1.12)', opacity: 1, offset: 0.18 },
+      { transform: 'translate(-50%, -10px) scale(1)', opacity: 1, offset: 0.75 },
+      { transform: 'translate(-50%, -24px) scale(0.95)', opacity: 0 },
+    ], { duration: calm() ? 900 : 1300, easing: 'ease-out' });
+  }
+  // 동전이 튀어 올라 골드 표시로 날아간다
+  function coinsToPlate(x, y, n) {
+    const plate = document.querySelector('.plate').getBoundingClientRect(), sc = sceneEl.getBoundingClientRect();
+    const tx = plate.left - sc.left + 20 - x, ty = plate.top - sc.top + 10 - y;
+    for (let i = 0; i < n; i++) {
+      const c = addFx('fx-coin', x + rand(-14, 14), y + rand(-8, 8));
+      playFx(c, [{ transform: 'translate(0, 0) scale(0.7)', opacity: 1 }, { transform: `translate(${rand(-30, 30)}px, ${rand(-50, -20)}px) scale(1.1)`, opacity: 1, offset: 0.3 }, { transform: `translate(${tx}px, ${ty}px) scale(0.6)`, opacity: 0.9 }],
+        { duration: rand(650, 900), delay: i * 45, easing: 'ease-in' });
+    }
+  }
   function skillFx(e) {
     const color = SKILL_COLOR[e.kind] || '#fff';
-    floatText(e.name + '!', 'float--skill', 'hero', color);
+    skillBanner(e, color);
     const style = G.attackStyle(state);
     const melee = G.MELEE_STYLES.includes(style);
     const hero = spot($('heroSprite'), 0.5, 0.6);
-    if (e.kind === 'strike') {
-      const land = melee ? swingBody(style, false) : (shootBody(style, false), 60 + projectile(style, 60, true));
-      if (melee) arcFx(style, true, land);
-      monsterHit(true, land, false);
-      impactFx(true, land);
-      floatText('-' + G.fmt(e.amount), 'float--tap', 'enemy');
-      shakeScene(4);
-    } else if (e.kind === 'multi') {
-      const n = calm() ? Math.min(e.hits, 3) : e.hits;
-      for (let i = 0; i < n; i++) {
-        setTimeout(() => {
-          if (melee) { arcFx(style, false, 0); monsterHit(false, 80, true); } else { projectile(style, 0, false); monsterHit(false, FLIGHT_MS[style] || 200, true); }
-        }, i * 110);
+    const t = targetPos();
+    const rich = !calm();
+    const num = () => floatText('-' + G.fmt(e.amount), 'float--tap', 'enemy');
+    // 근접이면 크게 휘두르고, 원거리면 굵은 투사체를 날린다. 닿는 시각(ms)을 돌려준다.
+    const bigHit = () => (melee ? (() => { const l = swingBody(style, false); arcFx(style, true, l); return l; })() : (shootBody(style, false), 60 + projectile(style, 60, true)));
+    switch (e.kind) {
+      case 'strike': case 'execute': case 'bossbane': {
+        const land = bigHit();
+        if (e.kind === 'execute') { if (!sprite('slash_dark', t.x, t.y, { size: 210, delay: land, dur: 380, rot: -35, rot2: -12 })) ringFx(t.x, t.y, color, 2.6, 500, land); }
+        if (e.kind === 'bossbane') { if (!sprite('lightning', t.x, t.y - 30, { size: 220, delay: land - 40, dur: 420, from: 0.7, to: 1.1, rot: 0, rot2: 0, screen: true })) ringFx(t.x, t.y, color, 3, 520, land); }
+        const boom = sprite(e.kind === 'strike' ? (IMPACT_SPRITE[style] || 'explosion_fire') : 'explosion_fire', t.x, t.y, { size: 200, delay: land, dur: 460, from: 0.4, to: 1.25, screen: true });
+        if (!boom) ringFx(t.x, t.y, color, 2.8, 520, land);
+        monsterHit(true, land, false);
+        impactFx(true, land);
+        num();
+        if (rich) shakeScene(e.kind === 'strike' ? 4 : 6);
+        break;
       }
-      floatText('-' + G.fmt(e.amount), 'float--tap', 'enemy');
-    } else if (e.kind === 'summon') {
-      const t = targetPos();
-      const n = calm() ? 3 : 5;
-      for (let i = 0; i < n; i++) {
-        const m = addFx('fx-minion', hero.x + rand(-6, 6), hero.y + rand(-10, 10));
-        const dx = t.x - hero.x, dy = t.y - hero.y + rand(-14, 14);
-        playFx(m, [{ transform: 'translate(0, 0) scale(0.6)', opacity: 0 }, { transform: `translate(${dx * 0.5}px, ${dy * 0.5 - 22}px) scale(1)`, opacity: 1, offset: 0.45 }, { transform: `translate(${dx}px, ${dy}px) scale(0.8)`, opacity: 0 }],
-          { duration: 480, delay: i * 90, easing: 'ease-in-out' });
+      case 'multi': {
+        const n = calm() ? Math.min(e.hits, 3) : e.hits;
+        for (let i = 0; i < n; i++) {
+          setTimeout(() => {
+            if (melee) { arcFx(style, false, 0); monsterHit(false, 80, true); impactSprite(style, false, 70); }
+            else { projectile(style, 0, false); monsterHit(false, FLIGHT_MS[style] || 200, true); impactSprite(style, false, FLIGHT_MS[style] || 200); }
+          }, i * 110);
+        }
+        setTimeout(() => { if (!sprite('explosion_magic', t.x, t.y, { size: 190, dur: 460, from: 0.4, to: 1.25, screen: true })) ringFx(t.x, t.y, color, 2.6, 500); }, n * 110 + 140);
+        num();
+        break;
       }
-      monsterHit(true, 520, true);
-      floatText('-' + G.fmt(e.amount), 'float--tap', 'enemy');
-    } else if (e.kind === 'heal') {
-      const ring = addFx('fx-ring', hero.x, hero.y + 8);
-      if (ring) ring.style.borderColor = color;
-      playFx(ring, [{ transform: 'scale(0.4)', opacity: 1 }, { transform: 'scale(2.4)', opacity: 0 }], { duration: 600, easing: 'ease-out' });
-      for (let i = 0; i < (calm() ? 2 : 4); i++) {
-        const pl = addFx('fx-plus', hero.x + rand(-26, 26), hero.y + rand(-6, 14));
-        if (pl) pl.textContent = '+';
-        playFx(pl, [{ transform: 'translateY(0)', opacity: 0 }, { transform: 'translateY(-14px)', opacity: 1, offset: 0.3 }, { transform: 'translateY(-46px)', opacity: 0 }], { duration: 800, delay: i * 120, easing: 'ease-out' });
+      case 'summon': {
+        const circle = melee || style === 'dark' ? 'summon_circle' : 'magic_circle';
+        if (!sprite(circle, hero.x, hero.y + 34, { size: 170, dur: 760, from: 0.5, to: 1.05, rot: 0, rot2: 30, screen: true })) ringFx(hero.x, hero.y + 30, color, 2.2, 640);
+        const n = calm() ? 3 : 6;
+        for (let i = 0; i < n; i++) {
+          const m = addFx('fx-minion', hero.x + rand(-8, 8), hero.y + rand(-10, 10));
+          const dx = t.x - hero.x, dy = t.y - hero.y + rand(-16, 16);
+          playFx(m, [{ transform: 'translate(0, 0) scale(0.6)', opacity: 0 }, { transform: `translate(${dx * 0.5}px, ${dy * 0.5 - 24}px) scale(1.1)`, opacity: 1, offset: 0.45 }, { transform: `translate(${dx}px, ${dy}px) scale(0.8)`, opacity: 0 }],
+            { duration: 520, delay: 200 + i * 80, easing: 'ease-in-out' });
+        }
+        monsterHit(true, 720, true);
+        sprite('explosion_magic', t.x, t.y, { size: 190, delay: 700, dur: 460, from: 0.4, to: 1.2, screen: true });
+        num();
+        break;
       }
-      floatText('+' + G.fmt(e.amount), 'float--heal', 'hero');
-    } else {   // haste·might·guard·greed: 몸에서 색 고리가 퍼지고, 효과가 끝날 때까지 몸이 은은히 빛난다 (render가 처리)
-      const ring = addFx('fx-ring', hero.x, hero.y + 8);
-      if (ring) ring.style.borderColor = color;
-      playFx(ring, [{ transform: 'scale(0.4)', opacity: 1 }, { transform: 'scale(2.2)', opacity: 0 }], { duration: 560, easing: 'ease-out' });
+      case 'dot': {
+        const v = e.variant;
+        const name = v === 'poison' ? 'poison_cloud' : v === 'burn' || v === 'sun' ? 'explosion_fire' : 'explosion_magic';
+        const filter = v === 'void' ? 'hue-rotate(60deg) saturate(1.3)' : v === 'sun' ? 'hue-rotate(-15deg) brightness(1.25)' : '';
+        if (!sprite(name, t.x, t.y, { size: 170, dur: 700, from: 0.5, to: 1.15, screen: v !== 'poison', filter })) ringFx(t.x, t.y, color, 2.4, 600);
+        monsterHit(true, 60, true);
+        break;
+      }
+      case 'stun': {
+        const sp = sprite('stun_stars', t.x, t.y - 58, { size: 100, dur: 700, from: 0.6, to: 1.05, rot: 0, rot2: 90 });
+        if (!sp) ringFx(t.x, t.y - 40, color, 2, 520);
+        monsterHit(true, 40, true);
+        break;
+      }
+      case 'lifesteal': {
+        const n = calm() ? 3 : 6;
+        for (let i = 0; i < n; i++) {
+          const o = addFx('fx-drain', t.x + rand(-12, 12), t.y + rand(-14, 14));
+          playFx(o, [{ transform: 'translate(0, 0) scale(1)', opacity: 1 }, { transform: `translate(${(hero.x - t.x) * 0.5}px, ${(hero.y - t.y) * 0.5 - 30}px) scale(1.2)`, opacity: 1, offset: 0.5 }, { transform: `translate(${hero.x - t.x}px, ${hero.y - t.y}px) scale(0.5)`, opacity: 0 }],
+            { duration: 620, delay: i * 70, easing: 'ease-in-out' });
+        }
+        if (!sprite('slash_dark', t.x, t.y, { size: 150, dur: 360, rot: 25, rot2: 45, filter: 'hue-rotate(-40deg) saturate(1.5)' })) ringFx(t.x, t.y, color, 2, 460);
+        break;
+      }
+      case 'heal': {
+        if (!sprite('heal_light', hero.x, hero.y - 6, { size: 190, dur: 900, from: 0.6, to: 1.08, rot: 0, rot2: 0, screen: true })) ringFx(hero.x, hero.y + 8, color, 2.4, 600);
+        for (let i = 0; i < (calm() ? 2 : 5); i++) {
+          const pl = addFx('fx-plus', hero.x + rand(-30, 30), hero.y + rand(-6, 16));
+          if (pl) pl.textContent = '+';
+          playFx(pl, [{ transform: 'translateY(0)', opacity: 0 }, { transform: 'translateY(-14px)', opacity: 1, offset: 0.3 }, { transform: 'translateY(-52px)', opacity: 0 }], { duration: 850, delay: i * 110, easing: 'ease-out' });
+        }
+        floatText('+' + G.fmt(e.amount), 'float--heal', 'hero');
+        break;
+      }
+      case 'barrier': case 'guard': {
+        if (!sprite('shield_bubble', hero.x, hero.y, { size: e.kind === 'barrier' ? 190 : 150, dur: 620, from: 0.3, to: 1.05, rot: 0, rot2: 0 })) ringFx(hero.x, hero.y + 8, color, 2.4, 600);
+        break;
+      }
+      case 'haste': case 'might': case 'frenzy': {
+        if (e.kind !== 'might') sprite('wind_swirl', hero.x, hero.y, { size: 180, dur: 760, from: 0.5, to: 1.1, rot: 0, rot2: 200, screen: true });
+        if (e.kind !== 'haste') { if (!sprite('rage_aura', hero.x, hero.y, { size: 190, dur: 700, from: 0.5, to: 1.15, rot: 0, rot2: 0, screen: true })) ringFx(hero.x, hero.y + 8, color, 2.4, 600); }
+        else if (!A.vfx('wind_swirl')) ringFx(hero.x, hero.y + 8, color, 2.4, 600);
+        break;
+      }
+      case 'greed': case 'bounty': {
+        if (!sprite('coin_burst', hero.x, hero.y - 24, { size: e.kind === 'bounty' ? 190 : 140, dur: 700, from: 0.5, to: 1.1, rot: 0, rot2: 0 })) ringFx(hero.x, hero.y + 8, color, 2.4, 600);
+        coinsToPlate(hero.x, hero.y - 24, e.kind === 'bounty' ? (calm() ? 6 : 12) : (calm() ? 3 : 6));
+        if (e.kind === 'bounty') floatText('+' + G.fmt(e.amount), 'float--gold', 'gold');
+        break;
+      }
+      default: ringFx(hero.x, hero.y + 8, color, 2.2, 560);
+    }
+  }
+
+  // ---- 지속 상태 표시: 기절(별), 방벽(방울), 지속 피해(몬스터 몸 색) ----
+  let dotFxAt = 0;
+  function renderStatusFx() {
+    const s = state;
+    const toggle = (parent, cls, on, html) => {
+      const cur = parent.querySelector('.' + cls);
+      if (on && !cur) { const d = document.createElement('div'); d.className = cls; if (html) d.innerHTML = html; parent.appendChild(d); }
+      else if (!on && cur) cur.remove();
+    };
+    const starUrl = A.vfx('stun_stars'), bubbleUrl = A.vfx('shield_bubble');
+    toggle($('monsterSprite'), 'mon-stun', !!s.buffs.stun, starUrl ? '' : '★ ★ ★');
+    const stun = $('monsterSprite').querySelector('.mon-stun');
+    if (stun && starUrl) stun.style.backgroundImage = `url("${starUrl}")`;
+    toggle($('heroSprite'), 'hero-barrier', !!s.buffs.barrier, '');
+    const bar = $('heroSprite').querySelector('.hero-barrier');
+    if (bar) { if (bubbleUrl) bar.style.backgroundImage = `url("${bubbleUrl}")`; bar.style.opacity = String(0.45 + 0.5 * Math.min(1, s.buffs.barrier.v / Math.max(1, G.maxHp(s) * 0.5))); }
+    const v = s.dot ? s.dot.variant : '';
+    const mb = $('monster');
+    if (mb.dataset.dot !== v) mb.dataset.dot = v;
+    // 지속 피해가 걸려 있는 동안 몬스터에서 주기적으로 불꽃·독 연기가 올라온다
+    if (v && !calm() && Date.now() - dotFxAt > 750 && !document.hidden) {
+      dotFxAt = Date.now();
+      const p = targetPos();
+      const name = v === 'poison' ? 'poison_cloud' : v === 'void' ? 'explosion_magic' : 'explosion_fire';
+      sprite(name, p.x + rand(-16, 16), p.y + rand(-4, 22), { size: 64, dur: 560, from: 0.4, to: 0.9, dy1: -26, screen: v !== 'poison', filter: v === 'void' ? 'hue-rotate(60deg)' : '' });
     }
   }
 
@@ -490,7 +651,7 @@
       skillKey = key;
       bar.hidden = list.length === 0;
       sceneEl.classList.toggle('has-skills', list.length > 0);
-      bar.innerHTML = list.map((sk) => `<button class="skill" type="button" data-sk="${sk.id}" aria-label="${sk.name}">${A.icon(sk.icon)}<i class="skill__cd"></i></button>`).join('');
+      bar.innerHTML = list.map((sk) => `<button class="skill" type="button" data-sk="${sk.id}" aria-label="${sk.name}">${A.skillIcon(sk.id, sk.icon)}<i class="skill__cd"></i></button>`).join('');
       for (const k of Object.keys(skillEls)) delete skillEls[k];
       bar.querySelectorAll('.skill').forEach((el) => { skillEls[el.dataset.sk] = { el, cd: el.querySelector('.skill__cd'), p: -1, on: null }; });
     }
@@ -503,12 +664,12 @@
       if (on !== r.on) { r.on = on; r.el.classList.toggle('is-on', on); }
     }
   }
-  const skillLine = (sk) => `<div class="sk-row">${A.icon(sk.icon)}<div><b>${sk.name}</b> <small>${sk.label} · 쿨타임 ${sk.cd}초</small><div class="sk-row__d">${G.describeSkill(sk)}</div></div></div>`;
+  const skillLine = (sk) => `<div class="sk-row">${A.skillIcon(sk.id, sk.icon)}<div><b>${sk.name}</b> <small>${sk.label} · 쿨타임 ${sk.cd}초</small><div class="sk-row__d">${G.describeSkill(sk)}</div></div></div>`;
   function showSkill(id) {
     const sk = G.skillFor(id);
     if (!sk) return;
     openModal(sk.name,
-      `<div class="skilld__ic">${A.icon(sk.icon)}</div><div class="dexd__path">${G.NODES[id].name} · ${TIER_NAME[sk.tier]} 직업 스킬 · ${sk.label}</div>` +
+      `<div class="skilld__ic">${A.skillIcon(sk.id, sk.icon)}</div><div class="dexd__path">${G.NODES[id].name} · ${TIER_NAME[sk.tier]} 직업 스킬 · ${sk.label}</div>` +
       `<div class="dexd__desc">${G.describeSkill(sk)}</div><small>쿨타임 ${sk.cd}초 · 쿨타임이 차면 자동으로 사용해요</small>`, [{ text: '닫기' }]);
   }
   $('skillbar').addEventListener('click', (e) => { const b = e.target.closest('button[data-sk]'); if (b) showSkill(b.dataset.sk); });
@@ -1175,6 +1336,7 @@
     $('heroBox').classList.toggle('is-striking', striking);
     for (const k of ['haste', 'might', 'guard', 'greed']) $('heroBox').classList.toggle('buff-' + k, !!s.buffs[k]);   // 효과가 걸려 있는 동안 몸이 은은히 빛난다
     renderSkillbar();
+    renderStatusFx();
     const dur = Math.max(0.3, Math.min(1.4, 1 / G.attacksPerSec(s))).toFixed(2) + 's';
     if (cache.dur !== dur) { cache.dur = dur; $('heroBox').style.setProperty('--atk', dur); }
 
@@ -1445,7 +1607,7 @@
   settings.addEventListener('click', (e) => { if (e.target === settings) closeSettings(); });   // 바깥을 누르면 닫는다
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !settings.hidden && $('modal').hidden) closeSettings(); });
   $('resetBtn2').addEventListener('click', () => { closeSettings(); $('resetBtn').click(); });
-  const FX_INFO = { calm: '차분하게: 꼭 필요한 움직임만 보여요', full: '화려하게: 불꽃·동전·화면 흔들림까지 모두 보여요' };
+  const FX_INFO = { calm: '차분하게: 꼭 필요한 움직임만 보여요', full: '화려하게: 궤적·폭발·스킬 이펙트·화면 흔들림까지 모두 보여요' };
   function renderFxSetting() {
     $('fxSeg').querySelectorAll('button').forEach((b) => b.classList.toggle('is-on', b.dataset.fx === fxMode));
     $('fxInfo').textContent = FX_INFO[fxMode];

@@ -3,9 +3,10 @@
 
 사용법 (저장소 루트에서):
   python3 tools/generate-images.py                 # 아직 없는 그림 전부 만들기
-  python3 tools/generate-images.py goblins         # 한 종류만 (goblins | monsters | icons | gear | backgrounds)
+  python3 tools/generate-images.py goblins         # 한 종류만 (goblins | monsters | icons | gear | skills | vfx | backgrounds)
   python3 tools/generate-images.py goblins/knight  # 그림 한 장만
-  python3 tools/generate-images.py --list          # 만들지 않고 어떤 그림이 몇 장 필요한지만 보기 (종류도 함께 줄 수 있음)
+  python3 tools/generate-images.py --list          # 만들지 않고 어떤 그림이 몇 장 필요한지와 예상 비용만 보기 (종류도 함께 줄 수 있음)
+  python3 tools/generate-images.py skills vfx --workers 1 --max-requests 100   # 유료 작업은 상한을 걸고 한 장씩
   python3 tools/generate-images.py --force --retry 1 goblins/knight   # 다른 결과로 다시 뽑기 (retry 번호가 씨앗을 바꿈)
   python3 tools/generate-images.py --reprocess goblins                # 원본은 그대로 두고 배경 제거만 다시
 
@@ -15,6 +16,7 @@ API 키는 ~/.pollinations-key 파일에서 읽는다 (저장소에는 넣지 �
 """
 import argparse
 import os
+import threading
 import sys
 import time
 import urllib.error
@@ -145,6 +147,95 @@ GEAR = {
     'charm': 'a small round talisman charm with a paw print on a red string', 'friendring': 'a bronze ring with two small hearts',
     'glove': 'a leather gauntlet glove with a metal knuckle guard', 'armband': 'a red fabric armband with a gold star emblem',
 }
+SKILLS = {
+    # 1차
+    'warrior': 'a steel sword slashing down with a golden shockwave and sparks',
+    'archer': 'three arrows fired rapidly in a fan with speed lines',
+    'mage': 'four glowing blue magic missiles flying outward in a burst',
+    'rogue': 'a shuriken dripping with green poison',
+    # 2차
+    'knight': 'a large blue shield with a glowing translucent barrier dome around it',
+    'berserker': 'a battle axe with red blood drops and a red heart',
+    'sniper': 'a rifle scope crosshair with a red bullseye',
+    'ranger': 'a glowing green paw print with a small wolf head',
+    'pyromancer': 'a burning flame igniting with orange swirls',
+    'necromancer': 'a small skeleton soldier rising from a green magic circle',
+    'assassin': 'a dagger stabbing a crown shaped target with a red mark',
+    'pirate': 'a pirate treasure chest overflowing with gold coins',
+    # 3차
+    'paladin': 'a glowing golden cross with green healing sparkles',
+    'crusader': 'a red banner with a cross and a roaring sound wave',
+    'warlord': 'a war banner with lightning and rage flames',
+    'destroyer': 'a giant hammer smashing the ground with cracks and rocks flying',
+    'deadeye': 'a sniper crosshair on a giant monster silhouette',
+    'piercer': 'a heavy crossbow bolt piercing through a steel plate',
+    'windwalker': 'a cyan wind gust swirl with a feather',
+    'beastmaster': 'a tiger claw slash with a roaring tiger head',
+    'infernomage': 'a huge fireball meteor exploding with lava',
+    'phoenixmage': 'a glowing flaming phoenix feather inside a shimmering shield',
+    'lich': 'a skull draining green life energy into a heart',
+    'soulreaper': 'a curved scythe harvesting a blue soul wisp',
+    'shade': 'purple shadow chains binding a dark hand',
+    'nightblade': 'a crescent moon shaped slash with a katana',
+    'captain': 'a pirate cannon firing a cannonball with smoke',
+    'buccaneer': 'a treasure map with a gold X and a coin sack',
+    # 4차
+    'seraph': 'angel wings with a golden halo and a holy shield glow',
+    'holyking': 'a golden crown radiating holy light rays',
+    'inquisitor': 'a glowing red rune brand with iron chains',
+    'templarlord': 'a sword raised high with a golden banner and small wings',
+    'conqueror': 'a golden crown on a pile of coins next to a sword',
+    'hordelord': 'several small goblin soldiers with spears charging',
+    'avatarofruin': 'a black obsidian sword with red cracks and flames',
+    'titan': 'a giant stone fist with a red rage aura',
+    'godeye': 'a golden third eye with a bullet trail',
+    'hawkeye': 'a hawk diving with talons out and speed lines',
+    'siegearcher': 'a giant ballista bolt breaking a stone wall',
+    'dragonslayer': 'a spear stabbing a dragon head silhouette',
+    'stormarcher': 'an arrow crackling with yellow lightning bolts',
+    'windsage': 'green healing leaves swirling in the wind',
+    'wolfking': 'three wolf heads howling under a moon',
+    'forestwarden': 'a wooden shield made of thick vines and leaves',
+    'flameemperor': 'a burning flame crown with a fire scepter',
+    'meteormage': 'multiple meteors falling from a starry sky',
+    'phoenixlord': 'a rising phoenix with wings spread in golden flames',
+    'sunpriest': 'a blazing sun disc with a brand mark',
+    'lichking': 'a skull crown above a rising skeleton army',
+    'soulbinder': 'glowing ghost spirits forming a protective ring',
+    'grimreaper': 'a huge scythe with a skull hood',
+    'boneemperor': 'a bone crown with crossed bones and skeleton hands',
+    'voidwalker': 'a dagger inside a swirling purple void portal',
+    'phantom': 'a ghostly translucent samurai with afterimages',
+    'bloodblade': 'a katana dripping with blood forming a red heart',
+    'ninjamaster': 'three ninja silhouettes with shuriken and smoke',
+    'seaking': 'a giant blue tidal wave with a golden trident',
+    'ghostcaptain': 'a ghostly ship with green flames',
+    'treasureking': 'gold coins and gems raining down',
+    'raiderlord': 'a skull flag with a cleaver and a loot sack',
+}
+# 전투 이펙트 스프라이트 (화면에서 크기·회전·투명도를 움직여 쓴다)
+VFX = {
+    'slash_white': 'a bright white crescent sword slash streak with motion blur and a glowing edge',
+    'slash_gold': 'a golden holy crescent slash with sparkles',
+    'slash_fire': 'a fiery orange crescent slash with flames',
+    'slash_dark': 'a purple dark crescent slash with shadow smoke',
+    'claw_slash': 'three parallel red claw slash marks',
+    'impact_burst': 'a yellow and white star shaped impact burst with sparks radiating outward',
+    'explosion_fire': 'a cartoon fire explosion with orange and yellow flames',
+    'explosion_magic': 'a blue and purple magic explosion with sparkles',
+    'lightning': 'a yellow lightning bolt strike with an electric glow',
+    'heal_light': 'a green healing light column with rising sparkles and plus signs',
+    'shield_bubble': 'a translucent blue energy shield bubble with a hexagon pattern',
+    'magic_circle': 'a glowing cyan runic magic circle seen from a slight angle',
+    'summon_circle': 'a green and purple necromancy summoning circle with small skulls',
+    'coin_burst': 'a burst of golden coins and sparkles',
+    'poison_cloud': 'a green poison cloud with bubbles and small skull wisps',
+    'stun_stars': 'a ring of yellow stars and swirls, dizzy effect',
+    'wind_swirl': 'a cyan wind vortex swirl with leaves',
+    'rage_aura': 'a red flame aura burst with angry energy',
+}
+FX = ('game visual effect sprite, bold dark outline, glossy cel-shaded, vibrant colors, centered, square composition, '
+      'no character, no text, ' + BG)
 BACKGROUNDS = {
     'biome0': 'sunny green forest hills with tall pine trees, blue sky with clouds, a small floating island in the sky',
     'biome1': 'dark purple cave interior with glowing crystals, stalactites, misty floor',
@@ -160,6 +251,8 @@ SPECS = {
     'monsters':    dict(items=MONSTERS,    prompt=lambda d: f'{CHAR}, {d}, facing left', gen=(768, 720), out=(480, 448), pad=0.05, keyed=True),
     'icons':       dict(items=ICONS,       prompt=lambda d: f'{ICON}, {d}', gen=(512, 512), out=(128, 128), pad=0.06, keyed=True),
     'gear':        dict(items=GEAR,        prompt=lambda d: f'{ICON}, {d}', gen=(512, 512), out=(128, 128), pad=0.06, keyed=True),
+    'skills':      dict(items=SKILLS,      prompt=lambda d: f'{ICON}, {d}', gen=(512, 512), out=(128, 128), pad=0.06, keyed=True),
+    'vfx':         dict(items=VFX,         prompt=lambda d: f'{FX}, {d}', gen=(512, 512), out=(256, 256), pad=0.03, keyed=True),
     'backgrounds': dict(items=BACKGROUNDS, prompt=lambda d: f'{SCENE}, {d}', gen=(1280, 960), out=(1280, 960), pad=0, keyed=False),
 }
 
@@ -169,12 +262,26 @@ def api_key():
         return f.read().strip()
 
 
+# 요청 1번당 0.005 pollen (klein 모델 정액). 유료 작업이라 요청 횟수에 상한을 두고, 넘기면 스스로 멈춘다.
+PRICE_PER_REQUEST = 0.005
+_budget = {'left': None, 'used': 0}
+_budget_lock = threading.Lock()
+
+
+def spend_request():
+    with _budget_lock:
+        if _budget['left'] is not None and _budget['used'] >= _budget['left']:
+            raise RuntimeError(f"예산 상한 도달: 요청 {_budget['used']}번({_budget['used'] * PRICE_PER_REQUEST:.3f} pollen)을 이미 썼어요. --max-requests 로 상한을 올릴 수 있어요.")
+        _budget['used'] += 1
+
+
 def request_image(prompt, w, h, seed, key, tries=4):
     url = ('https://gen.pollinations.ai/image/' + urllib.parse.quote(prompt) +
            f'?model={MODEL}&width={w}&height={h}&seed={seed}&nologo=true')
     err = ''
     for i in range(tries):
         try:
+            spend_request()   # 재시도도 요청이므로 모두 센다
             req = urllib.request.Request(url, headers={'Authorization': 'Bearer ' + key, 'User-Agent': 'Mozilla/5.0'})
             data = urllib.request.urlopen(req, timeout=240).read()
             if data[:2] == b'\xff\xd8' or data[:4] == b'\x89PNG' or data[:4] == b'RIFF':
@@ -265,6 +372,7 @@ def main():
     ap.add_argument('--retry', type=int, default=0, help='씨앗을 바꿔 다른 결과를 뽑는다 (0, 1, 2 ...)')
     ap.add_argument('--reprocess', action='store_true', help='새로 생성하지 않고 images/_raw/ 원본으로 배경 제거·크기 정리만 다시 한다')
     ap.add_argument('--workers', type=int, default=4)
+    ap.add_argument('--max-requests', type=int, default=None, help='이 실행에서 보낼 요청 횟수 상한 (재시도 포함). 넘기면 멈춘다. 1번 = 0.005 pollen')
     ap.add_argument('--list', action='store_true', help='아무것도 만들지 않고, 만들 그림 목록과 장수만 보여 준다 (비용 확인용)')
     args = ap.parse_args()
 
@@ -284,9 +392,11 @@ def main():
         for k, n in todo:
             print(f'{k}/{n}')
         print(f'\n새로 만들 그림 {len(todo)}장 (이미 있어서 건너뜀 {len(jobs) - len(todo)}장). 요청은 장당 1번, 실패하면 최대 4번까지 다시 시도해요.')
+        print(f'예상 비용: {len(todo)}장 × {PRICE_PER_REQUEST} = {len(todo) * PRICE_PER_REQUEST:.3f} pollen (최대 재시도까지 가면 {len(todo) * 4 * PRICE_PER_REQUEST:.3f})')
         return
 
     key = api_key()
+    _budget['left'] = args.max_requests
     fails = 0
     with ThreadPoolExecutor(args.workers) as ex:
         futs = [(k, n, ex.submit(make, k, n, args.retry, args.force, key, args.reprocess)) for k, n in jobs]
@@ -296,6 +406,7 @@ def main():
             except Exception as e:
                 fails += 1
                 print(f'FAIL  {k}/{n}: {e}', flush=True)
+    print(f'\n요청 {_budget["used"]}번 사용 (약 {_budget["used"] * PRICE_PER_REQUEST:.3f} pollen)')
     print(f'\n끝: {len(jobs) - fails}/{len(jobs)}장 성공' + (f', {fails}장 실패' if fails else ''))
     print('다음: node tools/make-manifest.js')
 

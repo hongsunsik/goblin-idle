@@ -21,6 +21,8 @@
 | `monsters/` | 아래 13개 이름 | 13 | 480×448 | **투명** |
 | `monsters/` (선택) | `이름_지역번호.png` (예: `golem_3.png`) | 지역별 | 480×448 | **투명** |
 | `gear/` | 아래 17개 디자인 이름 (없으면 기본 아이콘) | 17 | 128×128 (정사각형) | **투명** |
+| `skills/` | 스킬 아이콘: 직업 id와 같은 이름 60개 (없으면 기본 아이콘) | 60 | 128×128 (정사각형) | **투명** |
+| `vfx/` | 전투 이펙트 18개 (없으면 CSS 이펙트) | 18 | 256×256 (정사각형) | **투명** |
 | `icons/` | 아래 22개 이름 | 22 | 128×128 (정사각형) | **투명** |
 | `backgrounds/` | `biome0` ~ `biome5` | 6 | 1600×1200 (4:3 가로) | 불투명 (WebP 권장) |
 
@@ -36,6 +38,8 @@
 - `goblins/`: `novice` `warrior` `archer` `mage` `rogue` `knight` `berserker` `sniper` `ranger` `pyromancer` `necromancer` `assassin` `pirate`
 - `monsters/`: `slime` `bat` `wolf` `boar` `spider` `snake` `skeleton` `ghost` `scorpion` `golem` `imp` `ogre` `dragon`
 - 3·4차 직업 (`goblins/`, 선택): 이름은 `classes.js`의 ID와 같아요. 3차 `paladin` `crusader` `warlord` `destroyer` `deadeye` `piercer` `windwalker` `beastmaster` `infernomage` `phoenixmage` `lich` `soulreaper` `shade` `nightblade` `captain` `buccaneer`, 4차는 32개(`seraph` `holyking` `inquisitor` … `raiderlord`, 전체 목록은 `tools/generate-images.py`의 `GOBLINS`)
+- `vfx/`: `slash_white` `slash_gold` `slash_fire` `slash_dark` `claw_slash` `impact_burst` `explosion_fire` `explosion_magic` `lightning` `heal_light` `shield_bubble` `magic_circle` `summon_circle` `coin_burst` `poison_cloud` `stun_stars` `wind_swirl` `rage_aura`
+- `skills/`: 직업 id와 같은 이름 (60개, 목록은 `skills.js`의 `SKILLS`)
 - `gear/`: `club` `dagger` `hatchet` `sword` `staff` (무기) / `leather` `chainmail` `plate` `robe` (방어구) / `goldring` `luckynecklace` `galebracelet` `featherearring` `charm` `friendring` `glove` `armband` (액세서리)
 - `icons/`: `sword` `shield` `boots` `party` `pouch` `coin` `crown` `heart` `bolt` `burst` `anvil` `cap` `scroll` `star` `skull` `hand` `lock` `check` `book` `gem` `arrowup` `dot`
 - `backgrounds/`: `biome0` `biome1` `biome2` `biome3` `biome4` `biome5`

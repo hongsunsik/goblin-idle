@@ -17,14 +17,16 @@ const EXPECT = {
   monsters: monsterNames,
   icons: A.ICON_NAMES,
   gear: G.GEAR_DESIGNS,
+  skills: Object.keys(G.SKILL_NAMES),
+  vfx: require('../skills.js').VFX_NAMES,
   backgrounds: [0, 1, 2, 3, 4, 5].map((b) => 'biome' + b),
 };
 // 꼭 있어야 하는 이름 (나머지는 선택: 얼굴 전용 그림, 지역별 몬스터 그림)
 const REQUIRED = {
-  goblins: A.LOOK_IDS, monsters: A.MONSTER_KINDS, icons: A.ICON_NAMES, backgrounds: EXPECT.backgrounds, gear: [],
+  goblins: A.LOOK_IDS, monsters: A.MONSTER_KINDS, icons: A.ICON_NAMES, backgrounds: EXPECT.backgrounds, gear: [], skills: [], vfx: [],
 };
 
-const manifest = { v: Date.now(), goblins: {}, monsters: {}, icons: {}, backgrounds: {}, gear: {} };
+const manifest = { v: Date.now(), goblins: {}, monsters: {}, icons: {}, backgrounds: {}, gear: {}, skills: {}, vfx: {} };
 let problems = 0;
 for (const cat of Object.keys(EXPECT)) {
   const dir = path.join(ROOT, cat);
@@ -42,6 +44,8 @@ for (const cat of Object.keys(EXPECT)) {
     const got = extra.filter((id) => manifest.goblins[id]).length;
     console.log(`${''.padEnd(12)} 3·4차 직업 그림 ${got}/${extra.length}장 (없으면 윗단계 직업 그림으로 나와요)`);
   }
+  if (cat === 'skills') console.log(`${''.padEnd(12)} 스킬 아이콘 ${Object.keys(manifest.skills).length}/${Object.keys(G.SKILL_NAMES).length}장 (없으면 기본 아이콘으로 나와요)`);
+  if (cat === 'vfx') console.log(`${''.padEnd(12)} 이펙트 ${Object.keys(manifest.vfx).length}/${EXPECT.vfx.length}장 (없으면 CSS 이펙트로 나와요)`);
   if (cat === 'gear') console.log(`${''.padEnd(12)} 장비 그림 ${Object.keys(manifest.gear).length}/${G.GEAR_DESIGNS.length}장 (없으면 기본 아이콘으로 나와요)`);
 }
 fs.writeFileSync(path.join(ROOT, 'manifest.js'),
