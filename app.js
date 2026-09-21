@@ -126,6 +126,7 @@
     document.querySelectorAll('.tabnav__btn').forEach((b) => b.classList.toggle('is-on', b.dataset.go === name));
     document.querySelector('.tabs').scrollTop = 0;
     if (name === 'class') renderClass(true);
+    if (name === 'log') renderAchieves(true);
   }
   $('nav').addEventListener('click', (e) => {
     const b = e.target.closest('.tabnav__btn');
@@ -162,7 +163,9 @@
         btn: li.querySelector('.up__btn'),
         last: '',
       };
-      refs.btn.addEventListener('click', () => { if (G.buyMany(state, key, buyWant()) > 0) render(); });
+      refs.btn.addEventListener('click', () => {
+        if (G.buyMany(state, key, buyWant()) > 0) { handleEvents(G.checkAchievements(state)); render(); }
+      });
       upRefs[key] = refs;
       ul.appendChild(li);
     }
@@ -194,6 +197,7 @@
         { text: '취소' },
         { text: '전직하기', cls: 'btn--gold', onClick: () => {
           if (!G.promote(state, id)) return;
+          handleEvents(G.checkAchievements(state));
           addLog(`${info.name}(으)로 전직했다!`, 'is-good', 'cap');
           floatText('전직!', 'float--big', 'center');
           writeSave();
@@ -261,6 +265,27 @@
     if (b && !b.disabled) askPromote(b.dataset.pick, b.dataset.adv === '1');
   });
 
+  // ---- 업적 (기록 탭) ----
+  let achieveKey = '';
+  function renderAchieves(force) {
+    const s = state;
+    const done = Object.keys(s.achieved).length;
+    // 달성 수와 진행도가 바뀌었을 때만 다시 그린다
+    const key = G.ACHIEVEMENTS.map((a) => (s.achieved[a.id] ? 'x' : Math.min(a.val(s), a.goal))).join('|');
+    if (!force && key === achieveKey) return;
+    achieveKey = key;
+    $('achieveBonus').textContent = `${done} / ${G.ACHIEVEMENTS.length} · 공격력·골드 +${Math.round(done * G.ACHIEVE_BONUS * 100)}%`;
+    let html = '';
+    for (const a of G.ACHIEVEMENTS) {
+      const on = !!s.achieved[a.id];
+      const cur = on ? a.goal : Math.min(a.val(s), a.goal);
+      html += `<div class="ach ${on ? 'is-on' : ''}">${A.icon(a.icon)}<div class="ach__body">` +
+        `<div class="ach__name">${a.name}</div><div class="ach__desc">${a.desc}</div>` +
+        `<div class="ach__bar"><i class="${on ? 'is-full' : ''}" style="width:${(cur / a.goal) * 100}%"></i></div></div></div>`;
+    }
+    $('achv').innerHTML = html;
+  }
+
   // ---- 이벤트 처리 ----
   function handleEvents(events) {
     let gold = 0;
@@ -277,6 +302,10 @@
         floatText('전직 가능!', 'float--big', 'center');
       } else if (e.type === 'down') {
         addLog(`쓰러졌다... 스테이지 ${e.to}로 후퇴`, 'is-bad', 'skull');
+      } else if (e.type === 'achieve') {
+        const a = G.ACHIEVEMENTS.find((x) => x.id === e.id);
+        addLog(`업적 달성: ${a.name}! 공격력·골드 +${Math.round(G.ACHIEVE_BONUS * 100)}%`, 'is-gold', a.icon);
+        floatText('업적 달성!', 'float--big', 'center');
       }
     }
     return gold;
@@ -390,6 +419,7 @@
 
     // 직업 탭
     if (currentTab === 'class') renderClass(false);
+    if (currentTab === 'log') renderAchieves(false);
 
     // 환생 탭
     const gain = G.prestigeGain(s);
@@ -439,6 +469,7 @@
         { text: '환생하기', cls: 'btn--gold', onClick: () => {
           G.prestige(state);
           logs.length = 0;
+          handleEvents(G.checkAchievements(state));
           lastLook = '';
           addLog(`환생했다! 왕의 증표 +${gain} (총 ${state.tokens}개)`, 'is-gold', 'crown');
           writeSave();

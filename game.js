@@ -79,6 +79,38 @@
       bosses:  [['skeleton', '해골 군주'], ['dragon', '뼈 용']] },
   ];
 
+  // ---- 업적 ----
+  // val(s)이 goal에 닿으면 달성. 달성할 때마다 공격력·골드가 영구히 +2%, 환생해도 유지된다.
+  const ACHIEVE_BONUS = 0.02;
+  const maxUpgradeLv = (s) => Math.max(...UPGRADE_KEYS.map((k) => s.upgrades[k]));
+  const ACHIEVEMENTS = [
+    { id: 'kill100',    icon: 'sword',   name: '사냥꾼',         desc: '몬스터 100마리 처치',       goal: 100,   val: (s) => s.totalKills },
+    { id: 'kill1000',   icon: 'sword',   name: '학살자',         desc: '몬스터 1,000마리 처치',     goal: 1000,  val: (s) => s.totalKills },
+    { id: 'kill10000',  icon: 'skull',   name: '재앙',           desc: '몬스터 10,000마리 처치',    goal: 10000, val: (s) => s.totalKills },
+    { id: 'stage10',    icon: 'star',    name: '숲을 벗어나다',  desc: '스테이지 10 도달',          goal: 10,    val: (s) => s.bestStage },
+    { id: 'stage30',    icon: 'star',    name: '탐험가',         desc: '스테이지 30 도달',          goal: 30,    val: (s) => s.bestStage },
+    { id: 'stage50',    icon: 'star',    name: '정복자',         desc: '스테이지 50 도달',          goal: 50,    val: (s) => s.bestStage },
+    { id: 'level30',    icon: 'arrowup', name: '베테랑',         desc: '레벨 30 달성',              goal: 30,    val: (s) => s.level },
+    { id: 'upgrade50',  icon: 'anvil',   name: '강화 장인',      desc: '강화 하나를 Lv.50까지',     goal: 50,    val: maxUpgradeLv },
+    { id: 'prestige1',  icon: 'crown',   name: '첫 환생',        desc: '환생 1회',                  goal: 1,     val: (s) => s.prestiges },
+    { id: 'prestige5',  icon: 'crown',   name: '윤회하는 왕',    desc: '환생 5회',                  goal: 5,     val: (s) => s.prestiges },
+    { id: 'codex4',     icon: 'cap',     name: '다재다능',       desc: '2차 직업 4종 달성',         goal: 4,     val: (s) => Object.keys(s.mastered).length },
+    { id: 'codex8',     icon: 'book',    name: '도감 완성',      desc: '2차 직업 8종 모두 달성',    goal: 8,     val: (s) => Object.keys(s.mastered).length },
+  ];
+  const achieveMult = (s) => 1 + ACHIEVE_BONUS * Object.keys(s.achieved).length;
+
+  // 새로 달성한 업적을 기록하고 사건({type:'achieve', id})을 ev에 추가한다
+  function checkAchievements(s, ev) {
+    ev = ev || [];
+    for (const a of ACHIEVEMENTS) {
+      if (!s.achieved[a.id] && a.val(s) >= a.goal) {
+        s.achieved[a.id] = true;
+        ev.push({ type: 'achieve', id: a.id });
+      }
+    }
+    return ev;
+  }
+
   // ---- 상태 ----
   function createState(now) {
     const s = {
@@ -97,6 +129,7 @@
       cls: null,         // 1차 직업 (전사·궁수·마법사·도적)
       adv: null,         // 2차 직업
       mastered: {},      // 2차 전직을 달성한 직업 도감 (환생해도 유지)
+      achieved: {},      // 달성한 업적 (환생해도 유지)
       hp: 0,
       monsterHp: 0,
       monsterMax: 0,
@@ -124,11 +157,11 @@
   const baseDmg = (s) => 3 + 1.5 * (s.level - 1);
   const maxHp = (s) => (50 + 12 * (s.level - 1)) * (1 + 0.25 * s.upgrades.armor) * mile(s.upgrades.armor) * statMult(s, 'hp');
   const hitDmg = (s) =>
-    baseDmg(s) * (1 + 0.25 * s.upgrades.weapon) * mile(s.upgrades.weapon) * tokenMult(s) * masteryMult(s) * statMult(s, 'dmg');
+    baseDmg(s) * (1 + 0.25 * s.upgrades.weapon) * mile(s.upgrades.weapon) * tokenMult(s) * masteryMult(s) * achieveMult(s) * statMult(s, 'dmg');
   const attacksPerSec = (s) => (1 + 0.1 * s.upgrades.speed) * statMult(s, 'aps');
   const companionDps = (s) => s.upgrades.companion * mile(s.upgrades.companion) * hitDmg(s) * 0.35 * statMult(s, 'comp');
   const goldMult = (s) =>
-    (1 + 0.15 * s.upgrades.loot) * mile(s.upgrades.loot) * tokenMult(s) * masteryMult(s) * statMult(s, 'gold');
+    (1 + 0.15 * s.upgrades.loot) * mile(s.upgrades.loot) * tokenMult(s) * masteryMult(s) * achieveMult(s) * statMult(s, 'gold');
   const totalDps = (s) => hitDmg(s) * attacksPerSec(s) + companionDps(s);
   const expNeeded = (s) => Math.ceil(15 * Math.pow(1.3, s.level - 1));
 
@@ -295,6 +328,7 @@
       spawnMonster(s);
       ev.push({ type: 'down', from, to: s.stage });
     }
+    if (ev.length > 0) checkAchievements(s, ev);   // 처치·레벨업 같은 사건이 있을 때만 판정 (매 틱마다 하지 않음)
     return ev;
   }
 
@@ -304,6 +338,7 @@
     const ev = [];
     const dmg = hitDmg(s) * CLICK_MULT * statMult(s, 'click');
     dealDamage(s, dmg, ev);
+    if (ev.length > 0) checkAchievements(s, ev);
     return { dmg, events: ev };
   }
 
@@ -398,6 +433,7 @@
     s.adv = s.cls && typeof o.adv === 'string' && ADVANCED[o.adv] && ADVANCED[o.adv].parent === s.cls ? o.adv : null;
     for (const k of Object.keys(ADVANCED)) if (o.mastered && o.mastered[k] === true) s.mastered[k] = true;
     if (s.adv) s.mastered[s.adv] = true;
+    for (const a of ACHIEVEMENTS) if (o.achieved && o.achieved[a.id] === true) s.achieved[a.id] = true;
     s.hp = Math.min(maxHp(s), Math.max(1, num(o.hp, maxHp(s))));
     spawnMonster(s);
     s.monsterHp = Math.min(s.monsterMax, Math.max(1, num(o.monsterHp, s.monsterMax)));
@@ -433,6 +469,7 @@
     TOKEN_BONUS, maxHp, hitDmg, attacksPerSec, companionDps, totalDps, goldMult, expNeeded, tokenMult,
     monsterAtk, monsterGold, monsterInfo, biomeOf, isBossStage, lookId, classTitle,
     promoStage, promoOptions, promote, statMult, masteryMult,
+    ACHIEVEMENTS, ACHIEVE_BONUS, achieveMult, checkAchievements,
     fmt, fmtTime,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
