@@ -31,6 +31,9 @@ svg { display: block; }
 .ic { width: 1.4em; height: 1.4em; flex: none; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.5)); }
 .ic--xl { width: 64px; height: 64px; margin: 0 auto; filter: drop-shadow(0 0 12px rgba(255, 210, 90, 0.7)); }
 .gob-svg, .mon-svg { overflow: visible; }
+/* 이미지 폴더의 그림(images/)을 쓸 때. 얼굴 전용 그림이 없으면 전신 그림의 윗부분을 정사각형으로 잘라 쓴다 */
+.gob-img, .mon-img, .ic-img { object-fit: contain; }
+.gob-crop { display: block; aspect-ratio: 1; background-repeat: no-repeat; background-size: 170% auto; background-position: 50% 22%; }
 
 /* ===== 홀로그램 창 ===== */
 .win, .card {

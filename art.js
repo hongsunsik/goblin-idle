@@ -1,6 +1,14 @@
 // 그림 (SVG). 이모지 대신 코드로 직접 그린 만화 스타일 그림이다: 고블린 13종, 몬스터 13종, 아이콘 세트.
 // 외부 이미지 없이 코드만으로 만들고, 그림자 면(셀 셰이딩)을 얹어 애니메이션 채색 느낌을 낸다.
 (function (root) {
+  // ---- 이미지 폴더 (images/) ----
+  // images/manifest.js(tools/make-manifest.js가 만든다)에 적힌 파일이 있으면 그 이미지를 쓰고, 없으면 아래의 SVG 그림을 그대로 쓴다.
+  // manifest 형식: { v, goblins: { knight: 'knight.png' }, monsters: {...}, icons: {...}, backgrounds: { biome0: '...' } }
+  const IMG_DIR = 'images/';
+  const M = Object.assign({ v: 0, goblins: {}, monsters: {}, icons: {}, backgrounds: {} }, root.ART_MANIFEST || {});
+  const has = (cat, name) => (M[cat] && M[cat][name]) || '';
+  // manifest 값은 images/ 기준 경로 (예: 'goblins/knight.png'). ?v= 는 그림을 바꿨을 때 브라우저 캐시를 피하려는 값.
+  const src = (file) => IMG_DIR + file + (M.v ? '?v=' + M.v : '');
   const SKIN = '#7fc241';
   const SKIN_D = '#4f8a25';
   const SKIN_L = '#a8de6b';
@@ -211,7 +219,11 @@
     for (const k of Object.keys(ICONS)) sym += `<symbol id="i-${k}" viewBox="0 0 64 64">${ICONS[k]}</symbol>`;
     return `<svg xmlns="http://www.w3.org/2000/svg" width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>${ICON_DEFS}</defs>${sym}</svg>`;
   }
-  const icon = (name, cls) => `<svg class="ic ${cls || ''}" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><use href="#i-${name}"/></svg>`;
+  const svgIcon = (name, cls) => `<svg class="ic ${cls || ''}" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><use href="#i-${name}"/></svg>`;
+  const icon = (name, cls) => {
+    const f = has('icons', name);
+    return f ? `<img class="ic ic-img ${cls || ''}" src="${src(f)}" alt="" draggable="false">` : svgIcon(name, cls);
+  };
 
   // =====================================================================
   //  셀 셰이딩: 그림 위에 대각선으로 딱 떨어지는 그림자 면과 테두리 빛을 얹어 애니메이션 채색 느낌을 낸다.
@@ -234,6 +246,9 @@
 
   // 몬스터 그림. boss가 true면 왕관이나 위압감을 더한다.
   function monster(kind, biome, boss) {
+    // 지역별 그림(ogre_3.png)이 있으면 그걸, 없으면 공통 그림(ogre.png)을 쓴다
+    const f = has('monsters', kind + '_' + (biome | 0)) || has('monsters', kind);
+    if (f) return `<img class="mon-svg mon-img" src="${src(f)}" alt="" draggable="false">`;
     const inner = monsterInner(kind, biome | 0, !!boss);
     return `<svg class="mon-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 112" aria-hidden="true">
       <ellipse cx="60" cy="104" rx="42" ry="6" fill="rgba(0,0,0,.35)"/>
@@ -479,12 +494,52 @@
   // 고블린 그림. opts.head가 true면 얼굴만 잘라서(프로필 사진용) 돌려준다.
   function goblin(id, opts) {
     const o = opts || {};
+    // 얼굴 그림(knight_head.png)이 있으면 그걸, 없으면 전신 그림을 얼굴 부분만 잘라서 쓴다
+    const full = has('goblins', id);
+    if (full && !o.head) return `<img class="gob-svg gob-img" src="${src(full)}" alt="" draggable="false">`;
+    if (full && o.head) {
+      const hd = has('goblins', id + '_head');
+      return hd
+        ? `<img class="gob-svg gob-img" src="${src(hd)}" alt="" draggable="false">`
+        : `<span class="gob-svg gob-crop" style="background-image:url('${src(full)}')"></span>`;
+    }
     const view = o.head ? '14 -6 92 92' : '-4 -14 128 154';
     const ground = o.head ? '' : '<ellipse cx="60" cy="132" rx="32" ry="6" fill="rgba(0,0,0,.35)"/>';
     return `<svg class="gob-svg" xmlns="http://www.w3.org/2000/svg" viewBox="${view}" aria-hidden="true">${ground}${shaded(goblinInner(id), { x: -10, y: -30, w: 150, h: 180 })}</svg>`;
   }
 
-  const api = { goblin, monster, icon, sprite: spriteMarkup, LOOK_IDS: Object.keys(LOOKS), MONSTER_KINDS: Object.keys(MONSTER), ICON_NAMES: Object.keys(ICONS) };
+  // index.html에 직접 적힌 아이콘(<svg class="ic"><use href="#i-xxx"/>)을 이미지로 바꾸고, 지역 배경 이미지를 적용한다. 시작할 때 한 번 부른다.
+  function applyStatic(doc) {
+    if (!doc || !doc.querySelectorAll) return;
+    doc.querySelectorAll('svg.ic > use').forEach((use) => {
+      const name = (use.getAttribute('href') || '').replace('#i-', '');
+      const f = has('icons', name);
+      if (!f) return;
+      const svg = use.parentNode;
+      const img = doc.createElement('img');
+      img.className = svg.getAttribute('class') + ' ic-img';
+      img.src = src(f);
+      img.alt = '';
+      img.draggable = false;
+      svg.replaceWith(img);
+    });
+    let css = '';
+    for (let b = 0; b < 6; b++) {
+      const f = has('backgrounds', 'biome' + b);
+      if (!f) continue;
+      css += `.stage[data-biome='${b}'] .stage__sky { background: url('${src(f)}') center bottom / cover no-repeat; }\n` +
+             `.stage[data-biome='${b}'] :is(.stage__art, .stage__sun, .stage__rays) { display: none; }\n`;
+    }
+    if (css) { const st = doc.createElement('style'); st.textContent = css; doc.head.appendChild(st); }
+    // 처음 화면에 나올 때 깜빡이지 않도록 미리 내려받아 둔다
+    if (typeof Image !== 'undefined') {
+      for (const cat of ['goblins', 'monsters', 'icons', 'backgrounds']) {
+        for (const k of Object.keys(M[cat] || {})) new Image().src = src(M[cat][k]);
+      }
+    }
+  }
+
+  const api = { applyStatic, goblin, monster, icon, sprite: spriteMarkup, LOOK_IDS: Object.keys(LOOKS), MONSTER_KINDS: Object.keys(MONSTER), ICON_NAMES: Object.keys(ICONS) };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Art = api;
 })(typeof window !== 'undefined' ? window : globalThis);
