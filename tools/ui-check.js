@@ -226,8 +226,13 @@ const FAKE_CLOUD = `(() => {
 
     console.log('계정·클라우드 저장');
     await ev(`document.querySelector('[data-go="log"]').click()`); await sleep(300);
-    check('로그인 설정이 없으면 이 기기에만 저장된다는 안내가 보이고 로그인 버튼은 없다',
-      (await ev(`document.getElementById('acct').textContent`)).includes('이 기기') && (await ev(`document.querySelectorAll('[data-login]').length`)) === 0);
+    check('서버가 연결되지 않아도 로그인 버튼 두 개와 "준비 중" 표시가 보인다',
+      (await ev(`document.getElementById('acct').textContent`)).includes('준비 중') && (await ev(`document.querySelectorAll('[data-login]').length`)) === 2);
+    await ev(`document.querySelector('[data-login="google"]').click()`); await sleep(300);
+    check('준비 중일 때 버튼을 누르면 안내 창이 뜨고 로그인 시도는 하지 않는다',
+      (await ev(`document.getElementById('modalTitle').textContent`)) === '준비 중이에요' && (await ev(`document.getElementById('acct').textContent`)).includes('준비 중'));
+    await shot('account-soon');
+    await ev(`document.querySelector('#modalActions .btn').click()`); await sleep(200);
     // 가짜 클라우드를 넣고 페이지를 다시 연다
     await send('Page.addScriptToEvaluateOnNewDocument', { source: FAKE_CLOUD });
     await ev(`localStorage.removeItem('fake-cloud-server')`);

@@ -1149,8 +1149,12 @@
     st = st || cloud.state();
     const box = $('acct');
     if (!st.configured) {
-      box.innerHTML = '<div class="acct__title">☁ 클라우드 저장</div>' +
-        '<div class="acct__desc" style="margin-bottom:0">지금은 이 기기(브라우저)에만 저장돼요. 로그인 기능이 설정되면 Google·Apple 계정으로 기기를 바꿔도 이어서 할 수 있어요.<br><small>개발자: docs/FIREBASE-SETUP.md</small></div>';
+      // 서버(Firebase)가 아직 연결되지 않았어도 버튼은 보여 주고, 누르면 준비 중이라고 알려 준다
+      box.innerHTML = '<div class="acct__title">☁ 클라우드 저장 <span class="acct__soon">준비 중</span></div>' +
+        '<div class="acct__desc">로그인하면 진행 상황이 안전하게 저장되고, 다른 기기에서도 이어서 할 수 있어요. 지금은 이 기기(브라우저)에만 자동 저장돼요.</div>' +
+        '<div class="acct__btns"><button class="btn btn--google is-soon" type="button" data-login="google">Google로 로그인</button>' +
+        '<button class="btn btn--apple is-soon" type="button" data-login="apple">Apple로 로그인</button></div>' +
+        '<div class="acct__desc" style="margin:8px 0 0"><small>개발자: docs/FIREBASE-SETUP.md</small></div>';
       return;
     }
     const err = st.error ? `<div class="acct__err">${esc(st.error)}</div>` : '';
@@ -1172,7 +1176,13 @@
   }
   $('acct').addEventListener('click', async (e) => {
     const login = e.target.closest('button[data-login]');
-    if (login) { await cloud.signIn(login.dataset.login); renderAccount(); return; }
+    if (login) {
+      if (!cloud.state().configured) {
+        openModal('준비 중이에요', 'Google·Apple 로그인은 아직 서버가 연결되지 않아서 쓸 수 없어요.<br>연결되면 이 버튼으로 로그인해서 기기를 바꿔도 이어서 할 수 있어요.<br><small>지금 진행 상황은 이 기기에 자동 저장돼요.</small>', [{ text: '확인' }]);
+        return;
+      }
+      await cloud.signIn(login.dataset.login); renderAccount(); return;
+    }
     const act = e.target.closest('button[data-acct]');
     if (!act) return;
     if (act.dataset.acct === 'sync') { await cloud.sync(); renderAccount(); }

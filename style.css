@@ -561,3 +561,6 @@ svg { display: block; }
 .cmp > div.is-rec { border-color: rgba(255, 212, 121, 0.8); background: linear-gradient(180deg, rgba(90, 64, 10, 0.4), rgba(0, 0, 0, 0.3)); }
 .cmp h4 { margin: 0 0 4px; font-size: 12px; color: var(--cyan); }
 .cmp .rec { color: var(--gold); font-size: 10px; font-weight: 900; margin-left: 4px; }
+
+.acct__soon { margin-left: 4px; padding: 0 7px; font-size: 10px; font-weight: 900; color: #3a2400; background: linear-gradient(180deg, #fff0b8, #ffc84a); clip-path: polygon(4px 0, 100% 0, calc(100% - 4px) 100%, 0 100%); }
+.btn.is-soon { opacity: 0.8; }
