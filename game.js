@@ -61,6 +61,33 @@
                    mult: { gold: 1.7, comp: 1.2 } },
   };
   const MASTERY_BONUS = 0.05;   // 2차 전직을 달성한 직업 1개당 공격력·골드 +5% (환생해도 유지)
+  // 도감 등급: 그 직업으로 도달한 최고 스테이지가 기준을 넘을 때마다 등급이 오르고, 등급 하나당 직업 보너스가 +1%p 늘어난다.
+  const DEX_TIERS = [{ name: '동', stage: 20 }, { name: '은', stage: 35 }, { name: '금', stage: 50 }];
+  const TIER_BONUS = 0.01;
+
+  // ---- 증표 상점 (영구 강화 트리) ----
+  // 환생으로 얻은 왕의 증표로 산다. 산 강화는 환생해도 유지된다. 레벨 lv → lv+1의 가격은 base × (lv+1)개.
+  // req: 먼저 올려야 하는 강화 [[id, 레벨], ...]. tier는 화면에서 단계를 나누는 용도.
+  const PERKS = {
+    might:     { name: '용사의 힘',     icon: 'sword',  tier: 1, max: 10, base: 1, req: [],
+                 per: '공격력 +10%', now: (lv) => `공격력 +${lv * 10}%` },
+    greed:     { name: '탐욕',          icon: 'pouch',  tier: 1, max: 10, base: 1, req: [],
+                 per: '골드 +10%', now: (lv) => `골드 +${lv * 10}%` },
+    vitality:  { name: '강철 체력',     icon: 'heart',  tier: 1, max: 10, base: 1, req: [],
+                 per: '최대 체력 +10%', now: (lv) => `최대 체력 +${lv * 10}%` },
+    click:     { name: '강타',          icon: 'hand',   tier: 2, max: 5,  base: 2, req: [['might', 3]],
+                 per: '직접 공격 +25%', now: (lv) => `직접 공격 +${lv * 25}%` },
+    bond:      { name: '동료의 유대',   icon: 'party',  tier: 2, max: 10, base: 2, req: [['vitality', 3]],
+                 per: '동료 공격 +10%', now: (lv) => `동료 공격 +${lv * 10}%` },
+    rest:      { name: '든든한 휴식',   icon: 'scroll', tier: 2, max: 4,  base: 2, req: [['greed', 3]],
+                 per: '오프라인 보상 한도 +1시간', now: (lv) => `오프라인 보상 최대 ${8 + lv}시간` },
+    headstart: { name: '빠른 출발',     icon: 'bolt',   tier: 3, max: 5,  base: 3, req: [['might', 5]],
+                 per: '환생 후 무기·갑옷 Lv.+3 상태로 시작', now: (lv) => `무기·갑옷 Lv.${lv * HEADSTART_LV}로 시작` },
+    kingly:    { name: '왕의 위엄',     icon: 'crown',  tier: 3, max: 5,  base: 5, req: [['might', 5], ['greed', 5]],
+                 per: '공격력·골드 +5%', now: (lv) => `공격력·골드 +${lv * 5}%` },
+  };
+  const PERK_KEYS = Object.keys(PERKS);
+  const HEADSTART_LV = 3;
 
   // 지역은 10스테이지마다 바뀌고, 지역마다 나오는 몬스터와 보스가 다르다. [그림 종류, 이름]
   const BIOME_COUNT = 6;
@@ -130,6 +157,8 @@
       adv: null,         // 2차 직업
       mastered: {},      // 2차 전직을 달성한 직업 도감 (환생해도 유지)
       achieved: {},      // 달성한 업적 (환생해도 유지)
+      dex: {},           // 도감 기록: 2차 직업별 { best 최고 스테이지, kills 처치 수, runs 전직 횟수 } (환생해도 유지)
+      perks: {},         // 증표 상점에서 산 영구 강화 { id: 레벨 } (환생해도 유지)
       hp: 0,
       monsterHp: 0,
       monsterMax: 0,
@@ -137,6 +166,7 @@
       downT: 0,
       atkT: 0,
       dealt: 0,          // 표시용: 최근에 준 피해량 (저장하지 않음)
+      hits: 0,           // 표시용: 지금까지 고블린이 때린 횟수. 화면이 타격 연출을 넣는 시점을 알려고 쓴다 (저장하지 않음)
       savedAt: now || 0,
     };
     s.hp = maxHp(s);
@@ -147,7 +177,46 @@
   // ---- 능력치 계산 ----
   const TOKEN_BONUS = 0.4;   // 왕의 증표 1개당 공격력·골드 보너스
   const tokenMult = (s) => 1 + TOKEN_BONUS * s.tokens;
-  const masteryMult = (s) => 1 + MASTERY_BONUS * Object.keys(s.mastered).length;
+  const dexRecord = (s, id) => s.dex[id] || { best: 0, kills: 0, runs: 0 };
+  // 도감 등급 0(없음)~3(금): 그 직업으로 도달한 최고 스테이지 기준
+  const dexTier = (s, id) => DEX_TIERS.filter((t) => dexRecord(s, id).best >= t.stage).length;
+  function masteryMult(s) {
+    let m = 1;
+    for (const id of Object.keys(s.mastered)) m += MASTERY_BONUS + TIER_BONUS * dexTier(s, id);
+    return m;
+  }
+  function dexEntry(s, id) {
+    if (!s.dex[id]) s.dex[id] = { best: 0, kills: 0, runs: 0 };
+    return s.dex[id];
+  }
+
+  // ---- 증표 상점 ----
+  const perkLv = (s, id) => s.perks[id] || 0;
+  const perkCost = (s, id) => PERKS[id].base * (perkLv(s, id) + 1);
+  // 지금까지 강화에 쓴 증표 (저장하지 않고 산 강화 레벨에서 계산하므로 저장 데이터를 고쳐도 속일 수 없다)
+  const perkSpent = (s) => PERK_KEYS.reduce((sum, id) => sum + PERKS[id].base * perkLv(s, id) * (perkLv(s, id) + 1) / 2, 0);
+  // 쓸 수 있는 증표. 공격력·골드 보너스(tokenMult)는 지금까지 번 총 개수(s.tokens) 기준이라 써도 줄지 않는다.
+  const tokenBalance = (s) => s.tokens - perkSpent(s);
+  const perkMissing = (s, id) => PERKS[id].req.filter(([rid, lv]) => perkLv(s, rid) < lv);
+  const perkUnlocked = (s, id) => perkMissing(s, id).length === 0;
+  const canBuyPerk = (s, id) =>
+    perkLv(s, id) < PERKS[id].max && perkUnlocked(s, id) && tokenBalance(s) >= perkCost(s, id);
+  function buyPerk(s, id) {
+    if (!PERKS[id] || !canBuyPerk(s, id)) return false;
+    const before = maxHp(s);
+    s.perks[id] = perkLv(s, id) + 1;
+    s.hp += Math.max(0, maxHp(s) - before);   // 체력 강화는 늘어난 만큼 바로 회복
+    return true;
+  }
+  // 산 강화를 모두 되돌리고 증표를 돌려받는다. 돌려받은 증표 수를 알려준다.
+  function respecPerks(s) {
+    const back = perkSpent(s);
+    s.perks = {};
+    s.hp = Math.min(s.hp, maxHp(s));
+    return back;
+  }
+  const offlineCap = (s) => OFFLINE_CAP + 3600 * perkLv(s, 'rest');
+  const kinglyMult = (s) => 1 + 0.05 * perkLv(s, 'kingly');
   // 1차·2차 직업의 배율을 곱한 값 (해당 항목이 없으면 1)
   function statMult(s, key) {
     const b = s.cls && CLASSES[s.cls];
@@ -155,13 +224,13 @@
     return ((b && b.mult[key]) || 1) * ((a && a.mult[key]) || 1);
   }
   const baseDmg = (s) => 3 + 1.5 * (s.level - 1);
-  const maxHp = (s) => (50 + 12 * (s.level - 1)) * (1 + 0.25 * s.upgrades.armor) * mile(s.upgrades.armor) * statMult(s, 'hp');
+  const maxHp = (s) => (50 + 12 * (s.level - 1)) * (1 + 0.25 * s.upgrades.armor) * mile(s.upgrades.armor) * statMult(s, 'hp') * (1 + 0.1 * perkLv(s, 'vitality'));
   const hitDmg = (s) =>
-    baseDmg(s) * (1 + 0.25 * s.upgrades.weapon) * mile(s.upgrades.weapon) * tokenMult(s) * masteryMult(s) * achieveMult(s) * statMult(s, 'dmg');
+    baseDmg(s) * (1 + 0.25 * s.upgrades.weapon) * mile(s.upgrades.weapon) * tokenMult(s) * masteryMult(s) * achieveMult(s) * statMult(s, 'dmg') * (1 + 0.1 * perkLv(s, 'might')) * kinglyMult(s);
   const attacksPerSec = (s) => (1 + 0.1 * s.upgrades.speed) * statMult(s, 'aps');
-  const companionDps = (s) => s.upgrades.companion * mile(s.upgrades.companion) * hitDmg(s) * 0.35 * statMult(s, 'comp');
+  const companionDps = (s) => s.upgrades.companion * mile(s.upgrades.companion) * hitDmg(s) * 0.35 * statMult(s, 'comp') * (1 + 0.1 * perkLv(s, 'bond'));
   const goldMult = (s) =>
-    (1 + 0.15 * s.upgrades.loot) * mile(s.upgrades.loot) * tokenMult(s) * masteryMult(s) * achieveMult(s) * statMult(s, 'gold');
+    (1 + 0.15 * s.upgrades.loot) * mile(s.upgrades.loot) * tokenMult(s) * masteryMult(s) * achieveMult(s) * statMult(s, 'gold') * (1 + 0.1 * perkLv(s, 'greed')) * kinglyMult(s);
   const totalDps = (s) => hitDmg(s) * attacksPerSec(s) + companionDps(s);
   const expNeeded = (s) => Math.ceil(15 * Math.pow(1.3, s.level - 1));
 
@@ -208,7 +277,7 @@
     if (promoOptions(s).indexOf(id) < 0) return false;
     const oldMax = maxHp(s);
     if (promoStage(s) === 'base') s.cls = id;
-    else { s.adv = id; s.mastered[id] = true; }
+    else { s.adv = id; s.mastered[id] = true; dexEntry(s, id).runs += 1; }
     s.hp = Math.min(maxHp(s), s.hp + Math.max(0, maxHp(s) - oldMax));   // 늘어난 체력만큼 회복
     return true;
   }
@@ -276,6 +345,7 @@
     s.gold += gold;
     s.totalKills += 1;
     s.killsInStage += 1;
+    if (s.adv) dexEntry(s, s.adv).kills += 1;
     ev.push({ type: 'kill', gold, boss: s.isBoss });
     gainExp(s, monsterExp(s.stage), ev);
 
@@ -284,6 +354,7 @@
       s.killsInStage = 0;
       if (s.stage > s.runBest) s.runBest = s.stage;
       if (s.stage > s.bestStage) s.bestStage = s.stage;
+      if (s.adv) { const d = dexEntry(s, s.adv); if (s.stage > d.best) d.best = s.stage; }
       ev.push({ type: 'stage', stage: s.stage });
     }
     spawnMonster(s);
@@ -311,6 +382,7 @@
     const interval = 1 / attacksPerSec(s);
     while (s.atkT >= interval) {
       s.atkT -= interval;
+      s.hits += 1;
       dealDamage(s, hitDmg(s), ev);
     }
 
@@ -336,7 +408,7 @@
   function clickAttack(s) {
     if (s.downT > 0) return { dmg: 0, events: [] };
     const ev = [];
-    const dmg = hitDmg(s) * CLICK_MULT * statMult(s, 'click');
+    const dmg = hitDmg(s) * CLICK_MULT * statMult(s, 'click') * (1 + 0.25 * perkLv(s, 'click'));
     dealDamage(s, dmg, ev);
     if (ev.length > 0) checkAchievements(s, ev);
     return { dmg, events: ev };
@@ -358,7 +430,7 @@
 
   // ---- 오프라인 보상 ----
   function applyOffline(s, now) {
-    const elapsed = Math.min((now - s.savedAt) / 1000, OFFLINE_CAP);
+    const elapsed = Math.min((now - s.savedAt) / 1000, offlineCap(s));
     if (!(elapsed >= OFFLINE_MIN)) return null;
     const before = { gold: s.gold, kills: s.totalKills, stage: s.stage, level: s.level };
     simulate(s, elapsed);
@@ -390,6 +462,7 @@
     s.killsInStage = 0;
     s.runBest = 1;
     s.upgrades = { weapon: 0, armor: 0, speed: 0, companion: 0, loot: 0 };
+    s.upgrades.weapon = s.upgrades.armor = HEADSTART_LV * perkLv(s, 'headstart');   // 빠른 출발
     s.cls = null;   // 직업은 초기화 (도감은 유지)
     s.adv = null;
     s.downT = 0;
@@ -434,6 +507,17 @@
     for (const k of Object.keys(ADVANCED)) if (o.mastered && o.mastered[k] === true) s.mastered[k] = true;
     if (s.adv) s.mastered[s.adv] = true;
     for (const a of ACHIEVEMENTS) if (o.achieved && o.achieved[a.id] === true) s.achieved[a.id] = true;
+    for (const k of Object.keys(ADVANCED)) {
+      const d = o.dex && o.dex[k];
+      if (d && typeof d === 'object') {
+        s.dex[k] = { best: clamp(Math.floor(num(d.best, 0)), 0, 999), kills: clamp(Math.floor(num(d.kills, 0)), 0, 1e15), runs: clamp(Math.floor(num(d.runs, 0)), 0, 99999) };
+      }
+    }
+    for (const id of PERK_KEYS) {
+      const lv = clamp(Math.floor(num(o.perks && o.perks[id], 0)), 0, PERKS[id].max);
+      if (lv > 0) s.perks[id] = lv;
+    }
+    if (tokenBalance(s) < 0) s.perks = {};   // 번 것보다 많이 쓴 저장 데이터는 산 강화를 모두 되돌린다
     s.hp = Math.min(maxHp(s), Math.max(1, num(o.hp, maxHp(s))));
     spawnMonster(s);
     s.monsterHp = Math.min(s.monsterMax, Math.max(1, num(o.monsterHp, s.monsterMax)));
@@ -470,6 +554,8 @@
     monsterAtk, monsterGold, monsterInfo, biomeOf, isBossStage, lookId, classTitle,
     promoStage, promoOptions, promote, statMult, masteryMult,
     ACHIEVEMENTS, ACHIEVE_BONUS, achieveMult, checkAchievements,
+    DEX_TIERS, TIER_BONUS, dexRecord, dexTier,
+    PERKS, PERK_KEYS, HEADSTART_LV, perkLv, perkCost, perkSpent, tokenBalance, perkMissing, perkUnlocked, canBuyPerk, buyPerk, respecPerks, offlineCap,
     fmt, fmtTime,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

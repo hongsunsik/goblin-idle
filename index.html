@@ -57,7 +57,7 @@
         </div>
         <div class="hud__cur">
           <div class="plate" title="골드"><svg class="ic"><use href="#i-coin"/></svg><b id="gold">0</b></div>
-          <div class="plate plate--token" title="왕의 증표: 공격력·골드 +40%씩"><svg class="ic"><use href="#i-crown"/></svg><b id="tokens">0</b></div>
+          <div class="plate plate--token" title="쓸 수 있는 왕의 증표 (공격력·골드 +40%는 지금까지 번 증표 기준)"><svg class="ic"><use href="#i-crown"/></svg><b id="tokens">0</b></div>
         </div>
       </div>
 
@@ -72,21 +72,22 @@
       <div class="actor actor--hero" id="heroBox">
         <div class="tag">
           <div class="tag__name" id="heroTag">견습 고블린</div>
-          <div class="bar bar--hp"><i id="goblinHpBar"></i></div>
+          <div class="bar bar--hp"><i class="trail" id="goblinHpTrail"></i><i id="goblinHpBar"></i></div>
           <div class="tag__hp" id="goblinHpText"></div>
         </div>
-        <div class="actor__sprite" id="hero"></div>
+        <div class="actor__sprite" id="heroSprite"><div class="actor__body" id="hero"></div></div>
       </div>
 
       <div class="actor actor--enemy" id="enemyBox">
         <div class="tag">
           <div class="tag__name" id="monsterName">몬스터</div>
-          <div class="bar bar--mon"><i id="monsterHpBar"></i></div>
+          <div class="bar bar--mon"><i class="trail" id="monsterHpTrail"></i><i id="monsterHpBar"></i></div>
           <div class="tag__hp" id="monsterHpText"></div>
         </div>
-        <div class="actor__sprite" id="monster"></div>
+        <div class="actor__sprite" id="monsterSprite"><div class="actor__body" id="monster"></div></div>
       </div>
 
+      <div class="flash" id="flash" aria-hidden="true"></div>
       <div class="float-layer" id="floatLayer" aria-hidden="true"></div>
       <div class="tap-hint" id="tapHint"><svg class="ic"><use href="#i-hand"/></svg>화면을 눌러 공격!</div>
       <div class="down" id="downBanner" hidden>기절했다! 곧 일어난다...</div>
@@ -106,6 +107,7 @@
         <button class="tabnav__btn is-on" data-go="upgrade" type="button"><svg class="ic"><use href="#i-anvil"/></svg><span>강화</span><i class="dot" hidden></i></button>
         <button class="tabnav__btn" data-go="class" type="button"><svg class="ic"><use href="#i-cap"/></svg><span>전직</span><i class="dot" hidden></i></button>
         <button class="tabnav__btn" data-go="prestige" type="button"><svg class="ic"><use href="#i-crown"/></svg><span>환생</span><i class="dot" hidden></i></button>
+        <button class="tabnav__btn" data-go="shop" type="button"><svg class="ic"><use href="#i-gem"/></svg><span>상점</span><i class="dot" hidden></i></button>
         <button class="tabnav__btn" data-go="log" type="button"><svg class="ic"><use href="#i-scroll"/></svg><span>기록</span></button>
       </nav>
 
@@ -138,6 +140,18 @@
               <div><small>최고 기록</small><b id="pBest">1</b></div>
             </div>
             <button class="btn btn--gold btn--wide" id="prestigeBtn" type="button">환생하기</button>
+          </div>
+        </section>
+
+        <section class="tab" data-tab="shop" hidden>
+          <div class="card shophead">
+            <div class="shophead__tokens"><svg class="ic"><use href="#i-crown"/></svg><span><small>쓸 수 있는 증표</small><b id="shopTokens">0</b></span></div>
+            <p>환생으로 얻은 <b>왕의 증표</b>로 영구 강화를 사요. 산 강화는 환생해도 그대로 남아요.</p>
+          </div>
+          <div id="perks"></div>
+          <div class="foot foot--shop">
+            <span id="shopSpent"></span>
+            <button class="link" id="respecBtn" type="button">강화 초기화</button>
           </div>
         </section>
 

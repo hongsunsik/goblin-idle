@@ -66,25 +66,249 @@
     }
   }
 
-  // ---- 화면에 떠오르는 숫자 ----
+  // ---- 연출 (모션) ----
+  // 움직임은 Web Animations(el.animate)로 넣는다. transform·opacity·filter만 움직여서 휴대폰에서도 부드럽다.
+  // '동작 줄이기' 설정을 켠 사람에게는 움직임을 넣지 않는다 (숫자와 상태는 그대로 보인다).
+  const reduceMotion = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
   const layer = $('floatLayer');
+  const sceneEl = $('scene');
+  const MAX_FX = 34;   // 화면에 한꺼번에 떠 있는 이펙트 수 제한 (빠르게 싸울 때 과부하 방지)
+
+  function anim(el, keyframes, opts) {
+    if (reduceMotion || !el || !el.animate) return null;
+    return el.animate(keyframes, opts);
+  }
+  // 요소의 계산된 filter 값 (없으면 빈 문자열). 기존 그림자·지역 색 필터 뒤에 효과를 이어 붙일 때 쓴다.
+  function baseFilter(el) {
+    const f = getComputedStyle(el).filter;
+    return f && f !== 'none' ? f : '';
+  }
+  // 장면 안에서 el의 (가로 fx, 세로 fy 비율) 지점 좌표
+  function spot(el, fx, fy) {
+    const s = sceneEl.getBoundingClientRect(), r = el.getBoundingClientRect();
+    return { x: r.left - s.left + r.width * fx, y: r.top - s.top + r.height * fy, l: r.left - s.left, t: r.top - s.top, w: r.width, h: r.height };
+  }
+  function addFx(cls, x, y) {
+    if (layer.children.length > MAX_FX) return null;
+    const el = document.createElement('div');
+    el.className = 'fx ' + cls;
+    el.style.left = x + 'px';
+    el.style.top = y + 'px';
+    layer.appendChild(el);
+    return el;
+  }
+  // 이펙트를 재생하고 끝나면 지운다
+  function playFx(el, keyframes, opts) {
+    if (!el) return;
+    const a = anim(el, keyframes, Object.assign({ fill: 'forwards' }, opts));
+    if (a) a.onfinish = () => el.remove(); else el.remove();
+  }
+  const rand = (a, b) => a + Math.random() * (b - a);
+
+  // ---- 화면에 떠오르는 숫자: 살짝 튀어 오르며 옆으로 흩어진다 ----
+  const FLOAT_AREA = { hero: [10, 14, 56, 10], center: [34, 16, 34, 14], enemy: [56, 16, 44, 12], hit: [58, 12, 62, 8], gold: [72, 12, 52, 8], comp: [44, 12, 60, 8] };
   function floatText(text, cls, where) {
-    if (layer.children.length > 14) return;
+    if (layer.children.length > MAX_FX) return;
     const el = document.createElement('div');
     el.className = 'float ' + cls;
     el.textContent = text;
-    const x = where === 'hero' ? 16 : where === 'center' ? 34 : 60;
-    el.style.left = x + Math.random() * 16 + '%';
-    el.style.top = (where === 'center' ? 34 : 40) + Math.random() * 14 + '%';
+    // 종류마다 뜨는 자리를 나눠서 숫자끼리 겹치지 않게 한다 [가로 시작%, 가로 폭, 세로 시작%, 세로 폭]
+    const [x0, xw, y0, yw] = FLOAT_AREA[where] || FLOAT_AREA.enemy;
+    el.style.left = x0 + Math.random() * xw + '%';
+    el.style.top = y0 + Math.random() * yw + '%';
     layer.appendChild(el);
-    setTimeout(() => el.remove(), 950);
+    const big = /float--(tap|lv)/.test(cls);
+    const dx = rand(-20, 20);
+    const a = anim(el, [
+      { transform: 'translate(0, 8px) scale(0.55)', opacity: 0 },
+      { transform: `translate(${dx * 0.3}px, -12px) scale(${big ? 1.4 : 1.18})`, opacity: 1, offset: 0.16 },
+      { transform: `translate(${dx * 0.65}px, -30px) scale(1)`, opacity: 1, offset: 0.6 },
+      { transform: `translate(${dx}px, -54px) scale(0.92)`, opacity: 0 },
+    ], { duration: big ? 1150 : 900, easing: 'cubic-bezier(0.2, 0.7, 0.3, 1)' });
+    if (a) a.onfinish = () => el.remove(); else setTimeout(() => el.remove(), 900);
   }
-  function shakeEnemy() {
-    const el = $('monster');
-    el.classList.remove('shake');
-    void el.offsetWidth;   // 애니메이션을 처음부터 다시 시작
-    el.classList.add('shake');
+
+  // ---- 고블린 공격: 웅크렸다가(예비 동작) 돌진하고, 멈칫했다가 돌아온다 ----
+  function heroLunge(seconds) {
+    const dur = Math.max(190, Math.min(440, seconds * 1000 * 0.85));
+    anim($('hero'), [
+      { transform: 'translate(0, 0) scale(1, 1) rotate(0deg)' },
+      { transform: 'translate(-7px, 1px) scale(1.05, 0.95) rotate(-4deg)', offset: 0.22, easing: 'cubic-bezier(0.5, 0, 1, 0.6)' },
+      { transform: 'translate(34px, -2px) scale(0.94, 1.07) rotate(6deg)', offset: 0.4, easing: 'ease-out' },
+      { transform: 'translate(28px, 0) scale(1.02, 0.98) rotate(3deg)', offset: 0.54 },
+      { transform: 'translate(0, 0) scale(1, 1) rotate(0deg)' },
+    ], { duration: dur });
+    return dur * 0.4;   // 고블린이 몬스터에 닿는 시각(ms)
   }
+
+  // ---- 몬스터 피격: 밀려났다가 되돌아오고, 순간 하얗게 번쩍인다 ----
+  function monsterHit(strong, delay) {
+    const body = $('monster'), img = body.firstElementChild;
+    const push = strong ? 16 : 9;
+    anim(body, [
+      { transform: 'translate(0, 0) scale(1, 1)' },
+      { transform: `translate(${push}px, 0) scale(0.92, 1.07)`, offset: 0.25 },
+      { transform: `translate(${-push * 0.25}px, 0) scale(1.03, 0.97)`, offset: 0.6 },
+      { transform: 'translate(0, 0) scale(1, 1)' },
+    ], { duration: strong ? 300 : 240, delay, easing: 'ease-out' });
+    if (img) {
+      const base = baseFilter(img);
+      anim(img, [{ filter: base + ' brightness(2.5) saturate(0.5)' }, { filter: base }], { duration: 190, delay, easing: 'ease-out' });
+    }
+  }
+
+  // 몬스터가 있는 곳에 튀는 불꽃과 (탭할 때는) 베는 선을 그린다
+  function impactFx(strong, delay) {
+    const p = spot($('monsterSprite'), 0.5, 0.5);
+    const spark = addFx('fx-spark', p.x + rand(-18, 10), p.y + rand(-22, 14));
+    playFx(spark, [
+      { transform: `scale(0.3) rotate(${rand(-30, 30)}deg)`, opacity: 1 },
+      { transform: `scale(${strong ? 2.3 : 1.7}) rotate(${rand(-30, 30)}deg)`, opacity: 0 },
+    ], { duration: 260, delay, easing: 'ease-out' });
+    if (strong) {
+      const a = rand(-35, 35);
+      const slash = addFx('fx-slash', p.x, p.y);
+      playFx(slash, [
+        { transform: `rotate(${a}deg) scaleX(0.2)`, opacity: 1 },
+        { transform: `rotate(${a}deg) scaleX(1.05)`, opacity: 1, offset: 0.4 },
+        { transform: `rotate(${a}deg) scaleX(1.15)`, opacity: 0 },
+      ], { duration: 240, delay, easing: 'ease-out' });
+    }
+  }
+
+  // ---- 몬스터가 쓰러질 때: 복제본이 튕겨 날아가며 사라지고, 새 몬스터가 통통 튀며 등장한다 ----
+  function killFx(boss) {
+    const mSprite = $('monsterSprite');
+    const p = spot(mSprite, 0.5, 0.5);
+    const ghost = addFx('fx-dying', p.l, p.t);
+    if (ghost) {
+      ghost.style.width = p.w + 'px';
+      ghost.style.height = p.h + 'px';
+      ghost.innerHTML = $('monster').innerHTML;
+      playFx(ghost, [
+        { transform: 'translate(0, 0) scale(1, 1) rotate(0deg)', opacity: 1, filter: 'brightness(1)' },
+        { transform: 'translate(10px, -16px) scale(1.1, 0.92) rotate(7deg)', opacity: 1, filter: 'brightness(2.3)', offset: 0.2 },
+        { transform: `translate(${boss ? 40 : 30}px, -50px) scale(0.7) rotate(26deg)`, opacity: 0, filter: 'brightness(2.6)' },
+      ], { duration: boss ? 700 : 520, easing: 'cubic-bezier(0.2, 0.7, 0.3, 1)' });
+    }
+    // 동전이 사방으로 튀었다가 떨어진다
+    const n = boss ? 11 : 4;
+    for (let i = 0; i < n; i++) {
+      const c = addFx('fx-coin', p.x, p.y);
+      const dx = rand(-70, 70) * (boss ? 1.3 : 1), up = rand(28, 62) * (boss ? 1.3 : 1);
+      playFx(c, [
+        { transform: 'translate(0, 0) scale(0.6)', opacity: 1 },
+        { transform: `translate(${dx * 0.6}px, ${-up}px) scale(1)`, opacity: 1, offset: 0.45, easing: 'ease-in' },
+        { transform: `translate(${dx}px, ${rand(6, 22)}px) scale(0.8)`, opacity: 0 },
+      ], { duration: rand(520, 760), delay: rand(0, 90), easing: 'ease-out' });
+    }
+    if (boss) {
+      const ring = addFx('fx-ring', p.x, p.y);
+      playFx(ring, [{ transform: 'scale(0.3)', opacity: 1 }, { transform: 'scale(3.6)', opacity: 0 }], { duration: 620, easing: 'ease-out' });
+      shakeScene(7);
+    }
+    // 새 몬스터 등장
+    anim($('monster'), [
+      { transform: 'translateY(16px) scale(0.6, 0.5)', opacity: 0 },
+      { transform: 'translateY(-6px) scale(1.06, 1.08)', opacity: 1, offset: 0.65 },
+      { transform: 'translateY(0) scale(1, 1)', opacity: 1 },
+    ], { duration: 400, delay: 150, easing: 'ease-out', fill: 'backwards' });
+    // 골드 표시가 톡 튄다
+    anim(document.querySelector('.plate'), [{ transform: 'scale(1)' }, { transform: 'scale(1.16)', offset: 0.35 }, { transform: 'scale(1)' }], { duration: 260, easing: 'ease-out' });
+  }
+
+  // 화면 전체가 짧게 흔들린다 (세기가 점점 줄어든다)
+  function shakeScene(power) {
+    anim(sceneEl, [
+      { transform: 'translate(0, 0)' },
+      { transform: `translate(${-power}px, ${power * 0.4}px)`, offset: 0.15 },
+      { transform: `translate(${power * 0.8}px, ${-power * 0.3}px)`, offset: 0.35 },
+      { transform: `translate(${-power * 0.45}px, ${power * 0.2}px)`, offset: 0.6 },
+      { transform: `translate(${power * 0.2}px, 0)`, offset: 0.82 },
+      { transform: 'translate(0, 0)' },
+    ], { duration: 380, easing: 'ease-out' });
+  }
+
+  // 보스 등장: 화면이 붉게 번쩍이고 흔들린다
+  function bossIntro() {
+    anim($('flash'), [{ opacity: 0 }, { opacity: 1, offset: 0.2 }, { opacity: 0 }], { duration: 700, easing: 'ease-out' });
+    shakeScene(6);
+    floatText('BOSS!', 'float--tap', 'center');
+  }
+
+  // 레벨업: 발밑에서 금빛 고리가 퍼지고 몸이 반짝인다
+  let lastLvFx = 0;
+  function levelUpFx() {
+    const now = Date.now();
+    if (now - lastLvFx < 700) return;   // 연달아 오를 때는 한 번만
+    lastLvFx = now;
+    const p = spot($('heroSprite'), 0.5, 0.95);
+    const ring = addFx('fx-lv', p.x, p.y);
+    playFx(ring, [
+      { transform: 'scale(0.3) translateY(0)', opacity: 1 },
+      { transform: 'scale(1.7) translateY(-46px)', opacity: 0 },
+    ], { duration: 720, easing: 'ease-out' });
+    floatText('LEVEL UP!', 'float--lv', 'hero');
+    const img = $('hero').firstElementChild;
+    if (img) {
+      const base = baseFilter(img);
+      anim(img, [{ filter: base + ' brightness(1.9) saturate(1.3)' }, { filter: base }], { duration: 520, easing: 'ease-out' });
+    }
+  }
+
+  // 몬스터도 가끔 달려들고, 고블린은 맞는 순간 움찔하며 붉게 번쩍인다
+  let enemyAtkT = 0;
+  function enemyAttackFx(dt) {
+    if (state.downT > 0) { enemyAtkT = 0; return; }
+    enemyAtkT += dt;
+    const period = G.isBossStage(state.stage) ? 1.5 : 1.15;
+    if (enemyAtkT < period) return;
+    enemyAtkT = 0;
+    anim($('monster'), [
+      { transform: 'translate(0, 0) scale(1, 1)' },
+      { transform: 'translate(8px, 0) scale(1.05, 0.94)', offset: 0.28, easing: 'cubic-bezier(0.5, 0, 1, 0.6)' },
+      { transform: 'translate(-40px, -2px) scale(0.94, 1.06)', offset: 0.5, easing: 'ease-out' },
+      { transform: 'translate(-34px, 0) scale(1, 1)', offset: 0.62 },
+      { transform: 'translate(0, 0) scale(1, 1)' },
+    ], { duration: 460 });
+    const heroBody = $('hero');
+    anim(heroBody, [
+      { transform: 'translate(0, 0) scale(1, 1)' },
+      { transform: 'translate(-9px, 0) scale(1.04, 0.96) rotate(-3deg)', offset: 0.3 },
+      { transform: 'translate(0, 0) scale(1, 1)' },
+    ], { duration: 280, delay: 220, easing: 'ease-out' });
+    const img = heroBody.firstElementChild;
+    if (img) {
+      const base = baseFilter(img);
+      anim(img, [{ filter: base + ' brightness(1.5) sepia(1) saturate(4) hue-rotate(-40deg)' }, { filter: base }], { duration: 260, delay: 220, easing: 'ease-out' });
+    }
+    setTimeout(() => floatText('-' + G.fmt(G.monsterAtk(state.stage) * period), 'float--hurt', 'hero'), 220);
+  }
+
+  // 카드가 빛나며 살짝 커졌다 돌아온다 (구매 성공 표시)
+  function pulse(el) {
+    anim(el, [
+      { boxShadow: '0 0 0 0 rgba(255, 212, 121, 0)', transform: 'scale(1)' },
+      { boxShadow: '0 0 18px 3px rgba(255, 212, 121, 0.65)', transform: 'scale(1.015)', offset: 0.35 },
+      { boxShadow: '0 0 0 0 rgba(255, 212, 121, 0)', transform: 'scale(1)' },
+    ], { duration: 460, easing: 'ease-out' });
+  }
+  function popIn(el) {
+    anim(el, [{ transform: 'scale(1.7)', opacity: 0.4 }, { transform: 'scale(0.92)', offset: 0.6 }, { transform: 'scale(1)', opacity: 1 }], { duration: 300, easing: 'ease-out' });
+  }
+
+  // 고블린이 한 번 때릴 때마다 부르는 연출 (여러 번 때린 프레임에도 한 번만)
+  function onHeroHit(n) {
+    const contact = heroLunge(1 / G.attacksPerSec(state));
+    monsterHit(false, contact);
+    impactFx(false, contact);
+    const now = Date.now();
+    if (now - lastHitText > 350) {   // 연타할 때 숫자가 쏟아지지 않게 한다
+      lastHitText = now;
+      floatText(G.fmt(G.hitDmg(state) * n), 'float--hit', 'hit');
+    }
+  }
+  let lastHitText = 0;
 
   // ---- 배경에 떠다니는 빛 입자 (지역마다 색이 다르다) ----
   (function buildFx() {
@@ -126,7 +350,9 @@
     document.querySelectorAll('.tabnav__btn').forEach((b) => b.classList.toggle('is-on', b.dataset.go === name));
     document.querySelector('.tabs').scrollTop = 0;
     if (name === 'class') renderClass(true);
+    if (name === 'shop') renderShop(true);
     if (name === 'log') renderAchieves(true);
+    anim(document.querySelector(`.tab[data-tab="${name}"]`), [{ opacity: 0, transform: 'translateY(10px)' }, { opacity: 1, transform: 'none' }], { duration: 220, easing: 'ease-out' });
   }
   $('nav').addEventListener('click', (e) => {
     const b = e.target.closest('.tabnav__btn');
@@ -164,7 +390,12 @@
         last: '',
       };
       refs.btn.addEventListener('click', () => {
-        if (G.buyMany(state, key, buyWant()) > 0) { handleEvents(G.checkAchievements(state)); render(); }
+        if (G.buyMany(state, key, buyWant()) > 0) {
+          handleEvents(G.checkAchievements(state));
+          render();
+          pulse(li);
+          popIn(li.querySelector('.lv'));
+        }
       });
       upRefs[key] = refs;
       ul.appendChild(li);
@@ -211,7 +442,8 @@
   let classKey = '';
   function renderClass(force) {
     const s = state;
-    const key = [s.cls, s.adv, s.level, Object.keys(s.mastered).length].join('|');
+    const dexKey = Object.keys(G.ADVANCED).map((id) => { const r = G.dexRecord(s, id); return `${s.mastered[id] ? 1 : 0}:${r.best}:${r.kills}`; }).join(',');
+    const key = [s.cls, s.adv, s.level, dexKey].join('|');
     if (!force && key === classKey) return;
     classKey = key;
 
@@ -249,17 +481,141 @@
     }
     box.innerHTML = html;
 
-    // 도감
+    // 도감: 1차 직업별로 묶고, 2차 직업마다 등급·최고 스테이지·처치 수를 보여 준다
     const count = Object.keys(s.mastered).length;
-    $('codexBonus').textContent = `${count} / ${Object.keys(G.ADVANCED).length} · 공격력·골드 +${Math.round(count * G.MASTERY_BONUS * 100)}%`;
+    $('codexBonus').textContent = `${count} / ${Object.keys(G.ADVANCED).length} · 공격력·골드 +${Math.round((G.masteryMult(s) - 1) * 100)}%`;
     let dex = '';
-    for (const aid of Object.keys(G.ADVANCED)) {
-      const on = !!s.mastered[aid];
-      dex += `<div class="dex ${on ? 'is-on' : ''}"><div class="dex__art">${A.goblin(aid, { head: true })}</div>` +
-        `<div class="dex__name">${on ? G.ADVANCED[aid].name : '???'}</div></div>`;
+    for (const bid of Object.keys(G.CLASSES)) {
+      const base = G.CLASSES[bid];
+      dex += `<div class="dexrow"><div class="dexrow__head">${A.goblin(bid, { head: true })}<div class="dexrow__name">${base.name}</div>` +
+        `<div class="dexrow__stat">${Object.keys(base.mult).map((k) => `${STAT_LABEL[k]} ×${base.mult[k]}`).join(' · ')}</div></div><div class="dexrow__kids">`;
+      for (const aid of base.adv) {
+        const on = !!s.mastered[aid];
+        const rec = G.dexRecord(s, aid), tier = G.dexTier(s, aid);
+        dex += `<div class="dexcard ${on ? 'is-on' : 'is-off'}" data-dex="${aid}">` +
+          (on ? `<span class="medal medal--${tier}">${tier ? G.DEX_TIERS[tier - 1].name : '-'}</span>` : '') +
+          `<div class="dexcard__art">${A.goblin(aid)}</div>` +
+          `<div class="dexcard__name">${on ? G.ADVANCED[aid].name : '???'}</div>` +
+          `<div class="dexcard__rec">${on ? `최고 <b>${rec.best}</b>단계<br>처치 <b>${G.fmt(rec.kills)}</b>` : `${base.name} Lv.${G.PROMO_LEVEL.adv}에서 전직`}</div></div>`;
+      }
+      dex += '</div></div>';
     }
     $('codex').innerHTML = dex;
   }
+
+  // 도감 카드를 누르면 자세한 정보 창을 연다
+  function showDex(aid) {
+    const info = G.ADVANCED[aid];
+    const s = state;
+    if (!s.mastered[aid]) {
+      const base = G.CLASSES[info.parent];
+      openModal('???',
+        `<div class="dexd__art" style="filter:brightness(0) opacity(.4)">${A.goblin(aid)}</div>` +
+        `<div class="dexd__desc">아직 만나지 못한 직업이에요.<br><b>${base.name}</b>으로 1차 전직한 뒤 Lv.${G.PROMO_LEVEL.adv}에서 2차 전직하면 도감에 기록돼요.</div>`,
+        [{ text: '닫기' }]);
+      return;
+    }
+    const rec = G.dexRecord(s, aid), tier = G.dexTier(s, aid);
+    const bonus = Math.round((G.MASTERY_BONUS + G.TIER_BONUS * tier) * 100);
+    const tiers = G.DEX_TIERS.map((t, i) =>
+      `<div class="${tier > i ? 'is-done' : ''}"><span class="medal medal--${i + 1}">${t.name}</span><span>최고 스테이지 ${t.stage} 도달</span>` +
+      `<span>${tier > i ? '달성' : `${t.stage - rec.best}단계 남음`}</span></div>`).join('');
+    openModal(info.name,
+      `<div class="dexd__art">${A.goblin(aid)}</div>` +
+      `<div class="dexd__desc">${info.desc}</div>` +
+      `<div class="chips" style="justify-content:center">${chipsFor(info.mult)}</div>` +
+      `<div class="dexd__rec"><div><small>최고 스테이지</small><b>${rec.best}</b></div><div><small>처치 수</small><b>${G.fmt(rec.kills)}</b></div><div><small>전직 횟수</small><b>${rec.runs}</b></div></div>` +
+      `<div class="dexd__tiers">${tiers}</div>` +
+      `<div style="margin-top:10px"><small>이 직업 보너스: 공격력·골드 +${bonus}% (등급마다 +${Math.round(G.TIER_BONUS * 100)}%p)</small></div>`,
+      [{ text: '닫기' }]);
+  }
+  $('codex').addEventListener('click', (e) => {
+    const c = e.target.closest('.dexcard');
+    if (c) showDex(c.dataset.dex);
+  });
+
+  // ---- 증표 상점 ----
+  let shopKey = '';
+  const TIER_TITLE = { 1: '1단계 · 기본 강화', 2: '2단계 · 응용 (앞 단계 강화가 필요해요)', 3: '3단계 · 궁극' };
+  function renderShop(force) {
+    const s = state;
+    const key = G.PERK_KEYS.map((id) => G.perkLv(s, id)).join(',') + '|' + G.tokenBalance(s);
+    if (!force && key === shopKey) return;
+    shopKey = key;
+    $('shopTokens').textContent = G.tokenBalance(s);
+    $('shopSpent').textContent = `강화에 쓴 증표 ${G.perkSpent(s)}개`;
+    $('respecBtn').hidden = G.perkSpent(s) === 0;
+    let html = '';
+    for (const tier of [1, 2, 3]) {
+      html += `<div class="tier">${TIER_TITLE[tier]}</div><div class="tierbox ${tier > 1 ? 'tierbox--sub' : ''}">`;
+      for (const id of G.PERK_KEYS) {
+        const p = G.PERKS[id];
+        if (p.tier !== tier) continue;
+        const lv = G.perkLv(s, id), maxed = lv >= p.max;
+        const missing = G.perkMissing(s, id), can = G.canBuyPerk(s, id);
+        const pips = Array.from({ length: p.max }, (_, i) => `<i class="${i < lv ? 'on' : ''}"></i>`).join('');
+        const desc = maxed ? p.now(lv) : lv === 0 ? `<em>${p.per}</em> (레벨마다)` : `${p.now(lv)} → <em>${p.now(lv + 1)}</em>`;
+        const need = missing.length ? `<div class="perk__need">${A.icon('lock')}필요: ${missing.map(([rid, rl]) => `${G.PERKS[rid].name} Lv.${rl}`).join(', ')}</div>` : '';
+        const btn = maxed
+          ? '<button class="btn btn--gray perk__btn" type="button" disabled>MAX</button>'
+          : `<button class="btn ${can ? '' : 'btn--gray'} perk__btn" type="button" data-perk="${id}" ${can ? '' : 'disabled'}><small>구매</small><span>${A.icon('crown')}${G.perkCost(s, id)}</span></button>`;
+        html += `<div class="card perk ${missing.length ? 'is-locked' : ''} ${maxed ? 'is-maxed' : ''}" data-id="${id}">` +
+          `<div class="perk__tile">${A.icon(p.icon)}</div>` +
+          `<div><div class="perk__name">${p.name} <span class="lv">Lv.${lv}${maxed ? ' MAX' : ''}</span></div><div class="perk__desc">${desc}</div>` +
+          `<div class="perk__pips">${pips}</div>${need}</div>${btn}</div>`;
+      }
+      html += '</div>';
+    }
+    $('perks').innerHTML = html;
+  }
+
+  // 구매 전에 무엇을 얼마에 사는지 확인받는다 (결제 창)
+  function askBuyPerk(id) {
+    const p = G.PERKS[id];
+    const lv = G.perkLv(state, id), cost = G.perkCost(state, id);
+    if (!G.canBuyPerk(state, id)) return;
+    openModal('구매할까요?',
+      `<div style="font-weight:900;font-size:16px">${A.icon(p.icon)} ${p.name}</div>` +
+      `<div style="margin-top:4px">Lv.${lv} → <b>Lv.${lv + 1}</b></div>` +
+      `<div style="color:var(--green);font-weight:800;margin-top:2px">${p.now(lv + 1)}</div>` +
+      `<div style="margin-top:12px">${A.icon('crown')} 왕의 증표 <b>${cost}개</b> 사용</div>` +
+      `<div style="margin-top:2px"><small>구매 후 남는 증표 ${G.tokenBalance(state) - cost}개</small></div>`,
+      [
+        { text: '취소' },
+        { text: '구매하기', cls: 'btn--gold', onClick: () => {
+          if (!G.buyPerk(state, id)) return;
+          addLog(`${p.name} Lv.${lv + 1} 구매! ${p.now(lv + 1)}`, 'is-gold', p.icon);
+          floatText(`${p.name} Lv.${lv + 1}`, 'float--big', 'center');
+          writeSave();
+          render();
+          renderShop(true);
+          const card = document.querySelector(`.perk[data-id="${id}"]`);
+          pulse(card);
+          popIn(card && card.querySelector('.lv'));
+        } },
+      ]);
+  }
+  $('perks').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-perk]');
+    if (b && !b.disabled) askBuyPerk(b.dataset.perk);
+  });
+  $('respecBtn').addEventListener('click', () => {
+    const back = G.perkSpent(state);
+    if (back <= 0) return;
+    openModal('강화를 초기화할까요?',
+      `산 강화가 모두 사라지고<br>쓴 증표 <b>${back}개</b>를 돌려받아요.<br><small>다른 강화에 다시 쓸 수 있어요.</small>`,
+      [
+        { text: '취소' },
+        { text: '초기화', cls: 'btn--blue', onClick: () => {
+          G.respecPerks(state);
+          addLog(`강화를 초기화했다. 증표 ${back}개를 돌려받았다`, 'is-good', 'crown');
+          writeSave();
+          render();
+          renderShop(true);
+        } },
+      ]);
+  });
+
   $('classChoice').addEventListener('click', (e) => {
     const b = e.target.closest('button[data-pick]');
     if (b && !b.disabled) askPromote(b.dataset.pick, b.dataset.adv === '1');
@@ -289,19 +645,29 @@
   // ---- 이벤트 처리 ----
   function handleEvents(events) {
     let gold = 0;
+    let killShown = false;
     for (const e of events) {
       if (e.type === 'kill') {
         gold += e.gold;
+        if (!killShown) {   // 한 프레임에 여러 마리를 잡아도 처치 연출은 한 번만
+          killShown = true;
+          killFx(e.boss);
+          floatText('+' + G.fmt(e.gold), 'float--gold', 'gold');
+        }
         if (e.boss) addLog(`보스를 쓰러뜨렸다! +${G.fmt(e.gold)} 골드`, 'is-gold', 'skull');
       } else if (e.type === 'stage') {
         addLog(`스테이지 ${e.stage} 도전!`, 'is-good', 'star');
+        if (G.isBossStage(e.stage)) bossIntro();
+        else anim(document.querySelector('.ribbon__in'), [{ transform: 'scale(1)' }, { transform: 'scale(1.12)', offset: 0.3 }, { transform: 'scale(1)' }], { duration: 380, easing: 'ease-out' });
       } else if (e.type === 'levelup') {
         addLog(`레벨 ${e.level} 달성!`, 'is-good', 'arrowup');
+        levelUpFx();
       } else if (e.type === 'promoReady') {
         addLog(`${e.stage === 'base' ? '1차' : '2차'} 전직이 가능해요! '전직' 메뉴를 확인하세요`, 'is-gold', 'cap');
         floatText('전직 가능!', 'float--big', 'center');
       } else if (e.type === 'down') {
         addLog(`쓰러졌다... 스테이지 ${e.to}로 후퇴`, 'is-bad', 'skull');
+        shakeScene(5);
       } else if (e.type === 'achieve') {
         const a = G.ACHIEVEMENTS.find((x) => x.id === e.id);
         addLog(`업적 달성: ${a.name}! 공격력·골드 +${Math.round(G.ACHIEVE_BONUS * 100)}%`, 'is-gold', a.icon);
@@ -333,7 +699,7 @@
   function render() {
     const s = state;
     setText('gold', G.fmt(s.gold));
-    setText('tokens', s.tokens);
+    setText('tokens', G.tokenBalance(s));
 
     // 영웅 정보
     const title = G.classTitle(s);
@@ -379,8 +745,10 @@
     setText('monsterName', mon.name);
     const max = G.maxHp(s);
     setWidth('goblinHpBar', (s.hp / max) * 100);
+    setWidth('goblinHpTrail', (s.hp / max) * 100);
     setText('goblinHpText', `${G.fmt(Math.max(0, s.hp))} / ${G.fmt(max)}`);
     setWidth('monsterHpBar', (s.monsterHp / s.monsterMax) * 100);
+    setWidth('monsterHpTrail', (s.monsterHp / s.monsterMax) * 100);
     setText('monsterHpText', `${G.fmt(Math.max(0, s.monsterHp))} / ${G.fmt(s.monsterMax)}`);
 
     // 능력치
@@ -419,38 +787,49 @@
 
     // 직업 탭
     if (currentTab === 'class') renderClass(false);
+    if (currentTab === 'shop') renderShop(false);
     if (currentTab === 'log') renderAchieves(false);
 
     // 환생 탭
     const gain = G.prestigeGain(s);
     const pb = $('prestigeBtn');
-    setText('pTokens', s.tokens);
+    setText('pTokens', G.tokenBalance(s));
     setText('pBonus', '+' + Math.round((G.tokenMult(s) - 1) * 100) + '%');
     setText('pBest', s.bestStage);
     pb.disabled = gain <= 0;
     setText('prestigeBtn', gain > 0 ? `환생하기 (증표 +${gain})` : '아직 환생할 수 없어요');
     setText('prestigeHint', gain > 0
-      ? `지금 환생하면 왕의 증표 ${gain}개를 얻어요. 증표 1개당 공격력·골드가 영구히 +${Math.round(G.TOKEN_BONUS * 100)}%라서 보너스가 +${Math.round((G.tokenMult(s) - 1) * 100)}% → +${Math.round(G.TOKEN_BONUS * 100 * (s.tokens + gain))}%가 돼요. 골드·레벨·강화·스테이지·직업은 처음부터 다시 시작하고, 직업 도감은 그대로 남아요.`
+      ? `지금 환생하면 왕의 증표 ${gain}개를 얻어요. 증표 1개당 공격력·골드가 영구히 +${Math.round(G.TOKEN_BONUS * 100)}%라서 보너스가 +${Math.round((G.tokenMult(s) - 1) * 100)}% → +${Math.round(G.TOKEN_BONUS * 100 * (s.tokens + gain))}%가 돼요. 골드·레벨·강화·스테이지·직업은 처음부터 다시 시작하고, 직업 도감은 그대로 남아요. 증표는 '상점'에서 영구 강화를 사는 데 쓸 수 있어요.`
       : `스테이지 ${G.PRESTIGE_MIN_STAGE}에 도달하면 환생할 수 있어요. 환생하면 왕의 증표를 얻어 영구히 강해지고, 다른 직업으로 다시 시작해 볼 수 있어요.`);
 
     // 메뉴 알림 점
     const dots = document.querySelectorAll('.tabnav__btn .dot');
-    const want = [anyBuy && currentTab !== 'upgrade', G.promoStage(s) !== null && currentTab !== 'class', gain > 0 && currentTab !== 'prestige'];
+    const want = [anyBuy && currentTab !== 'upgrade', G.promoStage(s) !== null && currentTab !== 'class', gain > 0 && currentTab !== 'prestige',
+      G.PERK_KEYS.some((id) => G.canBuyPerk(s, id)) && currentTab !== 'shop'];
     dots.forEach((d, i) => { if (d.hidden === want[i]) d.hidden = !want[i]; });
   }
 
   // ---- 공격 (화면 누르기) ----
-  function attack() {
+  function attack(px, py) {
     const r = G.clickAttack(state);
     if (r.dmg > 0) {
-      floatText(G.fmt(r.dmg), 'float--big', 'enemy');
-      shakeEnemy();
+      floatText(G.fmt(r.dmg), 'float--tap', 'enemy');
+      const contact = heroLunge(0.3);
+      monsterHit(true, contact);
+      impactFx(true, contact);
+      if (px !== undefined) {   // 누른 자리에 동그란 파문
+        const ring = addFx('fx-tap', px, py);
+        playFx(ring, [{ transform: 'scale(0.3)', opacity: 0.9 }, { transform: 'scale(1.7)', opacity: 0 }], { duration: 380, easing: 'ease-out' });
+      }
     }
-    const gold = handleEvents(r.events);
-    if (gold > 0) floatText('+' + G.fmt(gold), 'float--gold', 'hero');
+    handleEvents(r.events);
     render();
   }
-  $('scene').addEventListener('pointerdown', (e) => { e.preventDefault(); attack(); });
+  $('scene').addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    const box = sceneEl.getBoundingClientRect();
+    attack(e.clientX - box.left, e.clientY - box.top);
+  });
   document.addEventListener('keydown', (e) => {
     if (e.code === 'Space' && !e.repeat && $('modal').hidden && e.target === document.body) {
       e.preventDefault();
@@ -504,7 +883,7 @@
       `${A.icon('sword')} 몬스터 ${G.fmt(r.kills)}마리 처치<br>` +
       `${A.icon('arrowup')} 레벨 ${r.levelFrom} → ${r.levelTo}<br>` +
       `${A.icon('star')} ${stage}` +
-      (r.seconds >= G.OFFLINE_CAP ? '<br><small>(오프라인 보상은 최대 8시간까지예요)</small>' : ''),
+      (r.seconds >= G.offlineCap(state) ? `<br><small>(오프라인 보상은 최대 ${Math.round(G.offlineCap(state) / 3600)}시간까지예요)</small>` : ''),
       [{ text: '받기', cls: '' }]);
   }
 
@@ -522,6 +901,7 @@
   // ---- 메인 루프 ----
   let last = Date.now();
   let dealtTimer = 0;
+  let lastHits = state.hits;
 
   function frame() {
     const now = Date.now();
@@ -534,15 +914,23 @@
       state.savedAt = now - dt * 1000;
       const r = G.applyOffline(state, now);
       if (r) showOffline(r);
+      lastHits = state.hits;
     } else {
       const events = G.simulate(state, dt);
-      const gold = handleEvents(events);
+      handleEvents(events);
+      if (state.hits < lastHits) lastHits = state.hits;   // 처음부터 다시 시작해 횟수가 초기화된 경우
+      if (state.hits !== lastHits) {
+        const n = state.hits - lastHits;
+        lastHits = state.hits;
+        if (!document.hidden) onHeroHit(n);
+      }
+      if (!document.hidden) enemyAttackFx(dt);
+      // 동료의 공격은 자잘하게 나누지 않고 0.5초마다 합쳐서 작게 보여 준다
       dealtTimer += dt;
       if (dealtTimer >= 0.5) {
         dealtTimer = 0;
-        if (state.dealt > 0) floatText('-' + G.fmt(state.dealt), 'float--dmg', 'enemy');
-        if (gold > 0) floatText('+' + G.fmt(gold), 'float--gold', 'hero');
-        state.dealt = 0;
+        const comp = G.companionDps(state) * 0.5;
+        if (comp > 0 && state.downT <= 0) floatText('-' + G.fmt(comp), 'float--comp', 'comp');
       }
     }
     render();
