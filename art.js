@@ -395,7 +395,7 @@
       ${meye(51, 45, 6.6, p[3])}${meye(69, 45, 6.6, p[3])}<path d="M42 37 L57 42 M78 37 L63 42" stroke="${LN}" stroke-width="3.2" stroke-linecap="round"/>
       <path d="M49 57 Q60 68 71 57 Z" fill="#3a0d14" ${OL}/>${fang(52, 57.5, 1.2)}${fang(64, 57.5, 1.2)}`,
     ogre: (p) => `
-      <g transform="rotate(24 100 70)"><rect x="96" y="14" width="11" height="70" rx="4" fill="#9a6a3a" ${OL}/><ellipse cx="101" cy="22" rx="14" ry="20" fill="#b07b45" ${OL}/><path d="M92 14 L86 10 M110 18 L116 14 M92 30 L86 32" stroke="${LN}" stroke-width="3"/></g>
+      <g transform="translate(-13 6) rotate(20 100 70)"><rect x="96" y="14" width="11" height="70" rx="4" fill="#9a6a3a" ${OL}/><ellipse cx="101" cy="22" rx="14" ry="20" fill="#b07b45" ${OL}/><path d="M92 14 L86 10 M110 18 L116 14 M92 30 L86 32" stroke="${LN}" stroke-width="3"/></g>
       <rect x="40" y="86" width="16" height="16" rx="5" fill="${p[1]}" ${OL}/><rect x="64" y="86" width="16" height="16" rx="5" fill="${p[1]}" ${OL}/>
       <ellipse cx="60" cy="68" rx="34" ry="32" fill="${p[0]}" ${OL}/><ellipse cx="60" cy="74" rx="22" ry="20" fill="${p[2]}" opacity=".55"/>
       <path d="M34 82 Q60 96 86 82 L84 94 Q60 104 36 94 Z" fill="${p[4]}" ${OL}/>
