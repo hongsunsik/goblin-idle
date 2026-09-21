@@ -38,12 +38,12 @@ test('조건을 채우면 업적이 한 번만 달성된다', () => {
   assert.strictEqual(G.checkAchievements(s).length, 0, '이미 달성한 업적은 다시 알리지 않는다');
 });
 
-test('달성할 때마다 공격력과 골드가 +1%씩 늘어난다', () => {
+test('달성할 때마다 공격력과 골드가 +0.5%씩 늘어난다', () => {
   const s = G.createState(0);
   const dmg0 = G.hitDmg(s), gold0 = G.goldMult(s);
   s.achieved.kill100 = true; s.achieved.stage10 = true;
-  assert.ok(Math.abs(G.hitDmg(s) / dmg0 - 1.02) < 1e-9);
-  assert.ok(Math.abs(G.goldMult(s) / gold0 - 1.02) < 1e-9);
+  assert.ok(Math.abs(G.hitDmg(s) / dmg0 - 1.01) < 1e-9);
+  assert.ok(Math.abs(G.goldMult(s) / gold0 - 1.01) < 1e-9);
 });
 
 test('전투 중 처치 수 업적이 사건(achieve)으로 나온다', () => {
@@ -1584,7 +1584,7 @@ test('도감 8종을 채우면 codex4·codex8 업적이 함께 달성된다', ()
   const s = G.createState(0);
   for (const k of Object.keys(G.ADVANCED)) s.mastered[k] = true;
   const ids = G.checkAchievements(s).map((e) => e.id).sort();
-  assert.deepStrictEqual(ids, ['codex4', 'codex8']);
+  assert.deepStrictEqual(ids, ['codex4', 'codex8', 'tier2']);
 });
 
 test('20분 자동 플레이로 스테이지 30 이상에 도달한다 (진행 속도 회귀 방지)', () => {
@@ -2172,6 +2172,208 @@ test('한 번에 받은 8시간과 나눠 받은 8시간(4시간+4시간)이 같
   const first = G.resolveAway(s, 0, 5e12 + 4 * 3600e3, 8 * 3600);
   const second = G.resolveAway(s, 0, 5e12 + 9 * 3600e3, 8 * 3600 - first.seconds);
   assert.strictEqual(first.seconds + second.seconds, 8 * 3600);
+});
+
+
+// ============ 장비 등급 확장 · 업적 확장 · 일일/주간/월간 퀘스트 ============
+section('유니크·신화 등급과 자동 판매');
+test('등급이 7개(노말~신화)이고 높을수록 확률이 낮고 판매가·수치가 크다', () => {
+  assert.deepStrictEqual(G.RARITIES.map((r) => r.name), ['노말', '고급', '희귀', '영웅', '전설', '유니크', '신화']);
+  for (let i = 1; i < 7; i++) { assert.ok(G.RARITIES[i].w < G.RARITIES[i - 1].w || i === 1, `w ${i}`); assert.ok(G.RARITIES[i].gold > G.RARITIES[i - 1].gold, `gold ${i}`); }
+  for (const slot of G.SLOT_KEYS) for (const kind of Object.keys(G.GEAR[slot].kinds)) { const b = G.GEAR[slot].kinds[kind].base; assert.strictEqual(b.length, 7, kind); for (let i = 1; i < 7; i++) assert.ok(b[i] > b[i - 1], `${kind} ${i}`); }
+  const s = G.createState(0); G.setRandom(seeded(1));
+  const it = G.rollItem(s, 40, false, 6); G.setRandom();
+  assert.ok(it.r === 6 && G.itemName(it).startsWith('신화의 '), G.itemName(it));
+  assert.ok(G.itemName(Object.assign({}, it, { r: 5 })).startsWith('유일한 '));
+});
+test('유니크·신화는 아주 드물게 나오고 보스에게서 더 잘 나온다 (10만 번)', () => {
+  const n = (boss) => { G.setRandom(seeded(boss ? 11 : 12)); const c = [0, 0, 0, 0, 0, 0, 0]; const s = G.createState(0); for (let i = 0; i < 100000; i++) c[G.rollItem(s, 10, boss).r]++; G.setRandom(); return c; };
+  const a = n(false), b = n(true);
+  assert.ok(a[5] > 0 && a[5] < 200 && a[6] < 20, `일반 ${a}`);
+  assert.ok(b[5] > a[5] && b[6] >= a[6] && b[5] < 3000, `보스 ${b}`);
+  assert.ok(a[4] > a[5] && a[5] > a[6], '등급이 높을수록 적다');
+});
+test('자동 판매는 전설(4)까지 고를 수 있고, 특별 옵션 장비와 유니크·신화는 어떤 설정에서도 팔리지 않는다', () => {
+  const t = G.createState(0); t.autoSell = 4; t.autoEquip = false;
+  const mk = (r, sp) => Object.assign({ id: 100 + r + (sp ? 50 : 0), slot: 'weapon', kind: 'dmg', r, ilvl: 10, val: 20, n: 0 }, sp ? { sp: { k: 'exp', v: 0.1 } } : {});
+  for (const r of [0, 3, 4]) assert.strictEqual(G.receiveItem ? (() => { const ev = []; G.receiveItem(t, mk(r), ev); return ev[0].action; })() : 'x', 'sold', `등급 ${r}는 팔린다`);
+  for (const r of [5, 6]) { const ev = []; G.receiveItem(t, mk(r), ev); assert.strictEqual(ev[0].action, 'bag', `등급 ${r}는 가방에`); }
+  const ev2 = []; G.receiveItem(t, mk(3, true), ev2);
+  assert.strictEqual(ev2[0].action, 'bag', '특별 옵션 장비는 팔리지 않는다');
+  const o = JSON.parse(G.serialize(t, 1)); o.autoSell = 99;
+  assert.strictEqual(G.deserialize(JSON.stringify(o)).autoSell, 4, '값이 이상하면 전설까지로 제한');
+  o.autoSell = 4; assert.strictEqual(G.deserialize(JSON.stringify(o)).autoSell, 4);
+});
+test('전설 장비 상자는 전설 90% · 유니크 9% · 신화 1%이고, 장비 등급 통계가 오른다', () => {
+  assert.deepStrictEqual(G.STORE.BOXES.find((b) => b.id === 'box_legend').odds, { 4: 90, 5: 9, 6: 1 });
+  const t = cash(99999);
+  for (let i = 0; i < 20; i++) { t.bag = []; G.buyProduct(t, 'box_legend'); }
+  assert.ok(t.stats.legends >= 20 && t.stats.epics >= 20 && t.stats.rares >= 20 && t.stats.boxes === 20, JSON.stringify(t.stats));
+});
+test('유니크·신화 장비도 저장·복원되고 수치는 그 등급의 최대치를 넘지 못한다', () => {
+  const t = G.createState(0); G.setRandom(seeded(2));
+  t.bag.push(G.rollItem(t, 60, false, 5), G.rollItem(t, 60, false, 6)); G.setRandom();
+  const back = G.deserialize(G.serialize(t, 1));
+  assert.deepStrictEqual(back.bag.map((x) => x.r), [5, 6]);
+  const o = JSON.parse(G.serialize(t, 1)); o.bag[1].val = 1e9; o.bag[0].r = 9;
+  const c = G.deserialize(JSON.stringify(o));
+  assert.strictEqual(c.bag.length, 1, '없는 등급은 버린다');
+  assert.ok(c.bag[0].val < 1000, '수치는 최대치로 제한');
+});
+
+section('업적 확장 (159개)');
+test('업적은 150개 이상이고 번호가 겹치지 않으며, 분류·보상·목표가 있다', () => {
+  const ids = G.ACHIEVEMENTS.map((a) => a.id);
+  assert.ok(G.ACHIEVEMENTS.length >= 150, String(G.ACHIEVEMENTS.length));
+  assert.strictEqual(new Set(ids).size, ids.length, '번호 중복');
+  for (const a of G.ACHIEVEMENTS) { assert.ok(a.group && a.name && a.desc && a.icon && a.goal > 0 && a.reward >= 3, a.id); assert.ok(Number.isFinite(a.val(G.createState(0))), a.id + ' 값'); }
+});
+test('새 업적 기록이 실제로 올라간다 (스테이지 클리어·레벨업·상점·상자·지출·시간)', () => {
+  G.setRandom(seeded(5));
+  const s = G.createState(0); s.crystals = 99999; s.bestStage = 40;
+  G.simulate(s, 60);
+  assert.ok(s.stats.time >= 59.9 && s.stats.levelUps >= 1 && s.stats.stageUps >= 1, JSON.stringify(s.stats));
+  G.shopSync(s, 500 * 4 * 3600e3 + 1, 0); G.buyShopItem(s, 0); G.buyProduct(s, 'box_fine'); G.rerollShop(s);
+  assert.strictEqual(s.stats.shopBuys, 1); assert.strictEqual(s.stats.boxes, 1);
+  assert.ok(s.stats.spent >= G.STORE.BOXES[0].price + 40, String(s.stats.spent));
+  const away = G.createState(0); G.applyOffline(away, 3600e3, null);
+  assert.ok(away.stats.away >= 3599, '자리를 비운 시간도 센다');
+  G.setRandom();
+});
+test('업적 목표를 채우면 새 업적도 달성되고 보상을 받을 수 있다 (전설 3칸, 금메달, 유물, 접속일)', () => {
+  const s = G.createState(0);
+  for (const slot of G.SLOT_KEYS) s.equip[slot] = { id: G.SLOT_KEYS.indexOf(slot) + 1, slot, kind: Object.keys(G.GEAR[slot].kinds)[0], r: 5, ilvl: 10, val: 10, n: 0 };
+  s.stats.days = 7; s.relics = { relic_seal: true }; s.stats.uniques = 1;
+  const ids = G.checkAchievements(s).map((e) => e.id);
+  for (const id of ['legendset', 'uniqueset', 'days3', 'days7', 'relic1', 'unique1']) assert.ok(ids.includes(id), id + ' ' + ids);
+  assert.ok(!ids.includes('mythset'));
+  assert.ok(G.claimAllAchievements(s) > 0);
+});
+test('업적 하나당 보너스는 +0.5%이고 전부 달성해도 +80%를 넘지 않는다', () => {
+  assert.strictEqual(G.ACHIEVE_BONUS, 0.005);
+  assert.ok(G.ACHIEVE_BONUS * G.ACHIEVEMENTS.length < 0.8);
+});
+test('같은 종류의 업적은 목표가 커질수록 보상도 같거나 커진다', () => {
+  const byId = (id) => G.ACHIEVEMENTS.find((a) => a.id === id).reward;
+  const chains = [['stage10', 'stage20', 'stage30', 'stage40', 'stage50', 'stage60', 'stage70', 'stage80', 'stage100', 'stage110', 'stage130', 'stage150', 'stage170', 'stage200'],
+    ['kill100', 'kill1000', 'kill10000', 'kill100000'], ['prestige1', 'prestige5', 'prestige10', 'prestige25', 'prestige50', 'prestige100'], ['level10', 'level20', 'level30', 'level50', 'level70', 'level90', 'level100'],
+    ['legend1', 'legend10', 'legend50', 'legend200'], ['sold100', 'sold1000', 'sold10000'], ['cast100', 'cast2000', 'cast10000', 'cast50000'], ['tap1000', 'tap10000', 'tap100000'], ['ad10', 'ad50', 'ad200', 'ad1000'],
+    ['gold1m', 'gold1b', 'gold1t', 'gold1e15', 'gold1e18', 'gold1e21', 'gold1e24'], ['tokens100', 'tokens300', 'tokens500', 'tokens1000', 'tokens3000']];
+  for (const c of chains) for (let i = 1; i < c.length; i++) assert.ok(byId(c[i]) >= byId(c[i - 1]), `${c[i - 1]}(${byId(c[i - 1])}) → ${c[i]}(${byId(c[i])})`);
+});
+
+section('일일·주간·월간 퀘스트');
+test('기간 이름표: 일일은 그 날, 주간은 그 주 월요일, 월간은 그 달', () => {
+  assert.deepStrictEqual(G.periodKeys('2026-09-21'), { daily: '2026-09-21', weekly: '2026-09-21', monthly: '2026-09' });   // 월요일
+  assert.deepStrictEqual(G.periodKeys('2026-09-27'), { daily: '2026-09-27', weekly: '2026-09-21', monthly: '2026-09' });   // 일요일은 그 주의 끝
+  assert.deepStrictEqual(G.periodKeys('2026-10-01'), { daily: '2026-10-01', weekly: '2026-09-28', monthly: '2026-10' });   // 주가 달을 넘는다
+  assert.deepStrictEqual(G.periodKeys('2027-01-01'), { daily: '2027-01-01', weekly: '2026-12-28', monthly: '2027-01' });   // 해를 넘는다
+});
+test('각 기간이 끝나기까지 남은 시간(한국 시간 자정 기준)이 맞다', () => {
+  const at = (y, m, d, h, mi) => Date.UTC(y, m - 1, d, h - 9, mi);   // 한국 시각
+  assert.deepStrictEqual(G.periodSecsLeft(at(2026, 9, 21, 0, 0)), { daily: 86400, weekly: 7 * 86400, monthly: 10 * 86400 });
+  assert.deepStrictEqual(G.periodSecsLeft(at(2026, 9, 27, 23, 59)), { daily: 60, weekly: 60, monthly: 3 * 86400 + 60 });
+  assert.deepStrictEqual(G.periodSecsLeft(null), { daily: null, weekly: null, monthly: null });
+});
+test('처음 동기화하면 일일 5개(첫째는 접속하기)·주간 5개·월간 4개가 뽑히고 접속일이 1 늘어난다', () => {
+  const s = G.createState(0);
+  assert.strictEqual(G.questSync(s, '2026-09-22'), true);
+  const d = G.questBoard(s, 'daily'), w = G.questBoard(s, 'weekly'), m = G.questBoard(s, 'monthly');
+  assert.deepStrictEqual([d.items.length, w.items.length, m.items.length], [5, 5, 4]);
+  assert.strictEqual(d.items[0].id, 'attend');
+  assert.ok(d.items[0].done && !d.items[0].claimed);
+  for (const b of [d, w, m]) assert.strictEqual(new Set(b.items.map((x) => x.id)).size, b.items.length, '종류가 겹치지 않는다');
+  assert.strictEqual(s.stats.days, 1);
+  assert.strictEqual(G.questSync(s, '2026-09-22'), false, '같은 날에는 그대로');
+});
+test('목표는 기간 이름표로 정해져서 같은 기간에는 항상 같고, 다른 날은 달라질 수 있다', () => {
+  const a = G.createState(0), b = G.createState(0);
+  G.questSync(a, '2026-09-22'); G.questSync(b, '2026-09-22');
+  assert.deepStrictEqual(G.questBoard(a, 'daily').items.map((x) => x.id), G.questBoard(b, 'daily').items.map((x) => x.id));
+  const seen = new Set();
+  for (let d = 1; d <= 28; d++) { const t = G.createState(0); G.questSync(t, `2026-09-${String(d).padStart(2, '0')}`); seen.add(G.questBoard(t, 'daily').items.map((x) => x.id).join(',')); }
+  assert.ok(seen.size > 10, `28일 동안 ${seen.size}가지 조합`);
+});
+test('목표 크기는 최고 스테이지에 따라 3단계로 커진다', () => {
+  const goal = (stage) => { const s = G.createState(0); s.bestStage = stage; G.questSync(s, '2026-09-22'); return G.questBoard(s, 'weekly').items.map((x) => x.goal); };
+  const lo = goal(5), mid = goal(50), hi = goal(120);
+  for (let i = 0; i < lo.length; i++) assert.ok(lo[i] <= mid[i] && mid[i] <= hi[i], `${lo[i]} ${mid[i]} ${hi[i]}`);
+  assert.ok(hi.some((g, i) => g > lo[i]));
+});
+test('진행도는 기간이 시작된 뒤 늘어난 기록만큼이고, 다 채우면 받을 수 있으며 한 번만 받는다', () => {
+  const s = G.createState(0); s.totalKills = 1e6; s.prestiges = 50;
+  for (const k of ['bossKills', 'stageUps', 'casts', 'taps', 'drops', 'epics', 'sold', 'levelUps', 'ads', 'shopBuys']) s.stats[k] = 1e6;   // 이미 쌓인 기록: 어떤 목표가 뽑혀도 0에서 시작해야 한다
+  G.questSync(s, '2026-09-22');
+  const it = (id) => G.questBoard(s, 'daily').items.find((x) => x.id === id);
+  const target = G.questBoard(s, 'daily').items.find((x) => x.id !== 'attend');
+  assert.strictEqual(target.cur, 0, '이미 쌓인 기록은 세지 않는다');
+  const def = G.QUEST_DEFS.find((d) => d.id === target.id);
+  const stat = { kills: () => { s.totalKills += target.goal; }, boss: () => { s.stats.bossKills += target.goal; }, stage: () => { s.stats.stageUps += target.goal; }, skill: () => { s.stats.casts += target.goal; }, tap: () => { s.stats.taps += target.goal; },
+    drop: () => { s.stats.drops += target.goal; }, epic: () => { s.stats.epics += target.goal; }, sell: () => { s.stats.sold += target.goal; }, level: () => { s.stats.levelUps += target.goal; }, ad: () => { s.stats.ads += target.goal; } }[target.id];
+  stat();
+  assert.ok(it(target.id).done && !it(target.id).claimed);
+  const c0 = s.crystals;
+  assert.strictEqual(G.claimQuest(s, 'daily', target.id), 5);
+  assert.strictEqual(s.crystals, c0 + 5);
+  assert.strictEqual(G.claimQuest(s, 'daily', target.id), 0, '두 번 받을 수 없다');
+  assert.strictEqual(G.claimQuest(s, 'daily', 'attend'), 2, '접속하기 보상은 2개');
+  assert.strictEqual(G.claimQuest(s, 'daily', 'nope'), 0);
+  assert.strictEqual(G.claimQuest(s, 'yearly', 'attend'), 0);
+  assert.strictEqual(s.stats.questClaims, 2);
+  assert.ok(def);
+});
+test('아직 못 끝낸 목표는 받을 수 없고, 모두 받은 뒤에야 완료 보너스(일일은 물약 포함)를 한 번 받는다', () => {
+  G.setRandom(seeded(9));
+  const s = G.createState(0); G.questSync(s, '2026-09-22');
+  const b0 = G.questBoard(s, 'daily');
+  const open = b0.items.find((x) => !x.done);
+  assert.strictEqual(G.claimQuest(s, 'daily', open.id), 0, '못 끝낸 목표');
+  assert.strictEqual(G.claimQuestBonus(s, 'daily'), null, '다 받기 전에는 보너스가 없다');
+  for (const it of b0.items) { const q = s.quests.daily.list.find((x) => x.id === it.id); if (it.id !== 'attend') q.base -= q.goal; }   // 모두 끝낸 것으로 만든다
+  for (const it of b0.items) assert.ok(G.claimQuest(s, 'daily', it.id) > 0, it.id);
+  const bonus = G.claimQuestBonus(s, 'daily');
+  assert.ok(bonus && bonus.crystals === 10 && bonus.potion && s.potions[bonus.potion.id] > 0);
+  assert.strictEqual(G.claimQuestBonus(s, 'daily'), null, '한 번만');
+  assert.strictEqual(s.stats.dailyClears, 1);
+  assert.strictEqual(G.questClaimable(s), G.questBoard(s, 'weekly').claimable + G.questBoard(s, 'monthly').claimable, '일일은 모두 받았으니 남은 것은 주간·월간뿐');
+  G.setRandom();
+});
+test('날이 바뀌면 일일이, 주가 바뀌면 주간이, 달이 바뀌면 월간이 새로 뽑히고 못 받은 보상은 사라진다', () => {
+  const s = G.createState(0); G.questSync(s, '2026-09-27');   // 일요일
+  const w = s.quests.weekly.key, m = s.quests.monthly.key;
+  G.questSync(s, '2026-09-28');   // 월요일: 일일·주간 바뀜, 월간 그대로
+  assert.deepStrictEqual([s.quests.daily.key, s.quests.weekly.key === w, s.quests.monthly.key === m], ['2026-09-28', false, true]);
+  G.questSync(s, '2026-10-01');
+  assert.strictEqual(s.quests.monthly.key, '2026-10');
+  assert.strictEqual(s.stats.days, 3);
+  s.quests.daily.claimed.attend = true; G.questSync(s, '2026-10-02');
+  assert.deepStrictEqual(s.quests.daily.claimed, {}, '새 날에는 받은 기록도 새로');
+});
+test('환생해도 퀘스트 진행과 기준점은 남는다', () => {
+  const s = G.createState(0); G.questSync(s, '2026-09-22'); s.runBest = 12;
+  const before = JSON.stringify(s.quests);
+  G.prestige(s);
+  assert.strictEqual(JSON.stringify(s.quests), before);
+});
+test('퀘스트 저장·복원: 그대로 돌아오고, 조작된 값(없는 종류·이상한 이름표·받은 기록)은 걸러진다', () => {
+  const s = G.createState(0); s.totalKills = 100; G.questSync(s, '2026-09-22'); G.claimQuest(s, 'daily', 'attend');
+  const back = G.deserialize(G.serialize(s, 1));
+  assert.deepStrictEqual(back.quests, s.quests);
+  const o = JSON.parse(G.serialize(s, 1));
+  o.quests.daily.key = 'hacked'; o.quests.weekly.list.push({ id: 'cheat', goal: 1, base: 0 }, { id: 'kills', goal: -5, base: -1 }, null);
+  o.quests.weekly.claimed = { kills: true, cheat: true, ghost: true }; o.quests.monthly.bonus = true;
+  const c = G.deserialize(JSON.stringify(o));
+  assert.strictEqual(c.quests.daily, null, '이름표가 이상하면 버린다');
+  assert.ok(c.quests.weekly.list.every((x) => G.QUEST_DEFS.some((d) => d.id === x.id) && x.goal >= 1 && x.base >= 0));
+  assert.ok(Object.keys(c.quests.weekly.claimed).every((k) => c.quests.weekly.list.some((x) => x.id === k)), '없는 목표의 받은 기록은 버린다');
+  assert.strictEqual(c.quests.monthly.bonus, false, '목표를 다 받지 않았으면 보너스를 받은 것으로 칠 수 없다');
+  const old = JSON.parse(G.serialize(s, 1)); delete old.quests;
+  assert.deepStrictEqual(G.deserialize(JSON.stringify(old)).quests, { daily: null, weekly: null, monthly: null });
+});
+test('퀘스트 보상 크리스탈이 상한(10억)을 넘지 않는다', () => {
+  const s = G.createState(0); G.questSync(s, '2026-09-22'); s.crystals = 1e9 - 1;
+  G.claimQuest(s, 'daily', 'attend');
+  assert.strictEqual(s.crystals, 1e9);
 });
 
 queue.then(() => console.log(`\n${passed}개 통과` + (process.exitCode ? ', 실패 있음' : '')));

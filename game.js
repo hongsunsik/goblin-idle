@@ -4,6 +4,7 @@
   const Sk = typeof module !== 'undefined' && module.exports ? require('./skills.js') : root.GoblinSkills;
   const St = typeof module !== 'undefined' && module.exports ? require('./store.js') : root.GoblinStore;
   const SAVE_VERSION = 1;
+  const UNITS = ['', 'K', 'M', 'B', 'T', 'Qa', 'Qi', 'Sx', 'Sp', 'Oc'];
   const OFFLINE_CAP = 8 * 3600;   // 오프라인 보상은 최대 8시간까지
   const OFFLINE_MIN = 30;         // 이 시간(초) 이상 자리를 비웠을 때만 오프라인 보상 계산
   const KILLS_PER_STAGE = 5;      // 일반 스테이지는 몬스터 5마리를 잡으면 클리어
@@ -143,9 +144,9 @@
   ];
 
   // ---- 업적 ----
-  // val(s)이 goal에 닿으면 달성. 달성할 때마다 공격력·골드가 영구히 +1%이고 (환생해도 유지), 기록 탭에서 크리스탈 보상을 받을 수 있다.
+  // val(s)이 goal에 닿으면 달성. 달성할 때마다 공격력·골드가 영구히 +0.5%이고 (환생해도 유지), 기록 탭에서 크리스탈 보상을 받을 수 있다.
   // group은 기록 탭에서 묶어 보여 주는 분류, reward는 보상 크리스탈.
-  const ACHIEVE_BONUS = 0.01;
+  const ACHIEVE_BONUS = 0.005;
   const masteredIn = (s, tier) => Object.keys(s.mastered).filter((id) => TIER_OF[id] === tier).length;
   const maxUpgradeLv = (s) => Math.max(...UPGRADE_KEYS.map((k) => s.upgrades[k]));
   const statOf = (key) => (s) => s.stats[key];
@@ -209,6 +210,65 @@
     { id: 'potion1',    group: '기타', icon: 'heart',   name: '첫 물약',        desc: '상점에서 물약 사기',         goal: 1,      val: statOf('potions'), reward: 5 },
     { id: 'ad10',       group: '기타', icon: 'gem',     name: '광고 시청자',    desc: '광고 10번 보기',             goal: 10,     val: statOf('ads'), reward: 10 },
   ];
+  // ---- 업적 확장: 같은 종류를 단계별로 늘린 것들 (번호는 종류+목표 수치) ----
+  // fam(분류, 아이콘, 값, [[목표, 보상], ...], (목표, 몇 번째) => ({ id, name, desc }))
+  const fam = (group, icon, val, tiers, mk) => tiers.map(([goal, reward], i) => Object.assign({ group, icon, val, goal, reward }, mk(goal, i)));
+  const upg = (k) => (s) => s.upgrades[k];
+  const goldMedals = (s) => Object.keys(s.mastered).filter((id) => dexTier(s, id) >= 3).length;
+  const hours = (n) => n * 3600;
+  const KO_UNITS = [['자', 1e24], ['해', 1e20], ['경', 1e16], ['조', 1e12], ['억', 1e8], ['만', 1e4]];
+  const koNum = (n) => { for (const [u, v] of KO_UNITS) if (n >= v) return `${Math.round((n / v) * 10) / 10}${u}`; return String(n); };   // 1e18 → '100경'
+  const NAMES = (arr) => (g, i) => arr[i];
+  const NEW_ACHIEVEMENTS = [
+    // 강화·성장
+    ...fam('성장', 'sword', upg('weapon'), [[25, 12], [75, 32], [150, 160]], (g, i) => ({ id: 'weapon' + g, name: ['새 무기', '명검', '전설의 대장장이'][i], desc: `무기를 Lv.${g}까지` })),
+    ...fam('성장', 'shield', upg('armor'), [[25, 12], [75, 32], [150, 160]], (g, i) => ({ id: 'armor' + g, name: ['든든한 갑옷', '철벽', '불괴'][i], desc: `갑옷을 Lv.${g}까지` })),
+    ...fam('성장', 'pouch', upg('loot'), [[25, 12], [75, 32], [150, 160]], (g, i) => ({ id: 'loot' + g, name: ['약탈꾼', '도둑 길드', '황금 손'][i], desc: `약탈 솜씨를 Lv.${g}까지` })),
+    ...fam('성장', 'party', upg('companion'), [[10, 8], [60, 60], [100, 100]], (g, i) => ({ id: 'party' + g, name: ['동료 몇 마리', '대가족의 우두머리', '고블린 군단'][i], desc: `동료 고블린 ${g}마리` })),
+    ...fam('성장', 'boots', upg('speed'), [[10, 8], [20, 15]], (g, i) => ({ id: 'speed' + g, name: ['날쌘 손', '번개보다 빠른 손'][i], desc: `재빠른 손을 Lv.${g}까지` })),
+    ...fam('성장', 'arrowup', (s) => s.level, [[20, 24], [90, 240], [100, 320]], (g, i) => ({ id: 'level' + g, name: ['중급자', '한계 돌파', '백 번째 레벨'][i], desc: `레벨 ${g} 달성` })),
+    // 스테이지
+    ...fam('스테이지', 'star', (s) => s.bestStage, [[40, 48], [60, 100], [80, 140], [110, 220], [130, 260], [170, 400], [200, 600]], (g, i) => ({ id: 'stage' + g, name: ['숲 너머', '벽을 넘어', '심연의 문턱', '끝없는 길', '경계 밖', '신화의 문', '전설의 끝'][i], desc: `스테이지 ${g} 도달` })),
+    // 환생
+    ...fam('환생', 'crown', (s) => s.prestiges, [[50, 400], [100, 800]], (g, i) => ({ id: 'prestige' + g, name: ['불멸의 왕', '영원의 왕'][i], desc: `환생 ${g}회` })),
+    ...fam('환생', 'crown', (s) => s.tokens, [[500, 300], [1000, 500], [3000, 900]], (g, i) => ({ id: 'tokens' + g, name: ['증표의 산', '증표의 바다', '증표의 은하'][i], desc: `왕의 증표를 지금까지 ${g}개 모으기` })),
+    // 직업
+    { id: 'tier2', group: '직업', icon: 'cap', name: '갈림길', desc: '2차 전직 달성', goal: 1, val: (s) => masteredIn(s, 2), reward: 5 },
+    { id: 'elite16', group: '직업', icon: 'book', name: '절반의 정점', desc: '4차 직업 16종 달성', goal: 16, val: (s) => masteredIn(s, 4), reward: 240 },
+    ...fam('직업', 'star', goldMedals, [[1, 15], [8, 50], [24, 120]], (g, i) => ({ id: 'medal' + g, name: ['첫 금메달', '메달 수집가', '금메달 컬렉터'][i], desc: `도감 금메달 ${g}개` })),
+    // 장비: 등급별로 얻은 수
+    ...fam('장비', 'shield', (s) => s.stats.epics, [[1, 10], [10, 25], [50, 50]], (g, i) => ({ id: 'epic' + g, name: ['보랏빛 첫 장비', '영웅의 수집', '영웅 창고'][i], desc: `영웅 이상 장비 ${g}개 얻기` })),
+    ...fam('장비', 'shield', (s) => s.stats.rares, [[10, 5], [100, 15], [1000, 40]], (g, i) => ({ id: 'rare' + g, name: ['파란 장비', '희귀 사냥꾼', '희귀 장비 창고'][i], desc: `희귀 이상 장비 ${g}개 얻기` })),
+    ...fam('장비', 'gem', statOf('legends'), [[50, 400], [200, 800]], (g, i) => ({ id: 'legend' + g, name: ['전설의 창고', '전설의 산'][i], desc: `전설 이상 장비 ${g}개 얻기` })),
+    ...fam('장비', 'gem', statOf('uniques'), [[1, 40], [5, 80], [20, 150]], (g, i) => ({ id: 'unique' + g, name: ['유일한 존재', '유니크 수집가', '유니크 대부호'][i], desc: `유니크 이상 장비 ${g}개 얻기` })),
+    ...fam('장비', 'crown', statOf('myths'), [[1, 100], [3, 250]], (g, i) => ({ id: 'myth' + g, name: ['신화가 되다', '신화의 수집가'][i], desc: `신화 장비 ${g}개 얻기` })),
+    ...fam('장비', 'pouch', statOf('drops'), [[100, 5], [1000, 15], [10000, 40], [100000, 100]], (g, i) => ({ id: 'drops' + g, name: ['줍는 재미', '장비 사냥꾼', '드롭의 제왕', '끝없는 전리품'][i], desc: `장비를 ${g.toLocaleString('ko-KR')}개 얻기` })),
+    ...fam('장비', 'pouch', statOf('sold'), [[1000, 80], [10000, 240]], (g, i) => ({ id: 'sold' + g, name: ['장비 도매상', '장비 재벌'][i], desc: `장비 ${g.toLocaleString('ko-KR')}개 판매` })),
+    { id: 'legendset', group: '장비', icon: 'shield', name: '전설의 차림', desc: '전설 이상 장비를 3칸 모두 장착', goal: 3, val: (s) => equippedAtLeast(s, 4), reward: 40 },
+    { id: 'uniqueset', group: '장비', icon: 'shield', name: '유니크 세트', desc: '유니크 이상 장비를 3칸 모두 장착', goal: 3, val: (s) => equippedAtLeast(s, 5), reward: 100 },
+    { id: 'mythset', group: '장비', icon: 'crown', name: '신화의 차림', desc: '신화 장비를 3칸 모두 장착', goal: 3, val: (s) => equippedAtLeast(s, 6), reward: 250 },
+    ...fam('수집', 'shield', statOf('shopBuys'), [[1, 10], [10, 30], [50, 80]], (g, i) => ({ id: 'shopbuy' + g, name: ['첫 특별 장비', '단골손님', '장비 상점의 VIP'][i], desc: `장비 상점에서 ${g}개 사기` })),
+    ...fam('수집', 'gem', statOf('boxes'), [[1, 5], [10, 20], [50, 60]], (g, i) => ({ id: 'box' + g, name: ['첫 상자', '상자 수집가', '상자 중독'][i], desc: `장비 상자 ${g}개 열기` })),
+    ...fam('수집', 'star', (s) => Object.keys(s.relics).length, [[1, 15], [5, 40], [9, 100]], (g, i) => ({ id: 'relic' + g, name: ['첫 유물', '유물 수집가', '유물 완성'][i], desc: `유물 ${g}종 보유` })),
+    ...fam('수집', 'heart', statOf('potions'), [[10, 5], [50, 20], [200, 60]], (g, i) => ({ id: 'potion' + g, name: ['물약 애호가', '물약 중독', '연금술사'][i], desc: `물약 ${g}개 받기` })),
+    // 재화
+    ...fam('재화', 'coin', statOf('gold'), [[1e15, 240], [1e18, 320], [1e21, 400], [1e24, 600]], (g, i) => ({ id: 'gold1e' + Math.round(Math.log10(g)), name: ['천조 부자', '백경 부자', '해 단위 부자', '우주 부자'][i], desc: `골드를 지금까지 ${koNum(g)} 벌기` })),
+    ...fam('재화', 'gem', statOf('spent'), [[100, 5], [1000, 20], [5000, 60], [20000, 150]], (g, i) => ({ id: 'spent' + g, name: ['첫 지출', '알뜰한 쇼핑', '큰손', '크리스탈 부자'][i], desc: `크리스탈을 ${g.toLocaleString('ko-KR')}개 쓰기` })),
+    ...fam('재화', 'gem', statOf('ads'), [[50, 100], [200, 240], [1000, 600]], (g, i) => ({ id: 'ad' + g, name: ['광고 단골', '광고 마니아', '광고 명예의 전당'][i], desc: `광고 ${g}번 보기` })),
+    // 활동
+    ...fam('활동', 'burst', statOf('casts'), [[10000, 200], [50000, 500]], (g, i) => ({ id: 'cast' + g, name: ['스킬 장인', '스킬의 신'][i], desc: `스킬 ${g.toLocaleString('ko-KR')}번 사용` })),
+    { id: 'tap100000', group: '활동', icon: 'hand', name: '손가락의 전설', desc: '화면을 100,000번 눌러 공격', goal: 100000, val: statOf('taps'), reward: 100 },
+    ...fam('활동', 'heart', statOf('downs'), [[100, 40], [1000, 160]], (g, i) => ({ id: 'down' + g, name: ['백전백패', '불굴의 고블린'][i], desc: `쓰러졌다가 ${g.toLocaleString('ko-KR')}번 일어나기` })),
+    ...fam('활동', 'scroll', (s) => s.stats.time, [[hours(1), 10], [hours(10), 30], [hours(100), 80], [hours(500), 200]], (g, i) => ({ id: 'time' + g / 3600, name: ['모험의 시작', '단골 모험가', '백 시간의 모험', '오백 시간의 전설'][i], desc: `모험을 ${g / 3600}시간 하기 (자리를 비운 시간 포함)` })),
+    ...fam('활동', 'scroll', statOf('away'), [[hours(8), 10], [hours(100), 40], [hours(500), 120]], (g, i) => ({ id: 'away' + g / 3600, name: ['푹 쉬고 오세요', '방치의 달인', '방치의 신'][i], desc: `자리를 비운 동안의 보상을 ${g / 3600}시간어치 받기` })),
+    ...fam('활동', 'star', statOf('days'), [[3, 5], [7, 15], [30, 50], [100, 120], [365, 300]], (g, i) => ({ id: 'days' + g, name: ['사흘째', '일주일의 모험', '한 달의 모험', '백 일의 모험', '일 년의 모험'][i], desc: `${g}일 접속하기 (하루에 한 번만 셈)` })),
+    ...fam('활동', 'check', statOf('questClaims'), [[10, 10], [50, 30], [200, 80], [1000, 200]], (g, i) => ({ id: 'quest' + g, name: ['퀘스트 입문', '퀘스트 단골', '퀘스트 달인', '퀘스트의 신'][i], desc: `일일·주간·월간 퀘스트 보상 ${g}번 받기` })),
+    ...fam('활동', 'check', statOf('dailyClears'), [[7, 20], [30, 60], [100, 150]], (g, i) => ({ id: 'dclear' + g, name: ['일주일 개근', '한 달 개근', '백 일 개근'][i], desc: `일일 퀘스트를 모두 끝낸 날 ${g}일` })),
+    ...fam('활동', 'check', statOf('weeklyClears'), [[4, 30], [12, 80], [26, 150]], (g, i) => ({ id: 'wclear' + g, name: ['한 달 주간왕', '석 달 주간왕', '반년 주간왕'][i], desc: `주간 퀘스트를 모두 끝낸 주 ${g}번` })),
+    ...fam('활동', 'check', statOf('monthlyClears'), [[1, 40], [6, 120], [12, 250]], (g, i) => ({ id: 'mclear' + g, name: ['한 달 완주', '반년 완주', '일 년 완주'][i], desc: `월간 퀘스트를 모두 끝낸 달 ${g}번` })),
+  ];
+  // 무료로 얻는 크리스탈이 너무 많아지지 않게, 새 업적의 보상은 위에 적은 값의 1/4로 준다 (최소 3개)
+  for (const a of NEW_ACHIEVEMENTS) ACHIEVEMENTS.push(Object.assign(a, { reward: Math.max(3, Math.round(a.reward / 4)) }));
   const achieveMult = (s) => 1 + ACHIEVE_BONUS * Object.keys(s.achieved).length;
   // 받을 수 있는 업적 보상(달성했지만 아직 받지 않은 것)과, 받는 함수
   const unclaimedAchievements = (s) => ACHIEVEMENTS.filter((a) => s.achieved[a.id] && !s.achClaimed[a.id]);
@@ -237,6 +297,113 @@
     return ev;
   }
 
+
+  // ---- 일일·주간·월간 퀘스트 ----
+  // 기간이 시작될 때 목표 몇 개를 뽑고, 그 순간의 누적 기록을 기준점(base)으로 적어 둔다. 진행도 = 지금 기록 - 기준점이라서 이벤트마다 따로 셀 필요가 없다.
+  // 기간은 한국 시간 기준: 일일은 자정, 주간은 월요일 0시, 월간은 1일 0시에 바뀐다. 날짜는 광고 횟수와 같은 '게임의 오늘'(서버 시각 기준, 시계를 돌려도 뒤로 가지 않음)을 쓴다.
+  // 목표 크기는 지금까지 도달한 최고 스테이지에 따라 3단계 중 하나다 (초반에는 쉽게, 후반에는 크게).
+  const QUEST_PERIODS = ['daily', 'weekly', 'monthly'];
+  const QUEST_CFG = {
+    daily:   { name: '일일', count: 5, reward: 5,  bonus: 10 },    // 하루에 5개(첫째는 '접속하기'), 하나당 5개, 모두 끝내면 보너스 10개와 물약
+    weekly:  { name: '주간', count: 5, reward: 20, bonus: 40 },
+    monthly: { name: '월간', count: 4, reward: 60, bonus: 120 },
+  };
+  const QUEST_DEFS = [
+    { id: 'attend',   daily: [1, 1, 1], reward: { daily: 2 }, label: () => '오늘 접속하기', val: () => 1 },   // 접속만 해도 끝난다 (항상 첫째)
+    { id: 'kills',    label: (g) => `몬스터 ${koNum(g)}마리 처치`,        val: (s) => s.totalKills,       daily: [300, 1500, 6000],  weekly: [3000, 15000, 60000],  monthly: [20000, 100000, 400000] },
+    { id: 'boss',     label: (g) => `보스 ${koNum(g)}마리 처치`,          val: (s) => s.stats.bossKills,  daily: [10, 40, 150],      weekly: [60, 250, 900],        monthly: [300, 1200, 4000] },
+    { id: 'stage',    label: (g) => `스테이지 ${koNum(g)}번 클리어`,      val: (s) => s.stats.stageUps,   daily: [30, 100, 400],     weekly: [300, 1000, 4000],     monthly: [1500, 5000, 20000] },
+    { id: 'skill',    label: (g) => `스킬 ${koNum(g)}번 사용`,            val: (s) => s.stats.casts,      daily: [20, 60, 200],      weekly: [150, 500, 1500],      monthly: [700, 2500, 8000] },
+    { id: 'tap',      label: (g) => `화면을 ${koNum(g)}번 눌러 공격`,     val: (s) => s.stats.taps,       daily: [50, 200, 600],     weekly: [400, 1500, 4500],     monthly: [2000, 7000, 20000] },
+    { id: 'drop',     label: (g) => `장비 ${koNum(g)}개 얻기`,            val: (s) => s.stats.drops,      daily: [10, 40, 150],      weekly: [80, 300, 1000],       monthly: [400, 1500, 5000] },
+    { id: 'epic',     label: (g) => `영웅 이상 장비 ${koNum(g)}개 얻기`,  val: (s) => s.stats.epics,      daily: [1, 2, 3],          weekly: [3, 8, 15],            monthly: [10, 25, 50] },
+    { id: 'sell',     label: (g) => `장비 ${koNum(g)}개 팔기`,            val: (s) => s.stats.sold,       daily: [5, 20, 80],        weekly: [40, 150, 500],        monthly: [200, 700, 2500] },
+    { id: 'level',    label: (g) => `레벨업 ${koNum(g)}번`,               val: (s) => s.stats.levelUps,   daily: [3, 8, 20],         weekly: [15, 40, 100],         monthly: [60, 150, 400] },
+    { id: 'ad',       label: (g) => `광고 ${g}번 보기`,                   val: (s) => s.stats.ads,        daily: [1, 2, 3],          weekly: [5, 10, 15],           monthly: [20, 40, 60] },
+    { id: 'prestige', label: (g) => `환생 ${g}번`,                        val: (s) => s.prestiges,        weekly: [1, 3, 6],          monthly: [5, 12, 25] },
+    { id: 'shop',     label: (g) => `장비 상점에서 ${g}개 사기`,          val: (s) => s.stats.shopBuys,   weekly: [1, 2, 3],          monthly: [3, 6, 12] },
+  ];
+  const questDef = (id) => QUEST_DEFS.find((d) => d.id === id) || null;
+  const questTier = (s) => (s.bestStage < 30 ? 0 : s.bestStage < 80 ? 1 : 2);
+  const questReward = (period, def) => (def.reward && def.reward[period]) || QUEST_CFG[period].reward;
+
+  // 게임의 '오늘'(YYYY-MM-DD)에서 각 기간의 이름표를 만든다: 일일 = 그 날, 주간 = 그 주 월요일 날짜, 월간 = 그 달
+  function periodKeys(day) {
+    const [y, m, d] = day.split('-').map(Number);
+    const wd = new Date(Date.UTC(y, m - 1, d)).getUTCDay();   // 0 일 ~ 6 토
+    const mon = new Date(Date.UTC(y, m - 1, d - ((wd + 6) % 7)));
+    return { daily: day, weekly: `${mon.getUTCFullYear()}-${String(mon.getUTCMonth() + 1).padStart(2, '0')}-${String(mon.getUTCDate()).padStart(2, '0')}`, monthly: day.slice(0, 7) };
+  }
+  // 각 기간이 끝나기까지 남은 초 (지금의 서버 시각 ms 기준, 모르면 null)
+  function periodSecsLeft(nowSrv) {
+    if (!Number.isFinite(nowSrv)) return { daily: null, weekly: null, monthly: null };
+    const k = new Date(nowSrv + 9 * 3600e3), dayMs = 86400e3;
+    const start = Math.floor(k.getTime() / dayMs) * dayMs;
+    const wd = new Date(start).getUTCDay();
+    const nextWeek = start + (8 - (wd === 0 ? 7 : wd)) * dayMs;
+    const nextMonth = Date.UTC(k.getUTCFullYear(), k.getUTCMonth() + 1, 1);
+    const left = (t) => Math.max(0, Math.ceil((t - k.getTime()) / 1000));
+    return { daily: left(start + dayMs), weekly: left(nextWeek), monthly: left(nextMonth) };
+  }
+  // 그 기간의 목표를 뽑는다 (기간 이름표로 정해지는 계산: 같은 기간에는 항상 같은 목표 종류)
+  function makeQuests(s, period, key) {
+    const cfg = QUEST_CFG[period], tier = questTier(s);
+    const pool = QUEST_DEFS.filter((d) => d[period] && d.id !== 'attend');
+    const rng = seededRng([...key].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7) + period.length * 1009);
+    for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
+    const picked = (period === 'daily' ? [questDef('attend')] : []).concat(pool).slice(0, cfg.count);
+    return { key, list: picked.map((d) => ({ id: d.id, goal: d[period][tier], base: d.id === 'attend' ? 0 : d.val(s) })), claimed: {}, bonus: false };
+  }
+  // 게임의 오늘(day)에 맞춰 세 기간의 목표를 새로 뽑을지 확인한다. 기간이 바뀌었으면 받지 않은 보상은 사라진다.
+  function questSync(s, day) {
+    const keys = periodKeys(day);
+    let changed = false;
+    for (const p of QUEST_PERIODS) {
+      if (!s.quests[p] || s.quests[p].key !== keys[p]) {
+        s.quests[p] = makeQuests(s, p, keys[p]);
+        if (p === 'daily') s.stats.days += 1;   // 접속한 날 수
+        changed = true;
+      }
+    }
+    return changed;
+  }
+  // 한 기간의 현황 { key, items: [{ id, label, goal, cur, done, claimed, reward }], allClaimed, bonus: { reward, ready, claimed }, claimable }
+  function questBoard(s, period) {
+    const q = s.quests[period];
+    if (!q) return null;
+    const items = q.list.map((it) => {
+      const def = questDef(it.id);
+      const cur = def ? Math.min(it.goal, Math.max(0, def.val(s) - it.base)) : 0;
+      return { id: it.id, label: def ? def.label(it.goal) : it.id, goal: it.goal, cur: it.id === 'attend' ? 1 : cur, done: it.id === 'attend' || cur >= it.goal, claimed: !!q.claimed[it.id], reward: def ? questReward(period, def) : 0 };
+    });
+    const allClaimed = items.length > 0 && items.every((x) => x.claimed);
+    return { key: q.key, items, allClaimed, bonus: { reward: QUEST_CFG[period].bonus, ready: allClaimed && !q.bonus, claimed: q.bonus },
+             claimable: items.filter((x) => x.done && !x.claimed).length + (allClaimed && !q.bonus ? 1 : 0) };
+  }
+  const questClaimable = (s) => QUEST_PERIODS.reduce((n, p) => n + (s.quests[p] ? questBoard(s, p).claimable : 0), 0);
+  // 끝낸 목표 하나의 보상을 받는다. 받은 크리스탈 수(못 받으면 0)
+  function claimQuest(s, period, id) {
+    const b = QUEST_PERIODS.includes(period) ? questBoard(s, period) : null;
+    const it = b && b.items.find((x) => x.id === id);
+    if (!it || !it.done || it.claimed) return 0;
+    s.quests[period].claimed[id] = true;
+    s.crystals = Math.min(1e9, s.crystals + it.reward);
+    s.stats.questClaims += 1;
+    return it.reward;
+  }
+  // 그 기간의 목표를 모두 받았을 때 주는 보너스. 일일은 물약도 하나 준다. 결과: { crystals, potion } (못 받으면 null)
+  function claimQuestBonus(s, period) {
+    const b = QUEST_PERIODS.includes(period) ? questBoard(s, period) : null;
+    if (!b || !b.bonus.ready) return null;
+    s.quests[period].bonus = true;
+    s.crystals = Math.min(1e9, s.crystals + b.bonus.reward);
+    s.stats.questClaims += 1;
+    s.stats[period === 'daily' ? 'dailyClears' : period === 'weekly' ? 'weeklyClears' : 'monthlyClears'] += 1;
+    let potion = null;
+    if (period === 'daily') { potion = rollPotion(); s.potions[potion.id] = Math.min(St.POTION_CAP, (s.potions[potion.id] || 0) + potion.dur); s.stats.potions += 1; }
+    return { crystals: b.bonus.reward, potion };
+  }
+
   // ---- 장비 ----
   // 몬스터를 잡으면 확률로 떨어진다. 등급이 높을수록 확률이 낮고, 보스는 높은 등급이 훨씬 잘 나온다.
   // 수치는 드롭된 스테이지(아이템 레벨)가 높을수록 커진다.
@@ -246,8 +413,11 @@
     { name: '희귀', color: '#5aa8ff', w: 9.5, bossW: 35, gold: 25 },
     { name: '영웅', color: '#c07aff', w: 3,   bossW: 16, gold: 80 },
     { name: '전설', color: '#ffc93a', w: 0.5, bossW: 4,  gold: 300 },
+    { name: '유니크', color: '#ff5d9a', w: 0.07, bossW: 0.8, gold: 1000 },   // 전설보다 위: 수치가 전설의 약 1.5배
+    { name: '신화', color: '#39f0ff', w: 0.008, bossW: 0.1, gold: 3500 },    // 가장 위: 수치가 유니크의 약 1.5배
   ];
-  const RARITY_PREFIX = ['낡은', '튼튼한', '빛나는', '고귀한', '찬란한'];
+  const RARITY_PREFIX = ['낡은', '튼튼한', '빛나는', '고귀한', '찬란한', '유일한', '신화의'];
+  const AUTO_SELL_MAX = 4;         // 자동 판매는 전설까지만 고를 수 있다 (유니크·신화는 어떤 경우에도 자동으로 팔리지 않는다)
   const DROP_CHANCE = 0.08;        // 일반 몬스터가 장비를 떨어뜨릴 확률
   const BOSS_DROP_CHANCE = 0.5;    // 보스
   const LUCK_PER_LV = 0.015;       // 증표 상점 '수집가' 레벨당 드롭 확률 추가(+1.5%p)
@@ -257,14 +427,14 @@
   // 종류마다 올려 주는 능력(kind)과 등급별 기본 수치(%: 노말·고급·희귀·영웅·전설), 이름에 쓰는 명사
   const GEAR = {
     weapon:    { name: '무기',     icon: 'sword',  kinds: {
-      dmg:   { label: '공격력',    base: [4, 7, 11, 17, 26],   nouns: [['club', '몽둥이'], ['dagger', '단검'], ['hatchet', '손도끼'], ['sword', '장검'], ['staff', '지팡이']] } } },
+      dmg:   { label: '공격력',    base: [4, 7, 11, 17, 26, 40, 62],   nouns: [['club', '몽둥이'], ['dagger', '단검'], ['hatchet', '손도끼'], ['sword', '장검'], ['staff', '지팡이']] } } },
     armor:     { name: '방어구',   icon: 'shield', kinds: {
-      hp:    { label: '최대 체력', base: [6, 10, 16, 24, 36],  nouns: [['leather', '가죽 갑옷'], ['chainmail', '쇠사슬 갑옷'], ['plate', '판금 갑옷'], ['robe', '로브']] } } },
+      hp:    { label: '최대 체력', base: [6, 10, 16, 24, 36, 55, 85],  nouns: [['leather', '가죽 갑옷'], ['chainmail', '쇠사슬 갑옷'], ['plate', '판금 갑옷'], ['robe', '로브']] } } },
     accessory: { name: '액세서리', icon: 'gem',    kinds: {
-      gold:  { label: '골드 획득', base: [6, 10, 15, 23, 34],  nouns: [['goldring', '황금 반지'], ['luckynecklace', '행운의 목걸이']] },
-      aps:   { label: '공격 속도', base: [2, 3.5, 5.5, 8, 12], nouns: [['galebracelet', '질풍의 팔찌'], ['featherearring', '깃털 귀걸이']] },
-      comp:  { label: '동료 공격', base: [5, 9, 14, 21, 32],   nouns: [['charm', '동료의 부적'], ['friendring', '우정의 반지']] },
-      click: { label: '직접 공격', base: [8, 14, 22, 33, 50],  nouns: [['glove', '강타의 장갑'], ['armband', '용사의 완장']] } } },
+      gold:  { label: '골드 획득', base: [6, 10, 15, 23, 34, 52, 80],  nouns: [['goldring', '황금 반지'], ['luckynecklace', '행운의 목걸이']] },
+      aps:   { label: '공격 속도', base: [2, 3.5, 5.5, 8, 12, 18, 27], nouns: [['galebracelet', '질풍의 팔찌'], ['featherearring', '깃털 귀걸이']] },
+      comp:  { label: '동료 공격', base: [5, 9, 14, 21, 32, 48, 74],   nouns: [['charm', '동료의 부적'], ['friendring', '우정의 반지']] },
+      click: { label: '직접 공격', base: [8, 14, 22, 33, 50, 76, 116],  nouns: [['glove', '강타의 장갑'], ['armband', '용사의 완장']] } } },
   };
   const SLOT_KEYS = Object.keys(GEAR);
   const has = (obj, key) => Object.prototype.hasOwnProperty.call(obj, key);   // 'constructor' 같은 이름을 걸러내려고 in/[] 대신 쓴다
@@ -311,6 +481,14 @@
   }
 
   const dropChance = (s, boss) => ((boss ? BOSS_DROP_CHANCE : DROP_CHANCE) + LUCK_PER_LV * perkLv(s, 'luck') + specialV(s, 'luck')) * (1 + potionV(s, 'luck'));
+  // 얻은 장비의 등급을 업적용 누적 기록에 센다 (드롭·상자·장비 상점 모두)
+  function tallyRarity(s, it) {
+    if (it.r >= 2) s.stats.rares += 1;
+    if (it.r >= 3) s.stats.epics += 1;
+    if (it.r >= 4) s.stats.legends += 1;
+    if (it.r >= 5) s.stats.uniques += 1;
+    if (it.r >= 6) s.stats.myths += 1;
+  }
   // 같은 능력을 올려 주면서 수치가 더 큰 장비이거나, 칸이 비어 있으면 '더 좋은' 장비
   // 특별 옵션이 있는 장비는 옵션 없는 장비에게 자리를 뺏기지 않고, 옵션 있는 쪽은 수치가 90%만 돼도 자리를 얻는다.
   const isUpgrade = (s, it) => {
@@ -322,7 +500,7 @@
 
   // 장비를 가방에 넣는다. 자동 판매 등급 이하이거나 가방이 가득 차면 판다. 결과: 'bag' | 'sold'
   function stow(s, it) {
-    if (it.r <= s.autoSell || s.bag.length >= bagLimit(s)) {
+    if ((it.r <= s.autoSell && it.r <= AUTO_SELL_MAX && !it.sp) || s.bag.length >= bagLimit(s)) {
       s.gold += sellValue(it);
       s.stats.sold += 1;
       return 'sold';
@@ -345,7 +523,7 @@
       action = stow(s, it);
     }
     s.stats.drops += 1;
-    if (it.r >= 4) s.stats.legends += 1;
+    tallyRarity(s, it);
     ev.push({ type: 'drop', item: it, action, gold: action === 'sold' ? sellValue(it) : 0 });
   }
 
@@ -457,6 +635,7 @@
   }
   // 상점에서 산 장비를 넣는다. 더 좋으면 바로 장착하고, 아니면 가방에 넣는다 (돈 주고 산 장비는 자동 판매하지 않는다).
   function giveItem(s, it) {
+    tallyRarity(s, it);
     if (s.autoEquip && isUpgrade(s, it)) {
       const before = maxHp(s), old = s.equip[it.slot];
       s.equip[it.slot] = it;
@@ -494,6 +673,8 @@
     if (relic && s.relics[id]) return { ok: false, reason: 'owned', product };
 
     s.crystals -= product.price;
+    s.stats.spent += product.price;
+    if (box) s.stats.boxes += 1;
     const items = [];
     if (relic) { s.relics[id] = true; if (s.relicEq.length < St.RELIC_SLOTS) s.relicEq.push(id); }   // 빈 칸이 있으면 바로 낀다
     else if (box) for (let i = 0; i < box.count; i++) { const it = rollItem(s, shopItemLevel(s), false, rollFromOdds(box.odds)); giveItem(s, it); items.push(it); }
@@ -577,6 +758,8 @@
     if (s.crystals < offer.price) return { ok: false, reason: 'crystals' };
     if (s.bag.length >= bagLimit(s)) return { ok: false, reason: 'bag' };   // 자리가 없으면 새 장비도, 밀려난 장비도 둘 곳이 없다
     s.crystals -= offer.price;
+    s.stats.spent += offer.price;
+    s.stats.shopBuys += 1;
     s.itemSeq += 1;
     const item = Object.assign({ id: s.itemSeq }, offer.item);
     const action = giveItem(s, item);
@@ -588,6 +771,7 @@
     if (s.shop.reroll >= St.GEAR_SHOP.rerollMax) return { ok: false, reason: 'max' };
     if (s.crystals < St.GEAR_SHOP.rerollCost) return { ok: false, reason: 'crystals' };
     s.crystals -= St.GEAR_SHOP.rerollCost;
+    s.stats.spent += St.GEAR_SHOP.rerollCost;
     s.shop.reroll += 1;
     s.shop.bought = [];
     return { ok: true };
@@ -615,7 +799,9 @@
       mastered: {},      // 2~4차 전직을 달성한 직업 도감 (환생해도 유지)
       achieved: {},      // 달성한 업적 (환생해도 유지)
       achClaimed: {},    // 크리스탈 보상을 받은 업적 (환생해도 유지)
-      stats: { bossKills: 0, gold: 0, drops: 0, legends: 0, sold: 0, casts: 0, downs: 0, taps: 0, ads: 0, potions: 0 },   // 업적용 누적 기록 (환생해도 유지)
+      quests: { daily: null, weekly: null, monthly: null },   // 일일·주간·월간 퀘스트 { key 기간 이름표, list [{ id, goal, base }], claimed, bonus } (환생해도 유지)
+      stats: { bossKills: 0, gold: 0, drops: 0, rares: 0, epics: 0, legends: 0, uniques: 0, myths: 0, sold: 0, casts: 0, downs: 0, taps: 0, ads: 0, potions: 0,
+               stageUps: 0, levelUps: 0, shopBuys: 0, boxes: 0, spent: 0, days: 0, time: 0, away: 0, questClaims: 0, dailyClears: 0, weeklyClears: 0, monthlyClears: 0 },   // 업적용 누적 기록 (환생해도 유지)
       runT: 0,           // 이번 판을 키운 시간(초). 환생 보상이 시간에 따라 달라진다
       rescueT: 0,        // 유물 '불사조의 깃털'이 다시 쓸 수 있을 때까지 남은 시간 (저장하지 않음)
       dex: {},           // 도감 기록: 2차 직업별 { best 최고 스테이지, kills 처치 수, runs 전직 횟수 } (환생해도 유지)
@@ -624,7 +810,7 @@
       bag: [],           // 가방 (환생해도 유지)
       itemSeq: 0,        // 장비 번호를 매기는 카운터
       autoEquip: true,   // 더 좋은 장비를 얻으면 자동으로 장착
-      autoSell: 0,       // 이 등급 이하는 얻자마자 자동 판매 (-1 없음, 0 노말, 1 고급, 2 희귀)
+      autoSell: 0,       // 이 등급 이하는 얻자마자 자동 판매 (-1 없음, 0 노말, 1 고급, 2 희귀, 3 영웅, 4 전설). 특별 옵션 장비와 유니크·신화는 팔리지 않는다
       hp: 0,
       monsterHp: 0,
       monsterMax: 0,
@@ -936,6 +1122,7 @@
     while (s.exp >= expNeeded(s)) {
       s.exp -= expNeeded(s);
       s.level += 1;
+      s.stats.levelUps += 1;
       s.hp += 12;   // 레벨업 시 늘어난 기본 체력만큼 회복
       ev.push({ type: 'levelup', level: s.level });
       const st = promoStage(s);
@@ -957,6 +1144,7 @@
 
     if (s.isBoss || s.killsInStage >= KILLS_PER_STAGE) {
       s.stage += 1;
+      s.stats.stageUps += 1;
       s.killsInStage = 0;
       if (s.stage > s.runBest) s.runBest = s.stage;
       if (s.stage > s.bestStage) s.bestStage = s.stage;
@@ -989,6 +1177,7 @@
   function tick(s, dt) {
     const ev = [];
     s.runT += dt;
+    s.stats.time += dt;
     for (const id of Object.keys(s.potions)) { s.potions[id] -= dt; if (s.potions[id] <= 0) delete s.potions[id]; }   // 물약 시간은 쓰러져 있는 동안에도 흐른다
     if (s.downT > 0) {
       s.downT -= dt;
@@ -1083,6 +1272,7 @@
   function applyAway(s, seconds) {
     const before = { gold: s.gold, kills: s.totalKills, stage: s.stage, level: s.level };
     const ev = simulate(s, seconds);
+    s.stats.away += seconds;
     s.dealt = 0;
     const drops = ev.filter((e) => e.type === 'drop');
     return {
@@ -1195,7 +1385,22 @@
     }
     for (const k of Object.keys(s.stats)) s.stats[k] = clamp(num(o.stats && o.stats[k], 0), 0, 1e300);
     s.runT = clamp(num(o.runT, PRESTIGE_FULL_SEC), 0, 1e9);
-    s.srvSavedAt = clamp(Math.floor(num(o.srvSavedAt, 0)), 0, 1e14);   // 예전 저장에는 없으므로 손해 보지 않게 가득 찬 것으로 시작한다
+    s.srvSavedAt = clamp(Math.floor(num(o.srvSavedAt, 0)), 0, 1e14);
+    for (const p of QUEST_PERIODS) {   // 퀘스트: 이름표와 목표 종류·수치를 검사하고, 받은 기록은 남아 있는 목표만 인정한다
+      const q = o.quests && o.quests[p];
+      const keyOk = q && typeof q.key === 'string' && (p === 'monthly' ? /^\d{4}-\d{2}$/ : /^\d{4}-\d{2}-\d{2}$/).test(q.key);
+      if (!keyOk || !Array.isArray(q.list)) continue;
+      const list = [], seenQ = {};
+      for (const it of q.list.slice(0, QUEST_CFG[p].count)) {
+        const def = it && typeof it.id === 'string' ? questDef(it.id) : null;
+        if (!def || !def[p] && def.id !== 'attend' || seenQ[def.id]) continue;
+        seenQ[def.id] = true;
+        list.push({ id: def.id, goal: clamp(num(it.goal, 1), 1, 1e12), base: clamp(num(it.base, 0), 0, 1e300) });
+      }
+      const claimed = {};
+      for (const it of list) if (q.claimed && q.claimed[it.id] === true) claimed[it.id] = true;
+      s.quests[p] = { key: q.key, list, claimed, bonus: q.bonus === true && list.length > 0 && list.every((x) => claimed[x.id]) };
+    }   // 예전 저장에는 없으므로 손해 보지 않게 가득 찬 것으로 시작한다
     for (const k of ADV_IDS) {
       const d = o.dex && o.dex[k];
       if (d && typeof d === 'object') {
@@ -1230,7 +1435,7 @@
     for (const it of [...s.bag, ...SLOT_KEYS.map((k) => s.equip[k]).filter(Boolean)]) maxId = Math.max(maxId, it.id);
     s.itemSeq = Math.max(maxId, clamp(Math.floor(num(o.itemSeq, 0)), 0, 1e12));
     s.autoEquip = o.autoEquip !== false;
-    s.autoSell = clamp(Math.floor(num(o.autoSell, 0)), -1, 2);
+    s.autoSell = clamp(Math.floor(num(o.autoSell, 0)), -1, AUTO_SELL_MAX);
     // 상점 관련 값: 이상한 값은 범위 안으로 보정하고, 없는 물약·상품은 버린다
     s.crystals = clamp(Math.floor(num(o.crystals, 0)), 0, 1e9);
     for (const p of St.POTIONS) { const t = num(o.potions && o.potions[p.id], 0); if (t > 0) s.potions[p.id] = Math.min(St.POTION_CAP, t); }
@@ -1255,7 +1460,6 @@
   }
 
   // ---- 표시용 ----
-  const UNITS = ['', 'K', 'M', 'B', 'T', 'Qa', 'Qi', 'Sx', 'Sp', 'Oc'];
   function fmt(n) {
     if (!Number.isFinite(n)) return '∞';
     if (n < 1000) return n < 10 && n % 1 !== 0 ? n.toFixed(1) : String(Math.floor(n));
@@ -1291,6 +1495,7 @@
     PATH_FIELDS, ADV_IDS, advIdsOfTier, classTier, parentOf, childrenOf, classPath, deepest, DEX_STAGES, DEX_MEDALS, MASTERY_BASE, MEDAL_BONUS, dexStages, masteryOf, dexRecord, dexTier,
     RARITIES, GEAR, SLOT_KEYS, BAG_MAX, bagLimit, DROP_CHANCE, BOSS_DROP_CHANCE, LUCK_PER_LV,
     GEAR_DESIGNS, itemDesign, setRandom, itemName, sellValue, rollItem, dropChance, isUpgrade, receiveItem, equipItem, unequipItem, sellBagItem, sellBagUpTo, sellBagItems, isWeaker, bagWeaker, gearMult,
+    QUEST_PERIODS, QUEST_CFG, QUEST_DEFS, periodKeys, periodSecsLeft, questSync, questBoard, questClaimable, claimQuest, claimQuestBonus,
     PERKS, PERK_KEYS, HEADSTART_LV, perkLv, perkCost, perkSpent, tokenBalance, perkMissing, perkUnlocked, canBuyPerk, buyPerk, respecPerks, offlineCap,
     fmt, fmtTime,
   };

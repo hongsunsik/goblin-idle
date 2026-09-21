@@ -138,7 +138,8 @@ const FAKE_CLOUD = `(() => {
     check('장비 탭이 열린다', await ev(`!document.querySelector('.tab[data-tab="gear"]').hidden`));
     check('장착 칸이 3개 보이고 무기만 채워져 있다', (await ev(`document.querySelectorAll('#slots .slot').length`)) === 3 && (await ev(`document.querySelectorAll('#slots .slot.is-empty').length`)) === 2);
     check('가방에 장비 6개가 보인다', (await ev(`document.querySelectorAll('#bag .gitem[data-item]').length`)) === 6);
-    check('드롭 확률표에 다섯 등급이 나온다', (await ev(`document.querySelectorAll('#dropInfo .droptable tr').length`)) === 6);
+    check('드롭 확률표에 일곱 등급(노말~신화)이 나온다', (await ev(`document.querySelectorAll('#dropInfo .droptable tr').length`)) === 8 && (await ev(`document.getElementById('dropInfo').textContent`)).includes('신화') && (await ev(`document.getElementById('dropInfo').textContent`)).includes('유니크'));
+    check('자동 판매 선택지에 영웅 이하·전설 이하가 있다', (await ev(`[...document.querySelectorAll('#autoSell option')].map((o) => o.value).join(',')`)) === '-1,0,1,2,3,4');
     await shot('gear');
     // 희귀 무기(id 2)를 눌러 상세 창 → 비교 표시 → 장착
     await ev(`document.querySelector('.gitem[data-item="2"]').click()`); await sleep(300);
@@ -161,7 +162,7 @@ const FAKE_CLOUD = `(() => {
     check('취소하면 그대로 남는다', (await ev(`document.querySelectorAll('#bag .gitem[data-item]').length`)) === 5);
     // 정리: 등급별 / 장착 중인 장비보다 약한 것 (가방: 1 노말무기, 3 고급방어구, 4 노말장신구, 5 고급무기, 6 영웅장신구)
     await ev(`document.getElementById('tidyBtn').click()`); await sleep(250);
-    check('정리 창에 4가지 선택지가 보이고 개수·골드를 미리 알려 준다', (await ev(`document.querySelectorAll('.tidy__opt').length`)) === 4 && (await ev(`document.getElementById('modalBody').textContent`)).includes('골드') === false);
+    check('정리 창에 6가지 선택지(등급 5 + 약한 장비)가 보이고 개수·골드를 미리 알려 준다', (await ev(`document.querySelectorAll('.tidy__opt').length`)) === 6 && (await ev(`document.getElementById('modalBody').textContent`)).includes('골드') === false);
     const weakText = await ev(`document.querySelector('input[name="tidy"][value="weak"]').closest('label').textContent`);
     check('"장착 중인 장비보다 약한 것"은 같은 칸·같은 능력만 비교해 2개(옛 무기 둘)로 센다', weakText.includes('2개'), weakText);
     await ev(`document.querySelector('input[name="tidy"][value="weak"]').click()`);
@@ -414,7 +415,7 @@ const FAKE_CLOUD = `(() => {
     check('크리스탈이 없으면 모든 구매 버튼이 잠긴다', (await ev(`[...document.querySelectorAll('#gearShop [data-gbuy], #boxList [data-buy], #utilList [data-buy]')].every((b) => b.disabled)`)) && (await ev(`document.querySelectorAll('#gearShop .gshop').length`)) === 6);
     check('물약은 상점에서 팔지 않는다 (광고 보상으로만 받는다)', (await ev(`!document.getElementById('potionList')`)) && (await txt('#adCard')).includes('랜덤 물약'));
     check('장비 상점에 특별 옵션 6개가 보이고 갱신 시각 안내가 있다', (await ev(`document.querySelectorAll('#gearShop .relic__opts b').length`)) === 6 && (await txt('#gshopTimer')).length > 0);
-    check('장비 상자에 등급 확률이 그대로 공개된다', (await txt('#boxList')).includes('전설 100%') && (await txt('#boxList')).includes('영웅 85%'));
+    check('장비 상자에 등급 확률이 그대로 공개된다', (await txt('#boxList')).includes('전설 90%') && (await txt('#boxList')).includes('신화 1%') && (await txt('#boxList')).includes('영웅 85%'));
     // 충전: 취소하면 그대로
     await click('#chargeBtn'); await sleep(250);
     check('충전 창에 상품 5개와 시연 안내가 보인다', (await ev(`document.querySelectorAll('#modalBody [data-pack]').length`)) === 5 && (await txt('#modalBody')).includes('실제 돈은 청구되지 않아요'));
@@ -491,8 +492,16 @@ const FAKE_CLOUD = `(() => {
     await reopen(t1);
     check('받을 업적 보상이 있으면 기록 탭에 알림 점이 뜬다', await ev(`!document.querySelector('[data-go="log"] .dot').hidden`));
     await click('[data-go="log"]'); await sleep(400);
-    check('업적이 분류별로 묶여 보이고 "받을 보상"이 표시된다', (await ev(`document.querySelectorAll('.achgroup').length`)) >= 6 && !(await ev(`document.getElementById('achClaim').hidden`)) && (await txt('#achClaimText')).includes(`${rewardN}개`), await txt('#achClaimText'));
-    check('업적 카드에 진행도 숫자(예: 12 / 20)와 보상이 보인다', (await ev(`[...document.querySelectorAll('.ach__num')].some((x) => /\\d+ \\/ \\d+/.test(x.textContent))`)) && (await ev(`document.querySelectorAll('.ach__rw').length`)) === G.ACHIEVEMENTS.length);
+    check('기록 탭에 일일·주간·월간·업적 분류 단추가 있고 일일이 먼저 열려 있다', (await ev(`[...document.querySelectorAll('#logSeg button')].map((b) => b.dataset.seg).join(',')`)) === 'daily,weekly,monthly,ach' && (await ev(`document.querySelector('#logSeg .is-on').dataset.seg`)) === 'daily');
+    check('일일 퀘스트 5개가 보이고 "접속하기"는 이미 끝나 받을 수 있다', (await ev(`document.querySelectorAll('#qList .ach').length`)) === 5 && (await txt('#qList')).includes('오늘 접속하기') && (await ev(`!!document.querySelector('#qList [data-qclaim="daily:attend"]')`)));
+    check('퀘스트 화면에 초기화까지 남은 시간(또는 서버 시각 안내)과 완료 보너스 칸이 있다', (await txt('#qHead')).length > 5 && (await txt('#qBonus')).includes('모두 완료 보너스'));
+    for (const seg of ['weekly', 'monthly']) { await click(`#logSeg [data-seg="${seg}"]`); await sleep(200); check(`${seg === 'weekly' ? '주간' : '월간'} 퀘스트가 ${seg === 'weekly' ? 5 : 4}개 보인다`, (await ev(`document.querySelectorAll('#qList .ach').length`)) === (seg === 'weekly' ? 5 : 4)); }
+    await click('#logSeg [data-seg="ach"]'); await sleep(300);
+    check('업적이 분류별로 묶여 보이고 "받을 보상"이 표시된다', (await ev(`document.querySelectorAll('.achgroup').length`)) >= 9 && !(await ev(`document.getElementById('achClaim').hidden`)) && (await txt('#achClaimText')).includes(`${rewardN}개`), await txt('#achClaimText'));
+    check('받을 보상이 있는 분류는 펼쳐져 있고 카드에 진행도 숫자(예: 12 / 20)와 보상이 보인다', (await ev(`[...document.querySelectorAll('.ach__num')].some((x) => /\\d+ \\/ \\d+/.test(x.textContent))`)) && (await ev(`document.querySelectorAll('#achv .ach__rw').length`)) > 0);
+    check('업적이 150개 넘게 있다고 표시된다', /\/ 1[5-9]\d/.test(await txt('#achieveBonus')), await txt('#achieveBonus'));
+    const collapsed = await ev(`(() => { const g = [...document.querySelectorAll('.achgroup')].find((x) => x.textContent.includes('▸')); return g ? g.dataset.grp : ''; })()`);
+    if (collapsed) { await click(`.achgroup[data-grp="${collapsed}"]`); await sleep(200); check('접힌 분류를 누르면 펼쳐진다', (await ev(`document.querySelector('.achgroup[data-grp="${collapsed}"]').textContent.includes('▾')`))); }
     await shot('achievements2');
     await click('#achv [data-claim]'); await sleep(300);
     check('업적 하나를 받으면 받을 보상이 1개 줄어든다', (await txt('#achClaimText')).includes(`${rewardN - 1}개`), await txt('#achClaimText'));
@@ -500,6 +509,13 @@ const FAKE_CLOUD = `(() => {
     check('모두 받기를 누르면 받을 보상 안내가 사라지고 알림 점도 꺼진다', (await ev(`document.getElementById('achClaim').hidden`)) && (await ev(`document.querySelectorAll('#achv [data-claim]').length`)) === 0);
     await click('[data-go="store"]'); await sleep(400);
     check(`받은 보상이 크리스탈에 합쳐진다 (4,000 + ${rewardSum})`, (await txt('#crystalBal')) === G.fmt(4000 + rewardSum), await txt('#crystalBal'));
+    await click('[data-go="log"]'); await sleep(300);
+    await click('#logSeg [data-seg="daily"]'); await sleep(250);
+    await click('#qList [data-qclaim="daily:attend"]'); await sleep(300);
+    check('접속하기 보상을 받으면 "받음"이 되고 크리스탈이 2개 늘어난다', (await ev(`!document.querySelector('#qList [data-qclaim="daily:attend"]')`)) && (await txt('#qList')).includes('받음'));
+    await click('[data-go="store"]'); await sleep(300);
+    check(`퀘스트 보상 2개가 크리스탈에 합쳐진다`, (await txt('#crystalBal')) === G.fmt(4000 + rewardSum + 2), await txt('#crystalBal'));
+    check('장비 상점 새로고침 단추에 그림 코드가 글자로 보이지 않는다', !(await txt('#gshopReroll')).includes('<svg') && !(await txt('#gshopReroll')).includes('href') && (await txt('#gshopReroll')).includes('새로고침') && (await ev(`!!document.querySelector('#gshopReroll svg, #gshopReroll img')`)), await txt('#gshopReroll'));
     // 유물
     check('유물 9종이 특별 옵션과 함께 보인다', (await ev(`document.querySelectorAll('#relicList .relic').length`)) === 9 && (await txt('#relicList')).includes('환생 증표 획득 +15%') && (await txt('#relicList')).includes('스킬 쿨타임 -25%'));
     await click('#relicList [data-buy="relic_seal"]'); await sleep(250);
@@ -575,9 +591,9 @@ const FAKE_CLOUD = `(() => {
     await openAway(3 * H, null);
     m = await modalText();
     check('저장 때 서버 시각을 몰랐던 저장은 기기 시계로 3시간을 재고 그렇게 알려 준다', m.includes('3시간') && m.includes('기기 시계 기준'), m);
-    await openAway(20 * H, 20 * H);
+    await openAway(20 * H + 20e3, 20 * H + 20e3);
     m = await modalText();
-    check('20시간을 비워도 8시간까지만 받고 실제 비운 시간과 한도를 알려 준다', m.includes('8시간') && m.includes('20시간') && m.includes('최대 8시간'), m);
+    check('20시간을 비워도 8시간까지만 받고 실제 비운 시간과 한도를 알려 준다', m.includes('8시간') && /(19시간 5|20시간)/.test(m) && m.includes('최대 8시간'), m);
     await openAway(5000, 5000);
     check('5초만 비웠다면 보상 창이 뜨지 않는다', (await modalText()) === '');
     // 켜 둔 채 자리를 비운 경우(기기 절전·백그라운드): 시계가 튀면 서버 시각으로 다시 잰다

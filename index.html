@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#070d1c">
   <title>고블린 키우기</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css">
-  <link rel="stylesheet" href="style.css?v=202609212127">
+  <link rel="stylesheet" href="style.css?v=202609212222">
 </head>
 <body>
   <div class="app">
@@ -137,7 +137,7 @@
             <label class="check"><input type="checkbox" id="autoEquip"><span>더 좋은 장비 자동 장착</span></label>
             <label class="sel">자동 판매
               <select id="autoSell">
-                <option value="-1">안 함</option><option value="0">노말 이하</option><option value="1">고급 이하</option><option value="2">희귀 이하</option>
+                <option value="-1">안 함</option><option value="0">노말 이하</option><option value="1">고급 이하</option><option value="2">희귀 이하</option><option value="3">영웅 이하</option><option value="4">전설 이하</option>
               </select>
             </label>
           </div>
@@ -208,9 +208,19 @@
         </section>
 
         <section class="tab" data-tab="log" hidden>
-          <h3 class="sect"><svg class="ic"><use href="#i-star"/></svg>업적 <small id="achieveBonus"></small></h3>
-          <div class="achclaim" id="achClaim" hidden><span id="achClaimText"></span><button class="btn btn--gold" id="achClaimAll" type="button">모두 받기</button></div>
-          <div id="achv"></div>
+          <div class="seg seg--full" id="logSeg">
+            <button type="button" data-seg="daily" class="is-on">일일</button><button type="button" data-seg="weekly">주간</button><button type="button" data-seg="monthly">월간</button><button type="button" data-seg="ach">업적</button>
+          </div>
+          <div id="segQuest">
+            <div class="qhead" id="qHead"></div>
+            <div id="qList" class="achv"></div>
+            <div class="card qbonus" id="qBonus"></div>
+          </div>
+          <div id="segAch" hidden>
+            <h3 class="sect"><svg class="ic"><use href="#i-star"/></svg>업적 <small id="achieveBonus"></small></h3>
+            <div class="achclaim" id="achClaim" hidden><span id="achClaimText"></span><button class="btn btn--gold" id="achClaimAll" type="button">모두 받기</button></div>
+            <div id="achv"></div>
+          </div>
           <h3 class="sect"><svg class="ic"><use href="#i-scroll"/></svg>모험 기록</h3>
           <ul class="log" id="log" aria-live="off"></ul>
           <p class="awaynote" id="awayNote"></p>
@@ -260,19 +270,19 @@
     </div>
   </div>
 
-  <script src="images/manifest.js?v=202609212127"></script>
-  <script src="art.js?v=202609212127"></script>
-  <script src="classes.js?v=202609212127"></script>
-  <script src="skills.js?v=202609212127"></script>
-  <script src="store.js?v=202609212127"></script>
-  <script src="game.js?v=202609212127"></script>
-  <script src="sync.js?v=202609212127"></script>
-  <script src="cloud.js?v=202609212127"></script>
-  <script src="cloud-firebase.js?v=202609212127"></script>
-  <script src="firebase-config.js?v=202609212127"></script>
-  <script src="payments.js?v=202609212127"></script>
-  <script src="ads.js?v=202609212127"></script>
-  <script src="payments-config.js?v=202609212127"></script>
-  <script src="app.js?v=202609212127"></script>
+  <script src="images/manifest.js?v=202609212222"></script>
+  <script src="art.js?v=202609212222"></script>
+  <script src="classes.js?v=202609212222"></script>
+  <script src="skills.js?v=202609212222"></script>
+  <script src="store.js?v=202609212222"></script>
+  <script src="game.js?v=202609212222"></script>
+  <script src="sync.js?v=202609212222"></script>
+  <script src="cloud.js?v=202609212222"></script>
+  <script src="cloud-firebase.js?v=202609212222"></script>
+  <script src="firebase-config.js?v=202609212222"></script>
+  <script src="payments.js?v=202609212222"></script>
+  <script src="ads.js?v=202609212222"></script>
+  <script src="payments-config.js?v=202609212222"></script>
+  <script src="app.js?v=202609212222"></script>
 </body>
 </html>

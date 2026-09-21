@@ -479,7 +479,7 @@ svg { display: block; }
 .dexd__tiers span:last-child { margin-left: auto; font-size: 11px; }
 
 /* ===== 장비 ===== */
-.r0 { --rc: #b9c2d0; } .r1 { --rc: #6fe06a; } .r2 { --rc: #5aa8ff; } .r3 { --rc: #c07aff; } .r4 { --rc: #ffc93a; }
+.r0 { --rc: #b9c2d0; } .r1 { --rc: #6fe06a; } .r2 { --rc: #5aa8ff; } .r3 { --rc: #c07aff; } .r4 { --rc: #ffc93a; } .r5 { --rc: #ff5d9a; } .r6 { --rc: #39f0ff; }
 .sect__link { margin-left: auto; font-size: 11px; }
 .slots { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
 .slot, .gitem {
@@ -511,6 +511,11 @@ svg { display: block; }
 .r4.slot, .r4.gitem { animation: shine 2.4s ease-in-out infinite; }
 .r3.slot, .r3.gitem { box-shadow: 0 0 8px rgba(192, 122, 255, 0.35); }
 @keyframes shine { 50% { box-shadow: 0 0 14px 2px rgba(255, 201, 58, 0.65); } }
+/* 유니크·신화: 전설보다 더 강하게 빛난다 */
+.r5.slot, .r5.gitem { animation: shineU 1.9s ease-in-out infinite; }
+.r6.slot, .r6.gitem { animation: shineM 1.6s ease-in-out infinite; }
+@keyframes shineU { 0%, 100% { box-shadow: 0 0 8px 1px rgba(255, 93, 154, 0.5); } 50% { box-shadow: 0 0 18px 4px rgba(255, 93, 154, 0.85); } }
+@keyframes shineM { 0% { box-shadow: 0 0 10px 2px rgba(57, 240, 255, 0.7); } 50% { box-shadow: 0 0 22px 5px rgba(190, 120, 255, 0.85); } 100% { box-shadow: 0 0 10px 2px rgba(57, 240, 255, 0.7); } }
 .dropinfo { margin-top: 14px; padding: 10px 12px; font-size: 11.5px; color: var(--muted); line-height: 1.6; }
 .dropinfo b { color: var(--ink); }
 .droptable { width: 100%; margin-top: 6px; border-collapse: collapse; }
@@ -662,7 +667,7 @@ svg { display: block; }
 .mon-stun { position: absolute; left: 50%; top: -34px; width: 74px; height: 42px; margin-left: -37px; z-index: 4; background: center / contain no-repeat; pointer-events: none;
   animation: stunSpin 1.6s linear infinite; color: #ffe45a; font-size: 16px; font-weight: 900; text-align: center; line-height: 42px; text-shadow: 0 0 6px #ff9a00; }
 @keyframes stunSpin { to { transform: rotate(360deg); } }
-.hero-barrier { position: absolute; left: 50%; top: 50%; width: 150%; height: 130%; transform: translate(-50%, -50%); z-index: 3; pointer-events: none;
+.hero-barrier { position: absolute; left: 50%; top: 50%; width: 118%; height: 104%; transform: translate(-50%, -50%); z-index: 3; pointer-events: none;   /* 몸이 가려지지 않게 작게 */
   background: center / contain no-repeat; border-radius: 50%; box-shadow: inset 0 0 22px rgba(120, 200, 255, 0.55), 0 0 14px rgba(120, 200, 255, 0.5); animation: barrierPulse 1.4s ease-in-out infinite; }
 @keyframes barrierPulse { 50% { filter: brightness(1.25); } }
 .actor__sprite { position: relative; }
@@ -770,3 +775,30 @@ svg { display: block; }
 #gshopReroll .ic { width: 14px; height: 14px; vertical-align: -2px; filter: none; }
 
 .awaynote { margin: 10px 0 0; padding: 8px 10px; font-size: 11px; line-height: 1.5; color: var(--muted); border: 1px dashed var(--line); }
+
+/* ===== 퀘스트 · 업적 분류 ===== */
+.seg--full { width: 100%; margin-bottom: 10px; }
+.seg--full button { flex: 1; position: relative; padding: 10px 4px 8px; font-size: 13px; }
+.seg__n { position: absolute; top: 1px; right: 3px; min-width: 16px; padding: 0 4px; font-size: 10px; font-weight: 900; line-height: 16px; color: #fff; background: var(--red); border-radius: 999px; }
+.qhead { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 8px; font-size: 12px; font-weight: 800; color: var(--muted); }
+.qhead b { color: var(--ink); font-size: 14px; }
+.qbonus { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; margin-top: 4px; }
+.qbonus b { color: var(--gold); }
+.qbonus small { display: block; color: var(--muted); font-size: 11px; }
+.qbonus .btn { flex: none; padding: 8px 14px 6px; }
+.qbonus.is-ready { border-color: #ffd479; box-shadow: 0 0 12px rgba(255, 212, 121, 0.4); }
+.achgroup { width: 100%; padding: 0; font: inherit; color: var(--gold); background: none; border: 0; cursor: pointer; text-align: left; }
+.achgroup i { font-style: normal; margin-right: 4px; display: inline-block; width: 10px; }
+.achgroup .seg__n { position: static; margin-left: 6px; }
+
+/* ===== 풍성한 스킬 연출 조각 ===== */
+.fx-part { border-radius: 50%; will-change: transform, opacity; }
+.fx-part--star { border-radius: 0; clip-path: polygon(50% 0, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0 50%, 38% 38%); }
+.fx-pillar { border-radius: 4px; mix-blend-mode: screen; will-change: transform, opacity; }
+.fx-ground { width: 70px; height: 24px; margin: -12px 0 0 -35px; border: 3px solid #fff; border-radius: 50%; }
+.fx-emblem { display: grid; place-items: center; will-change: transform, opacity; }
+.fx-emblem .ic { width: 100%; height: 100%; }
+.fx-rays { border-radius: 50%; mix-blend-mode: screen; -webkit-mask-image: radial-gradient(circle, #000 20%, transparent 68%); mask-image: radial-gradient(circle, #000 20%, transparent 68%); }
+.fx-wing { width: 58px; height: 76px; margin-top: -60px; mix-blend-mode: screen; clip-path: polygon(0 100%, 8% 55%, 30% 30%, 55% 12%, 100% 0, 78% 34%, 90% 44%, 62% 58%, 72% 74%, 38% 80%, 40% 100%); }
+.fx-speed { height: 3px; border-radius: 2px; }
+.fx-wing--l { clip-path: polygon(100% 100%, 92% 55%, 70% 30%, 45% 12%, 0 0, 22% 34%, 10% 44%, 38% 58%, 28% 74%, 62% 80%, 60% 100%); }

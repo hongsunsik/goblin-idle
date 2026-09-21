@@ -125,7 +125,8 @@ async function main() {
     await shot('battle-ice', makeSave({ until: (s) => s.stage >= 33, ...mage, tokens: 4 }));    // 얼음 산맥
     const ROUTE = ['mage', 'pyromancer', 'infernomage', 'flameemperor'];
     await shot('class', makeSave({ until: (s) => s.level >= 30, route: ROUTE, depth: 2, tokens: 2, mastered: ['knight', 'sniper'] }), { tab: 'class' });   // 3차 전직 선택
-    await shot('achievements', makeSave({ until: (s) => s.stage >= 36, ...mage, tokens: 4, prestiges: 1 }), { tab: 'log' });
+    await shot('quests', makeSave({ until: (s) => s.stage >= 36, ...mage, tokens: 4, prestiges: 1 }), { tab: 'log' });   // 일일 퀘스트
+    await shot('achievements', makeSave({ until: (s) => s.stage >= 36, ...mage, tokens: 4, prestiges: 1 }), { tab: 'log', click: ['#logSeg [data-seg="ach"]'] });
     await shot('gear', makeSave({ until: (s) => s.stage >= 40, ...mage, tokens: 4, autoSell: -1, seed: 21 }), { tab: 'gear' });
     await shot('shop', makeSave({ until: (s) => s.stage >= 20, ...mage, tokens: 24, perks: { might: 4, greed: 3, vitality: 2, click: 1 } }), { tab: 'shop' });
     await shot('store', makeSave({ until: (s) => s.stage >= 20, ...mage, tokens: 4, crystals: 420, potions: { gold: 1500, might: 900 } }), { tab: 'store' });   // 크리스탈 상점 (시연 결제)

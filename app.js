@@ -99,7 +99,7 @@
   let fxMode = 'full';
   try { if (localStorage.getItem(FX_KEY) === 'calm') fxMode = 'calm'; } catch (e) { /* 저장소를 못 써도 기본값 */ }
   const calm = () => fxMode === 'calm';
-  const MAX_FX = 64;   // 화면에 한꺼번에 떠 있는 이펙트 수 제한 (빠르게 싸울 때 과부하 방지)
+  const MAX_FX = 110;   // 화면에 한꺼번에 떠 있는 이펙트 수 제한 (빠르게 싸울 때 과부하 방지)
 
   function anim(el, keyframes, opts) {
     if (reduceMotion || !el || !el.animate) return null;
@@ -327,11 +327,13 @@
     }
     if (rarity >= 4 && !calm()) {
       const flash = $('flash');
-      flash.style.background = 'radial-gradient(ellipse at 50% 55%, transparent 30%, rgba(255, 201, 58, 0.7))';
-      const a = anim(flash, [{ opacity: 0 }, { opacity: 1, offset: 0.2 }, { opacity: 0 }], { duration: 800, easing: 'ease-out' });
+      const glow = rarity >= 6 ? 'rgba(57, 240, 255, 0.8)' : rarity >= 5 ? 'rgba(255, 93, 154, 0.75)' : 'rgba(255, 201, 58, 0.7)';
+      flash.style.background = `radial-gradient(ellipse at 50% 55%, transparent 30%, ${glow})`;
+      const a = anim(flash, [{ opacity: 0 }, { opacity: 1, offset: 0.2 }, { opacity: 0 }], { duration: rarity >= 5 ? 1200 : 800, easing: 'ease-out' });
       if (a) a.onfinish = () => { flash.style.background = ''; };
       else flash.style.background = '';
-      shakeScene(4);
+      shakeScene(rarity >= 6 ? 9 : rarity >= 5 ? 6 : 4);
+      if (rarity >= 5) for (let i = 0; i < (rarity >= 6 ? 3 : 2); i++) ringFx(p.x, p.y, color, 4.4 + i * 1.8, 900 + i * 220, 160 + i * 140);
     }
   }
 
@@ -528,6 +530,249 @@
         { duration: rand(650, 900), delay: i * 45, easing: 'ease-in' });
     }
   }
+
+  // ---- 풍성한 스킬 연출 ----
+  // 그림 한 장을 터뜨리는 대신, 작은 조각(입자·기둥·고리·문장·날개·속도선)을 겹쳐서 직업 계열마다 다른 색과 모양으로 보여 준다. 차분한 모드에서는 쓰지 않는다.
+  // 계열(theme): 색 두 가지(c 밝은 색, c2 진한 색)와 문장 아이콘
+  const THEMES = {
+    steel:  { c: '#e6f0ff', c2: '#7ab0ff', icon: 'shield' },   // 기사: 강철
+    holy:   { c: '#fff4b0', c2: '#ffd24a', icon: 'star' },     // 성기사·십자군·성왕: 신성
+    rage:   { c: '#ffb08a', c2: '#ff4a2a', icon: 'sword' },    // 광전사·전쟁군주·거인
+    wind:   { c: '#b8ffe0', c2: '#3adfff', icon: 'boots' },    // 궁수·저격수
+    nature: { c: '#c8ff9a', c2: '#5adf5a', icon: 'heart' },    // 레인저·야수
+    fire:   { c: '#ffe08a', c2: '#ff7a2a', icon: 'burst' },    // 화염술사
+    arcane: { c: '#d8c0ff', c2: '#7a6aff', icon: 'star' },     // 마법사
+    dark:   { c: '#e0b0ff', c2: '#9a3aff', icon: 'skull' },    // 사령술사
+    shadow: { c: '#c0c8ff', c2: '#5a4aff', icon: 'bolt' },     // 도적·암살자
+    gold:   { c: '#fff0a0', c2: '#ffb020', icon: 'coin' },     // 해적
+  };
+  const themeCache = {};
+  function themeOf(id) {
+    if (themeCache[id]) return themeCache[id];
+    const chain = [];
+    for (let c = id; c && chain.length < 6; c = G.NODES[c] && G.NODES[c].parent) chain.push(c);
+    const has = (x) => chain.includes(x);
+    const name = id === 'knight' ? 'steel' : has('knight') ? 'holy' : has('berserker') ? 'rage' : has('ranger') ? 'nature' : has('sniper') || has('archer') ? 'wind'
+      : has('pyromancer') ? 'fire' : has('necromancer') ? 'dark' : has('mage') ? 'arcane' : has('assassin') || has('rogue') ? 'shadow' : has('pirate') ? 'gold' : has('warrior') ? 'steel' : 'holy';
+    return (themeCache[id] = THEMES[name]);
+  }
+  // 입자 하나: 각도·거리만큼 튀어 나가며 사라진다
+  function part(x, y, o) {
+    const el = addFx('fx-part' + (o.star ? ' fx-part--star' : ''), x, y);
+    if (!el) return;
+    const size = o.size || 6;
+    el.style.width = el.style.height = size + 'px';
+    el.style.margin = `${-size / 2}px 0 0 ${-size / 2}px`;
+    el.style.background = o.color;
+    el.style.boxShadow = `0 0 ${Math.round(size * 1.6)}px ${o.glow || o.color}`;
+    const dx = Math.cos(o.angle) * o.dist, dy = Math.sin(o.angle) * o.dist + (o.fall || 0);
+    playFx(el, [{ transform: 'translate(0, 0) scale(1) rotate(0deg)', opacity: 1 }, { transform: `translate(${dx * 0.6}px, ${dy * 0.6}px) scale(${1 + (o.grow || 0)}) rotate(${o.spin || 0}deg)`, opacity: 1, offset: 0.55 },
+      { transform: `translate(${dx}px, ${dy}px) scale(0.15) rotate(${(o.spin || 0) * 2}deg)`, opacity: 0 }], { duration: o.dur || 620, delay: o.delay || 0, easing: 'cubic-bezier(.2, .7, .3, 1)' });
+  }
+  const richN = (n) => Math.max(1, Math.round(n * (calm() ? 0 : 1)));
+  function burst(x, y, th, n, dist, o) {   // 사방으로 튀는 불꽃
+    o = o || {};
+    for (let i = 0; i < richN(n); i++) part(x, y, { color: i % 2 ? th.c : th.c2, glow: th.c2, size: rand(4, o.size || 8), angle: (i / n) * Math.PI * 2 + rand(-0.25, 0.25), dist: rand(dist * 0.55, dist), dur: o.dur || 620, delay: o.delay || 0, fall: o.fall || 0, star: i % 3 === 0, spin: rand(-90, 90) });
+  }
+  function rise(x, y, spread, th, n, o) {   // 위로 떠오르는 빛 알갱이
+    o = o || {};
+    for (let i = 0; i < richN(n); i++) part(x + rand(-spread, spread), y + rand(-4, 14), { color: i % 2 ? th.c : th.c2, glow: th.c2, size: rand(3, 7), angle: -Math.PI / 2 + rand(-0.35, 0.35), dist: rand(o.dist ? o.dist * 0.6 : 40, o.dist || 90), dur: rand(700, 1100), delay: (o.delay || 0) + i * (o.gap || 55), star: i % 2 === 0, spin: rand(-60, 60) });
+  }
+  function rain(x, y, spread, th, n, o) {   // 위에서 떨어지는 조각 (깃털·동전·불씨)
+    o = o || {};
+    for (let i = 0; i < richN(n); i++) part(x + rand(-spread, spread), y - (o.h || 110) + rand(-10, 10), { color: i % 2 ? th.c : th.c2, glow: th.c2, size: rand(4, 8), angle: Math.PI / 2 + rand(-0.15, 0.15), dist: (o.h || 110) + rand(0, 20), dur: rand(600, 900), delay: (o.delay || 0) + i * (o.gap || 45), star: true, spin: rand(-120, 120) });
+  }
+  function pillar(x, y, th, o) {   // 위에서 내려꽂히는 빛기둥
+    o = o || {};
+    const h = o.h || 170, w = o.w || 34;
+    const el = addFx('fx-pillar', x, y - h);
+    if (!el) return;
+    el.style.width = w + 'px'; el.style.height = h + 'px'; el.style.marginLeft = -w / 2 + 'px';
+    el.style.background = `linear-gradient(to bottom, transparent, ${th.c2} 30%, ${th.c} 70%, ${th.c2})`;
+    el.style.boxShadow = `0 0 18px ${th.c2}`;
+    playFx(el, [{ transform: 'scaleX(0.2) scaleY(0.4)', opacity: 0, transformOrigin: '50% 0' }, { transform: 'scaleX(1) scaleY(1)', opacity: 0.95, offset: 0.25, transformOrigin: '50% 0' }, { transform: 'scaleX(0.3) scaleY(1)', opacity: 0, transformOrigin: '50% 0' }], { duration: o.dur || 520, delay: o.delay || 0, easing: 'ease-out' });
+  }
+  function groundRing(x, y, th, scale, dur, delay) {   // 발밑에 퍼지는 타원 고리
+    const el = addFx('fx-ground', x, y);
+    if (!el) return;
+    el.style.borderColor = th.c; el.style.boxShadow = `0 0 12px ${th.c2}, inset 0 0 10px ${th.c2}`;
+    playFx(el, [{ transform: 'scale(0.3)', opacity: 1 }, { transform: `scale(${scale || 2.6})`, opacity: 0 }], { duration: dur || 700, delay: delay || 0, easing: 'ease-out' });
+  }
+  function emblem(icon, x, y, th, o) {   // 큰 문장이 쿵 하고 나타났다 떠오른다
+    o = o || {};
+    const el = addFx('fx-emblem', x, y);
+    if (!el) return;
+    el.innerHTML = A.icon(icon);
+    el.style.filter = `drop-shadow(0 0 10px ${th.c2}) drop-shadow(0 0 3px ${th.c})`;
+    const size = o.size || 58;
+    el.style.width = el.style.height = size + 'px'; el.style.margin = `${-size / 2}px 0 0 ${-size / 2}px`;
+    const from = o.from || -60;
+    playFx(el, [{ transform: `translateY(${from}px) scale(2.2) rotate(${o.spin ? -25 : 0}deg)`, opacity: 0 }, { transform: 'translateY(0) scale(0.9) rotate(0deg)', opacity: 1, offset: 0.3 }, { transform: 'translateY(0) scale(1.08) rotate(0deg)', opacity: 1, offset: 0.5 },
+      { transform: `translateY(${o.rise === undefined ? -28 : o.rise}px) scale(1.2) rotate(0deg)`, opacity: 0 }], { duration: o.dur || 900, delay: o.delay || 0, easing: 'ease-out' });
+  }
+  function rays(x, y, th, size, dur, delay) {   // 사방으로 뻗는 빛살이 돌면서 사라진다
+    const el = addFx('fx-rays', x, y);
+    if (!el) return;
+    el.style.width = el.style.height = size + 'px'; el.style.margin = `${-size / 2}px 0 0 ${-size / 2}px`;
+    el.style.background = `repeating-conic-gradient(from 0deg, ${th.c} 0deg 6deg, transparent 6deg 30deg)`;
+    el.style.setProperty('--rc', th.c2);
+    playFx(el, [{ transform: 'scale(0.3) rotate(0deg)', opacity: 0 }, { transform: 'scale(0.8) rotate(60deg)', opacity: 0.5, offset: 0.3 }, { transform: 'scale(1.15) rotate(150deg)', opacity: 0 }], { duration: dur || 900, delay: delay || 0, easing: 'ease-out' });
+  }
+  function wings(x, y, th) {   // 천사 날개 한 쌍이 펼쳐진다
+    for (const side of [-1, 1]) {
+      const el = addFx('fx-wing' + (side < 0 ? ' fx-wing--l' : ''), x + side * 6, y);
+      if (!el) continue;
+      el.style.background = `linear-gradient(${side < 0 ? 270 : 90}deg, ${th.c}, ${th.c2} 60%, transparent)`;
+      el.style.boxShadow = `0 0 14px ${th.c2}`;
+      el.style.transformOrigin = side < 0 ? '100% 80%' : '0% 80%';
+      el.style.marginLeft = side < 0 ? '-58px' : '0px';
+      playFx(el, [{ transform: 'scale(0.2) rotate(0deg)', opacity: 0 }, { transform: `scale(1.05) rotate(${side * -12}deg)`, opacity: 0.95, offset: 0.35 }, { transform: `scale(1.15) rotate(${side * -6}deg)`, opacity: 0.9, offset: 0.7 }, { transform: 'scale(1.25) rotate(0deg)', opacity: 0 }], { duration: 950, easing: 'ease-out' });
+    }
+  }
+  function speedLines(x, y, th, n) {   // 옆으로 스치는 속도선
+    for (let i = 0; i < richN(n); i++) {
+      const el = addFx('fx-speed', x + 70, y + rand(-34, 30));
+      if (!el) continue;
+      el.style.width = rand(50, 110) + 'px';
+      el.style.background = `linear-gradient(90deg, transparent, ${i % 2 ? th.c : th.c2})`;
+      playFx(el, [{ transform: 'translateX(0)', opacity: 0 }, { transform: 'translateX(-60px)', opacity: 0.95, offset: 0.3 }, { transform: 'translateX(-190px)', opacity: 0 }], { duration: rand(360, 520), delay: i * 40, easing: 'ease-in' });
+    }
+  }
+  function slashFan(x, y, th, n, len) {   // 몬스터 위에서 여러 갈래로 베는 빛줄기
+    for (let i = 0; i < richN(n); i++) {
+      const el = addFx('fx-slash', x, y);
+      if (!el) continue;
+      const ang = -50 + (100 / Math.max(1, n - 1)) * i + rand(-8, 8);
+      el.style.width = (len || 110) + 'px'; el.style.marginLeft = -(len || 110) / 2 + 'px';
+      el.style.background = `linear-gradient(90deg, transparent, ${th.c} 30%, ${th.c} 70%, transparent)`;
+      el.style.boxShadow = `0 0 12px 2px ${th.c2}`;
+      playFx(el, [{ transform: `rotate(${ang}deg) scaleX(0.2)`, opacity: 0 }, { transform: `rotate(${ang}deg) scaleX(1.1)`, opacity: 1, offset: 0.3 }, { transform: `rotate(${ang}deg) scaleX(1.25)`, opacity: 0 }], { duration: 300, delay: i * 55, easing: 'ease-out' });
+    }
+  }
+  function screenTint(th, alpha, dur) {   // 화면 가장자리가 그 계열의 색으로 번쩍한다
+    if (calm()) return;
+    const flash = $('flash');
+    flash.style.background = `radial-gradient(ellipse at 50% 55%, transparent 40%, ${th.c2}${Math.round(alpha * 255).toString(16).padStart(2, '0')})`;
+    const a = anim(flash, [{ opacity: 0 }, { opacity: 1, offset: 0.2 }, { opacity: 0 }], { duration: dur || 520, easing: 'ease-out' });
+    if (a) a.onfinish = () => { flash.style.background = ''; }; else flash.style.background = '';
+  }
+
+  // 효과 종류마다 겹쳐 그리는 연출 (모든 직업 공통). e는 스킬 사건, th는 그 직업 계열의 색.
+  function richSkillFx(e, th, hero, t, feet) {
+    const heroFeet = { x: hero.x, y: feet.y };
+    switch (e.kind) {
+      case 'strike': case 'bossbane': case 'execute': {
+        slashFan(t.x, t.y, th, e.kind === 'execute' ? 2 : 4, 120);
+        burst(t.x, t.y, th, 14, 76, { delay: 120 });
+        groundRing(t.x, feet.ty, th, 3, 620, 120); groundRing(t.x, feet.ty, th, 4.4, 820, 240);
+        if (e.kind === 'bossbane') pillar(t.x, t.y, th, { h: 210, w: 44, delay: 60 });
+        if (e.kind === 'execute') { slashFan(t.x, t.y, { c: '#fff', c2: th.c2 }, 2, 140); rise(t.x, t.y, 20, th, 6, { dist: 60 }); }
+        break;
+      }
+      case 'multi': {
+        for (let i = 0; i < Math.min(e.hits || 4, 5); i++) burst(t.x + rand(-16, 16), t.y + rand(-14, 14), th, 6, 34, { delay: 100 + i * 110, size: 6 });
+        groundRing(t.x, feet.ty, th, 3.2, 700, 480);
+        break;
+      }
+      case 'summon': {
+        groundRing(heroFeet.x, heroFeet.y, th, 3.2, 800); groundRing(heroFeet.x, heroFeet.y, th, 4.6, 1000, 140);
+        rise(hero.x, heroFeet.y, 34, th, 10, { dist: 100, gap: 40 });
+        burst(t.x, t.y, th, 14, 70, { delay: 700 });
+        break;
+      }
+      case 'dot': {
+        rise(t.x, t.y + 20, 22, th, 9, { dist: 70, gap: 60 });
+        burst(t.x, t.y, th, 10, 50, { delay: 60 });
+        break;
+      }
+      case 'haste': {
+        speedLines(hero.x, hero.y, th, 8);
+        groundRing(heroFeet.x, heroFeet.y, th, 2.8, 640);
+        rise(hero.x, heroFeet.y, 24, th, 6, { dist: 70 });
+        break;
+      }
+      case 'might': case 'frenzy': {
+        groundRing(heroFeet.x, heroFeet.y, th, 3.4, 720); groundRing(heroFeet.x, heroFeet.y, th, 5, 960, 160);
+        rise(hero.x, heroFeet.y, 28, th, 12, { dist: 110, gap: 40 });
+        rays(hero.x, hero.y, th, 200, 900);
+        if (e.kind === 'frenzy') screenTint(th, 0.5, 620);
+        break;
+      }
+      case 'lifesteal': {
+        rise(hero.x, heroFeet.y, 20, { c: '#ff9ab8', c2: '#ff3a78' }, 8, { dist: 80 });
+        groundRing(heroFeet.x, heroFeet.y, { c: '#ff9ab8', c2: '#ff3a78' }, 2.6, 640, 300);
+        break;
+      }
+      case 'heal': {
+        pillar(hero.x, heroFeet.y, th, { h: 200, w: 56, dur: 760 });
+        rise(hero.x, heroFeet.y, 30, th, 14, { dist: 120, gap: 45 });
+        groundRing(heroFeet.x, heroFeet.y, th, 3, 800); rays(hero.x, hero.y, th, 180, 900, 80);
+        break;
+      }
+      case 'guard': case 'barrier': {
+        groundRing(heroFeet.x, heroFeet.y, th, 3, 700); groundRing(heroFeet.x, heroFeet.y, th, 4.4, 900, 140);
+        burst(hero.x, hero.y, th, 12, 66, { delay: 120 });
+        emblem('shield', hero.x, hero.y - 50, th, { size: 40, from: -30, rise: -10, dur: 800 });
+        break;
+      }
+      case 'stun': {
+        groundRing(t.x, feet.ty, th, 3, 700);
+        burst(t.x, t.y - 40, th, 10, 50);
+        break;
+      }
+      case 'greed': case 'bounty': {
+        rain(hero.x, hero.y - 20, 60, th, e.kind === 'bounty' ? 16 : 8, { h: 130, gap: 40 });
+        groundRing(heroFeet.x, heroFeet.y, th, 2.8, 700);
+        break;
+      }
+      default: break;
+    }
+  }
+
+  // 직업마다 따로 얹는 대표 연출: 기사 계열은 여기서 크게 늘렸다 (방패 문장·신성한 기둥·날개·왕관·심판의 창·성전 깃발)
+  const CLASS_FX = {
+    knight(e, th, hero, t, feet) {   // 수호의 방패: 커다란 방패가 내리꽂히며 땅이 갈라지고 강철 파편이 튄다
+      emblem('shield', hero.x, hero.y - 52, th, { size: 62, from: -110, rise: -10, dur: 1000, spin: true });
+      groundRing(hero.x, feet.y, th, 4.2, 900, 260); groundRing(hero.x, feet.y, th, 6, 1100, 380);
+      burst(hero.x, feet.y - 6, th, 16, 90, { delay: 260, size: 7 });
+      shakeScene(5);
+    },
+    paladin(e, th, hero, t, feet) {   // 신성한 치유: 십자 빛기둥, 깃털이 내려오고 후광이 뜬다
+      pillar(hero.x, feet.y, th, { h: 240, w: 70, dur: 900 }); pillar(hero.x, feet.y, th, { h: 200, w: 18, dur: 900, delay: 100 });
+      emblem('heart', hero.x, hero.y - 56, th, { size: 46, from: -20, rise: -30, dur: 1000, delay: 240 });
+      rain(hero.x, hero.y - 10, 44, th, 14, { h: 150, gap: 50, delay: 120 });
+      groundRing(hero.x, feet.y, th, 5, 1100, 200);
+    },
+    crusader(e, th, hero, t, feet) {   // 성전의 함성: 함성의 충격파가 퍼지고 검 문장이 솟아오른다
+      for (let i = 0; i < 3; i++) groundRing(hero.x, feet.y, th, 3 + i * 1.6, 700 + i * 160, i * 140);
+      emblem('sword', hero.x, hero.y - 40, th, { size: 50, from: 30, rise: -60, dur: 900 });
+      rays(hero.x, hero.y, th, 220, 1000); screenTint(th, 0.55, 640); shakeScene(4);
+    },
+    seraph(e, th, hero, t, feet) {   // 천상의 가호: 날개가 펼쳐지고 후광이 빛난다
+      wings(hero.x, hero.y - 8, th);
+      emblem('star', hero.x, hero.y - 64, th, { size: 34, from: -10, rise: -14, dur: 1000, delay: 120 });
+      pillar(hero.x, feet.y, th, { h: 220, w: 60, dur: 900 }); rise(hero.x, feet.y, 36, th, 12, { dist: 120 });
+    },
+    holyking(e, th, hero, t, feet) {   // 왕의 축복: 왕관이 내려앉고 황금 빛살이 퍼진다
+      emblem('crown', hero.x, hero.y - 64, th, { size: 54, from: -100, rise: -8, dur: 1100, spin: true });
+      rays(hero.x, hero.y - 20, th, 240, 1200, 260); rain(hero.x, hero.y - 20, 60, th, 14, { h: 140, gap: 40, delay: 260 });
+      groundRing(hero.x, feet.y, th, 5.2, 1100, 300); screenTint(th, 0.5, 700);
+    },
+    inquisitor(e, th, hero, t, feet) {   // 속박의 낙인: 심판의 창이 쏟아지고 낙인이 찍힌다
+      for (let i = 0; i < 5; i++) pillar(t.x + (i - 2) * 22, t.y + 10, th, { h: 200, w: 12, dur: 420, delay: 80 + i * 70 });
+      emblem('star', t.x, t.y - 30, th, { size: 48, from: -10, rise: -10, dur: 900, delay: 460 });
+      groundRing(t.x, feet.ty, th, 4, 800, 460); burst(t.x, t.y, th, 14, 70, { delay: 460 }); shakeScene(5);
+    },
+    templarlord(e, th, hero, t, feet) {   // 성전 선포: 깃발이 휘날리듯 속도선과 빛살이 몰아친다
+      speedLines(hero.x, hero.y, th, 12); rays(hero.x, hero.y, th, 240, 900);
+      emblem('crown', hero.x, hero.y - 56, th, { size: 46, from: -30, rise: -20, dur: 900 });
+      groundRing(hero.x, feet.y, th, 4, 800, 100);
+    },
+    warrior(e, th, hero, t, feet) {   // 용맹의 일격: 큰 충격파와 함께 화면이 흔들린다
+      groundRing(t.x, feet.ty, th, 4.6, 900, 100); burst(t.x, t.y, th, 16, 90, { delay: 100 }); shakeScene(5);
+    },
+  };
+
   function skillFx(e) {
     const color = SKILL_COLOR[e.kind] || '#fff';
     skillBanner(e, color);
@@ -614,7 +859,7 @@
         break;
       }
       case 'barrier': case 'guard': {
-        if (!sprite('shield_bubble', hero.x, hero.y, { size: e.kind === 'barrier' ? 190 : 150, dur: 620, from: 0.3, to: 1.05, rot: 0, rot2: 0 })) ringFx(hero.x, hero.y + 8, color, 2.4, 600);
+        if (!sprite('shield_bubble', hero.x, hero.y, { size: e.kind === 'barrier' ? 150 : 120, dur: 620, from: 0.3, to: 1.05, rot: 0, rot2: 0 })) ringFx(hero.x, hero.y + 8, color, 2.4, 600);
         break;
       }
       case 'haste': case 'might': case 'frenzy': {
@@ -630,6 +875,12 @@
         break;
       }
       default: ringFx(hero.x, hero.y + 8, color, 2.2, 560);
+    }
+    if (rich) {   // 기존 연출 위에 조각들을 겹쳐서 풍성하게 (차분한 모드에서는 건너뜀)
+      const th = themeOf(e.id);
+      const feet = { y: hero.t + hero.h * 0.98, ty: spot($('monsterSprite'), 0.5, 0.96).y };
+      richSkillFx(e, th, hero, t, feet);
+      if (CLASS_FX[e.id]) CLASS_FX[e.id](e, th, hero, t, feet);
     }
   }
 
@@ -648,7 +899,7 @@
     if (stun && starUrl) stun.style.backgroundImage = `url("${starUrl}")`;
     toggle($('heroSprite'), 'hero-barrier', !!s.buffs.barrier, '');
     const bar = $('heroSprite').querySelector('.hero-barrier');
-    if (bar) { if (bubbleUrl) bar.style.backgroundImage = `url("${bubbleUrl}")`; bar.style.opacity = String(0.45 + 0.5 * Math.min(1, s.buffs.barrier.v / Math.max(1, G.maxHp(s) * 0.5))); }
+    if (bar) { if (bubbleUrl) bar.style.backgroundImage = `url("${bubbleUrl}")`; bar.style.opacity = String(0.3 + 0.4 * Math.min(1, s.buffs.barrier.v / Math.max(1, G.maxHp(s) * 0.5))); }
     const v = s.dot ? s.dot.variant : '';
     const mb = $('monster');
     if (mb.dataset.dot !== v) mb.dataset.dot = v;
@@ -741,7 +992,7 @@
     if (name === 'gear') renderGear(true);
     if (name === 'shop') renderShop(true);
     if (name === 'store') renderStore(true);
-    if (name === 'log') renderAchieves(true);
+    if (name === 'log') renderLog(true);
     anim(document.querySelector(`.tab[data-tab="${name}"]`), [{ opacity: 0, transform: 'translateY(10px)' }, { opacity: 1, transform: 'none' }], { duration: 220, easing: 'ease-out' });
   }
   $('nav').addEventListener('click', (e) => {
@@ -1179,7 +1430,13 @@
     showItem(it, false);
   });
   $('autoEquip').addEventListener('change', (e) => { state.autoEquip = e.target.checked; writeSave(); });
-  $('autoSell').addEventListener('change', (e) => { state.autoSell = Number(e.target.value); writeSave(); });
+  $('autoSell').addEventListener('change', (e) => {
+    const v = Number(e.target.value), prev = state.autoSell;
+    if (v < 3) { state.autoSell = v; writeSave(); return; }
+    // 영웅·전설까지 자동으로 파는 설정은 한 번 더 확인한다
+    openModal('영웅 이상도 자동으로 팔까요?', `앞으로 얻는 <b style="color:${G.RARITIES[v].color}">${G.RARITIES[v].name} 이하</b> 장비가 <b>바로 팔려요</b>.<br><small>특별 옵션(★) 장비와 유니크·신화는 팔리지 않아요. 지금 가방의 장비는 그대로예요.</small>`,
+      [{ text: '취소', onClick: () => { $('autoSell').value = String(prev); } }, { text: '설정하기', cls: 'btn--gold', onClick: () => { state.autoSell = v; writeSave(); } }]);
+  });
   // 선택 모드: 팔 장비를 여러 개 눌러 고른 뒤 한 번에 판다
   $('selectBtn').addEventListener('click', () => { selectMode = !selectMode; picked.clear(); renderGear(true); });
   $('selAll').addEventListener('click', () => {
@@ -1207,9 +1464,7 @@
   $('tidyBtn').addEventListener('click', () => {
     const s = state;
     const opts = [
-      { id: 'r0', label: '노말 이하', items: s.bag.filter((x) => x.r <= 0) },
-      { id: 'r1', label: '고급 이하', items: s.bag.filter((x) => x.r <= 1) },
-      { id: 'r2', label: '희귀 이하', items: s.bag.filter((x) => x.r <= 2) },
+      ...[[0, '노말 이하'], [1, '고급 이하'], [2, '희귀 이하'], [3, '영웅 이하'], [4, '전설 이하']].map(([r, label]) => ({ id: 'r' + r, label, r, items: s.bag.filter((x) => x.r <= r && !x.sp) })),   // 특별 옵션 장비와 유니크·신화는 넣지 않는다
       { id: 'weak', label: '장착 중인 장비보다 약한 것', items: G.bagWeaker(s) },
     ];
     const goldOf = (items) => items.reduce((a, x) => a + G.sellValue(x), 0);
@@ -1218,31 +1473,61 @@
     const html = '<div class="tidy">' + opts.map((o) =>
       `<label class="tidy__opt ${o.items.length ? '' : 'is-empty'}"><input type="radio" name="tidy" value="${o.id}" ${o === first ? 'checked' : ''} ${o.items.length ? '' : 'disabled'}>` +
       `<span><b>${o.label}</b><small>${o.items.length}개 · ${COIN}${G.fmt(goldOf(o.items))}</small></span></label>`).join('') +
-      '</div><small>장착 중인 장비는 팔리지 않아요.</small>';
+      '</div><small>장착 중인 장비, 특별 옵션(★) 장비, 유니크·신화는 팔리지 않아요.</small>';
     openModal('장비 정리', html, [
       { text: '취소' },
       { text: '판매하기', cls: 'btn--gold', onClick: () => {
         const v = document.querySelector('input[name="tidy"]:checked');
         const o = opts.find((x) => v && x.id === v.value);
         if (!o || !o.items.length) return;
-        const r = G.sellBagItems(state, o.items.map((x) => x.id));
-        addLog(`장비 ${r.n}개를 정리했다 (+${G.fmt(r.gold)} 골드)`, 'is-gold', 'coin');
-        writeSave(); render(); renderGear(true);
+        const doSell = () => {
+          const r = G.sellBagItems(state, o.items.map((x) => x.id));
+          addLog(`장비 ${r.n}개를 정리했다 (+${G.fmt(r.gold)} 골드)`, 'is-gold', 'coin');
+          writeSave(); render(); renderGear(true);
+        };
+        if (o.r >= 3) openModal('정말 팔까요?', `<b style="color:${G.RARITIES[o.r].color}">${G.RARITIES[o.r].name} 이하</b> 장비 <b>${o.items.length}개</b>를 ${COIN} ${G.fmt(goldOf(o.items))} 골드에 팔아요.<br><small>영웅·전설이 들어 있어요. 되돌릴 수 없어요.</small>`, [{ text: '취소' }, { text: '판매', cls: 'btn--blue', onClick: doSell }]);
+        else doSell();
       } },
     ]);
   });
 
   // ---- 업적 (기록 탭) ----
-  let achieveKey = '';
+  // ---- 기록 탭: 일일·주간·월간 퀘스트와 업적 ----
+  let logSeg = 'daily', achieveKey = '', questKey = '';
+  const achOpen = new Set();   // 펼친 업적 분류 (받을 보상이 있는 분류는 처음부터 펼쳐 둔다)
+  let achAutoOpened = false;
+  const syncQuests = () => G.questSync(state, today());
+  const questBar = (it) => `<div class="ach__bar"><i class="${it.done ? 'is-full' : ''}" style="width:${(it.cur / it.goal) * 100}%"></i></div>`;
+  function renderQuests(force) {
+    const p = logSeg;
+    if (!G.QUEST_PERIODS.includes(p)) return;
+    syncQuests();
+    const b = G.questBoard(state, p), cfg = G.QUEST_CFG[p], left = G.periodSecsLeft(serverNow())[p];
+    const key = [p, b.key, b.items.map((x) => x.cur + (x.claimed ? 'c' : '')).join(','), b.bonus.claimed, left === null ? 'x' : Math.floor(left / 60)].join('|');
+    if (!force && key === questKey) return;
+    questKey = key;
+    const doneN = b.items.filter((x) => x.claimed).length;
+    $('qHead').innerHTML = `<span><b>${cfg.name} 퀘스트</b> ${doneN}/${b.items.length} 완료</span><span>${left === null ? '서버 시각을 확인하지 못했어요' : `초기화까지 ${clockText(left)}`}</span>`;
+    $('qList').innerHTML = b.items.map((it) => {
+      const reward = it.claimed ? '<em>받음</em>' : it.done ? `<span>${GEM}${it.reward}</span><button class="btn btn--gold" type="button" data-qclaim="${p}:${it.id}">받기</button>` : `<span>${GEM}${it.reward}</span>`;
+      return `<div class="ach ${it.done ? 'is-on' : ''} ${it.done && !it.claimed ? 'is-claim' : ''}">${A.icon(it.done ? 'check' : 'scroll')}<div class="ach__body">` +
+        `<div class="ach__row"><div class="ach__name">${it.label}</div><div class="ach__num">${G.fmt(it.cur)} / ${G.fmt(it.goal)}</div></div>${questBar(it)}</div><div class="ach__rw">${reward}</div></div>`;
+    }).join('');
+    const bonusText = p === 'daily' ? `${GEM} ${b.bonus.reward} + 물약 1개` : `${GEM} ${b.bonus.reward}`;
+    $('qBonus').classList.toggle('is-ready', b.bonus.ready);
+    $('qBonus').innerHTML = `<div><b>모두 완료 보너스</b><small>${cfg.name} 퀘스트를 전부 받으면 ${bonusText}</small></div>` +
+      (b.bonus.claimed ? '<em style="color:var(--muted)">받음</em>' : `<button class="btn btn--gold" type="button" data-qbonus="${p}" ${b.bonus.ready ? '' : 'disabled'}>받기</button>`);
+  }
   function renderAchieves(force) {
     const s = state;
     const done = Object.keys(s.achieved).length;
     const claimable = G.unclaimedAchievements(s);
-    // 달성 수·진행도·받은 보상이 바뀌었을 때만 다시 그린다
-    const key = G.ACHIEVEMENTS.map((a) => (s.achieved[a.id] ? (s.achClaimed[a.id] ? 'c' : 'x') : Math.min(a.val(s), a.goal))).join('|');
+    if (!achAutoOpened) { achAutoOpened = true; for (const a of claimable) achOpen.add(a.group); }
+    // 달성 수·진행도·받은 보상·펼친 분류가 바뀌었을 때만 다시 그린다
+    const key = G.ACHIEVEMENTS.map((a) => (s.achieved[a.id] ? (s.achClaimed[a.id] ? 'c' : 'x') : Math.min(a.val(s), a.goal))).join('|') + '#' + [...achOpen].join(',');
     if (!force && key === achieveKey) return;
     achieveKey = key;
-    $('achieveBonus').textContent = `${done} / ${G.ACHIEVEMENTS.length} · 공격력·골드 +${Math.round(done * G.ACHIEVE_BONUS * 100)}%`;
+    $('achieveBonus').textContent = `${done} / ${G.ACHIEVEMENTS.length} · 공격력·골드 +${Math.round(done * G.ACHIEVE_BONUS * 1000) / 10}%`;
     const sum = claimable.reduce((t, a) => t + a.reward, 0);
     $('achClaim').hidden = claimable.length === 0;
     $('achClaimText').innerHTML = `받을 보상 <b>${claimable.length}개</b> · ${GEM} ${sum}`;
@@ -1250,8 +1535,10 @@
     for (const a of G.ACHIEVEMENTS) { let g = groups.find((x) => x.name === a.group); if (!g) groups.push(g = { name: a.group, list: [] }); g.list.push(a); }
     let html = '';
     for (const g of groups) {
-      const n = g.list.filter((a) => s.achieved[a.id]).length;
-      html += `<div class="achgroup"><span>${g.name}</span><small>${n} / ${g.list.length}</small></div><div class="achv">`;
+      const n = g.list.filter((a) => s.achieved[a.id]).length, open = achOpen.has(g.name), cl = g.list.filter((a) => s.achieved[a.id] && !s.achClaimed[a.id]).length;
+      html += `<button class="achgroup" type="button" data-grp="${g.name}"><span><i>${open ? '▾' : '▸'}</i>${g.name}${cl ? `<span class="seg__n">${cl}</span>` : ''}</span><small>${n} / ${g.list.length}</small></button>`;
+      if (!open) continue;
+      html += '<div class="achv">';
       for (const a of g.list) {
         const on = !!s.achieved[a.id], claimed = !!s.achClaimed[a.id];
         const cur = on ? a.goal : Math.min(a.val(s), a.goal);
@@ -1264,16 +1551,50 @@
     }
     $('achv').innerHTML = html;
   }
+  // 분류 단추(일일·주간·월간·업적)와 받을 보상 개수 표시
+  function renderLog(force) {
+    for (const b of $('logSeg').querySelectorAll('button')) {
+      const p = b.dataset.seg, n = p === 'ach' ? G.unclaimedAchievements(state).length : (state.quests[p] ? G.questBoard(state, p).claimable : 0);
+      b.classList.toggle('is-on', p === logSeg);
+      let badge = b.querySelector('.seg__n');
+      if (n > 0) { if (!badge) { badge = document.createElement('i'); badge.className = 'seg__n'; b.appendChild(badge); } if (badge.textContent !== String(n)) badge.textContent = n; }
+      else if (badge) badge.remove();
+    }
+    $('segQuest').hidden = logSeg === 'ach';
+    $('segAch').hidden = logSeg !== 'ach';
+    if (logSeg === 'ach') renderAchieves(force); else renderQuests(force);
+  }
+  $('logSeg').addEventListener('click', (e) => { const b = e.target.closest('button[data-seg]'); if (b) { logSeg = b.dataset.seg; questKey = ''; achieveKey = ''; renderLog(true); } });
   function claimAchieves(ids) {
     let sum = 0;
     for (const id of ids) sum += G.claimAchievement(state, id);
     if (sum <= 0) return;
     addLog(`업적 보상! 크리스탈 +${sum}`, 'is-gold', 'gem');
     floatText(`+${sum} 크리스탈`, 'float--big', 'center');
-    cloudSoon(); writeSave(); render(); renderAchieves(true);
+    cloudSoon(); writeSave(); render(); renderLog(true);
   }
-  $('achv').addEventListener('click', (e) => { const b = e.target.closest('button[data-claim]'); if (b) claimAchieves([b.dataset.claim]); });
+  $('achv').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-claim]');
+    if (b) { claimAchieves([b.dataset.claim]); return; }
+    const g = e.target.closest('button[data-grp]');
+    if (g) { if (achOpen.has(g.dataset.grp)) achOpen.delete(g.dataset.grp); else achOpen.add(g.dataset.grp); renderAchieves(true); }
+  });
   $('achClaimAll').addEventListener('click', () => claimAchieves(G.unclaimedAchievements(state).map((a) => a.id)));
+  $('segQuest').addEventListener('click', (e) => {
+    const c = e.target.closest('button[data-qclaim]'), bn = e.target.closest('button[data-qbonus]');
+    if (c) {
+      const [p, id] = c.dataset.qclaim.split(':');
+      const got = G.claimQuest(state, p, id);
+      if (got > 0) { addLog(`퀘스트 보상! 크리스탈 +${got}`, 'is-gold', 'gem'); floatText(`+${got} 크리스탈`, 'float--big', 'center'); cloudSoon(); writeSave(); render(); renderLog(true); }
+    } else if (bn) {
+      const r = G.claimQuestBonus(state, bn.dataset.qbonus);
+      if (r) {
+        addLog(`${G.QUEST_CFG[bn.dataset.qbonus].name} 퀘스트 완료 보너스! 크리스탈 +${r.crystals}`, 'is-gold', 'gem');
+        openModal('모두 완료!', `<div style="font-size:15px;font-weight:900">${GEM} 크리스탈 +${r.crystals}</div>` + (r.potion ? `<div class="got" style="--rc:${r.potion.color};margin-top:8px">${A.icon(POTION_ICON[r.potion.id] || 'heart')}<div><b>${r.potion.name}</b><small>${r.potion.desc} · ${clockText(r.potion.dur)}</small></div></div>` : ''), [{ text: '확인', cls: 'btn--gold' }]);
+        cloudSoon(); writeSave(); render(); renderLog(true);
+      }
+    }
+  });
 
   // ---- 이벤트 처리 ----
   function handleEvents(events) {
@@ -1444,7 +1765,7 @@
     if (currentTab === 'shop') renderShop(false);
     if (currentTab === 'store') renderStore(false);
     renderPotionbar();
-    if (currentTab === 'log') renderAchieves(false);
+    if (currentTab === 'log') renderLog(false);
 
     // 환생 탭
     const info = G.prestigeInfo(s), gain = info.gain;
@@ -1473,7 +1794,7 @@
     // 메뉴 알림 점
     const dots = document.querySelectorAll('.tabnav__btn .dot');
     const want = [anyBuy && currentTab !== 'upgrade', gearNew.size > 0 && currentTab !== 'gear', G.promoStage(s) !== null && currentTab !== 'class', gain > 0 && currentTab !== 'prestige',
-      G.PERK_KEYS.some((id) => G.canBuyPerk(s, id)) && currentTab !== 'shop', G.adStatus(s, today()).left > 0 && adsMod.available && currentTab !== 'store', G.unclaimedAchievements(s).length > 0 && currentTab !== 'log'];
+      G.PERK_KEYS.some((id) => G.canBuyPerk(s, id)) && currentTab !== 'shop', G.adStatus(s, today()).left > 0 && adsMod.available && currentTab !== 'store', (G.unclaimedAchievements(s).length > 0 || G.questClaimable(s) > 0) && currentTab !== 'log'];
     dots.forEach((d, i) => { if (d.hidden === want[i]) d.hidden = !want[i]; });
   }
 
@@ -1521,7 +1842,7 @@
     // 장비 상점: 특별 옵션이 붙은 영웅·전설 장비 (정해진 시간마다 새로 들어온다)
     $('gshopTimer').textContent = sh.secsLeft === null ? '서버 시각을 확인하지 못했어요' : `다음 갱신까지 ${clockText(sh.secsLeft)}`;
     $('gshopReroll').disabled = s.shop.reroll >= Store.GEAR_SHOP.rerollMax || s.crystals < Store.GEAR_SHOP.rerollCost;
-    $('gshopReroll').textContent = `새로고침 ${GEM.replace('class="ic"', 'class="ic ic--s"')}${Store.GEAR_SHOP.rerollCost} (${Store.GEAR_SHOP.rerollMax - s.shop.reroll}/${Store.GEAR_SHOP.rerollMax})`;
+    $('gshopReroll').innerHTML = `새로고침 ${GEM}${Store.GEAR_SHOP.rerollCost} <small>(${Store.GEAR_SHOP.rerollMax - s.shop.reroll}/${Store.GEAR_SHOP.rerollMax})</small>`;   // 아이콘은 그림이라 textContent가 아니라 innerHTML로 넣는다 (예전에는 그림 코드가 글자로 보였다)
     $('gshopNote').innerHTML = `영웅·전설 장비에 <b>드롭에는 없는 특별 옵션</b>이 붙어 있어요. 낀 동안 효과가 적용되고, 옵션 없는 드롭에게 자리를 뺏기지 않아요. 진열은 ${Store.GEAR_SHOP.refreshSec / 3600}시간마다 새로 바뀌어요.`;
     $('gearShop').innerHTML = G.shopStock(s).map((o) => {
       const it = o.item, R = G.RARITIES[it.r], cur = s.equip[it.slot];
@@ -1831,7 +2152,7 @@
     state = next;   // 그 저장이 마지막으로 저장된 뒤 지금까지 비운 시간도 보상으로 인정한다 (다른 기기에서 이미 받았다면 그 기기가 저장 시각을 옮겨 두었으므로 두 번 받지 않는다)
     logs.length = 0;
     lastLook = ''; lastMonster = '';
-    gearKey = ''; shopKey = ''; storeKey = ''; potionKey = ''; classKey = ''; achieveKey = '';
+    gearKey = ''; shopKey = ''; storeKey = ''; potionKey = ''; classKey = ''; achieveKey = ''; questKey = '';
     gearNew.clear();
     const away = G.applyOffline(state, Date.now(), serverNow());
     if (away) showOffline(away);
@@ -1970,6 +2291,7 @@
         } else showOffline(r);
       }
       lastHits = state.hits;
+      syncQuests();   // 자리를 비운 사이에 하루·한 주·한 달이 지났을 수 있다
     } finally { resetClock(); waking = false; }
   }
   function finishAway() {
@@ -1997,6 +2319,7 @@
     if (offline) showOffline(offline);
     lastHits = state.hits;
     booting = false;
+    syncQuests();
     writeSave();
     resetClock();
     waking = false;
@@ -2036,6 +2359,7 @@
   setInterval(frame, 100);
 
   // 자동 저장
+  setInterval(() => { if (!booting && !waking) syncQuests(); }, 20000);   // 켜 둔 채 자정이 지나도 새 퀘스트가 나온다
   setInterval(writeSave, 5000);
   document.addEventListener('visibilitychange', () => { if (document.hidden) writeSave(); });
   window.addEventListener('pagehide', writeSave);

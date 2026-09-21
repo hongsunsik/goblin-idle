@@ -30,7 +30,7 @@
   const BOXES = [
     { id: 'box_fine',   name: '고급 장비 상자', price: 100, count: 3, odds: { 1: 60, 2: 30, 3: 9, 4: 1 },  desc: '장비 3개 (고급 이상 보장)' },
     { id: 'box_hero',   name: '영웅 장비 상자', price: 300, count: 1, odds: { 3: 85, 4: 15 },              desc: '장비 1개 (영웅 이상 보장)' },
-    { id: 'box_legend', name: '전설 장비 상자', price: 900, count: 1, odds: { 4: 100 },                    desc: '전설 장비 1개 (확정)' },
+    { id: 'box_legend', name: '전설 장비 상자', price: 900, count: 1, odds: { 4: 90, 5: 9, 6: 1 },        desc: '전설 이상 장비 1개 (유니크 9%, 신화 1%)' },
   ];
 
   // ---- 편의 ----
