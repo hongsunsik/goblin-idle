@@ -245,10 +245,25 @@
   }
 
   // 몬스터 그림. boss가 true면 왕관이나 위압감을 더한다.
+  // 지역별 그림이 없을 때 공통 그림에 씌우는 색 필터 (지역 번호 순서). 세피아로 색을 한 톤에 모은 뒤
+  // 색상을 돌려서, 원래 색이 다른 몬스터(초록 슬라임, 빨간 악마 등)도 같은 지역 색으로 보이게 한다.
+  const BIOME_TINT = [
+    '',                                                                        // 고블린 숲: 원본 그대로
+    'sepia(.7) hue-rotate(205deg) saturate(1.6) brightness(.9)',               // 어둠의 동굴: 청보라
+    'sepia(.95) hue-rotate(-8deg) saturate(1.9) brightness(1.12)',             // 불타는 사막: 모래빛
+    'sepia(.75) hue-rotate(148deg) saturate(1.5) brightness(1.2)',             // 얼음 산맥: 청록
+    'sepia(.85) hue-rotate(-36deg) saturate(3.4)',                             // 화산 지대: 주황~붉은색
+    'sepia(.7) hue-rotate(235deg) saturate(1.1) brightness(.78) contrast(1.1)', // 저주받은 성: 어두운 보라
+  ];
+
   function monster(kind, biome, boss) {
-    // 지역별 그림(ogre_3.png)이 있으면 그걸, 없으면 공통 그림(ogre.png)을 쓴다
-    const f = has('monsters', kind + '_' + (biome | 0)) || has('monsters', kind);
-    if (f) return `<img class="mon-svg mon-img" src="${src(f)}" alt="" draggable="false">`;
+    // 지역별 그림(ogre_3.png)이 있으면 그걸, 없으면 공통 그림(ogre.png)에 지역 색을 씌워 쓴다
+    const own = has('monsters', kind + '_' + (biome | 0));
+    const f = own || has('monsters', kind);
+    if (f) {
+      const tint = own ? '' : BIOME_TINT[biome | 0] || '';
+      return `<img class="mon-svg mon-img" src="${src(f)}" alt="" draggable="false"${tint ? ` style="--tint:${tint}"` : ''}>`;
+    }
     const inner = monsterInner(kind, biome | 0, !!boss);
     return `<svg class="mon-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 112" aria-hidden="true">
       <ellipse cx="60" cy="104" rx="42" ry="6" fill="rgba(0,0,0,.35)"/>

@@ -217,9 +217,9 @@ svg { display: block; }
 .actor--hero .actor__sprite { width: 134px; height: 156px; transform-origin: 50% 100%; animation: bob 1.2s ease-in-out infinite; }
 .actor--hero .gob-svg { width: 100%; height: 100%; filter: drop-shadow(0 3px 3px rgba(0, 0, 0, 0.35)); transform: scale(var(--s, 1)); transform-origin: 50% 100%; }
 .actor--enemy .actor__sprite { width: 128px; height: 120px; animation: bob 1.5s ease-in-out infinite; animation-delay: -0.5s; }
-.actor--enemy .mon-svg { width: 100%; height: 100%; filter: drop-shadow(0 3px 3px rgba(0, 0, 0, 0.4)); }
+.actor--enemy .mon-svg { width: 100%; height: 100%; filter: var(--tint, sepia(0)) drop-shadow(0 3px 3px rgba(0, 0, 0, 0.4)); }
 .stage--boss .actor--enemy .actor__sprite { width: 178px; height: 166px; }
-.stage--boss .actor--enemy .mon-svg { filter: drop-shadow(0 0 14px rgba(255, 60, 60, 0.85)) drop-shadow(0 3px 3px rgba(0, 0, 0, 0.4)); }
+.stage--boss .actor--enemy .mon-svg { filter: var(--tint, sepia(0)) drop-shadow(0 0 14px rgba(255, 60, 60, 0.85)) drop-shadow(0 3px 3px rgba(0, 0, 0, 0.4)); }
 .actor--hero.is-striking .actor__sprite { animation: strike var(--atk, 0.6s) ease-out infinite; }
 @keyframes bob { 50% { transform: translateY(-4px); } }
 @keyframes strike { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(26px) rotate(4deg); } 45% { transform: translateX(0); } }
@@ -327,6 +327,18 @@ svg { display: block; }
 .dex__art .gob-svg { height: 56px; width: auto; max-width: 100%; }
 .dex:not(.is-on) .dex__art { filter: brightness(0) opacity(0.4); }
 .dex__name { font-size: 11px; font-weight: 800; margin-top: 2px; }
+.achv { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.ach { display: flex; align-items: center; gap: 8px; padding: 8px; min-width: 0; background: rgba(10, 30, 70, 0.5); border: 1px solid var(--line); }
+.ach.is-on { border-color: rgba(255, 212, 121, 0.7); background: linear-gradient(180deg, rgba(90, 64, 10, 0.5), rgba(10, 30, 70, 0.5)); }
+.ach .ic { width: 26px; height: 26px; filter: grayscale(1) brightness(0.55); }
+.ach.is-on .ic { filter: drop-shadow(0 0 4px rgba(255, 212, 121, 0.7)); }
+.ach__body { min-width: 0; flex: 1; }
+.ach__name { font-size: 12px; font-weight: 800; }
+.ach__desc { font-size: 10.5px; color: var(--muted); line-height: 1.35; }
+.ach.is-on .ach__desc { color: var(--gold); }
+.ach__bar { height: 4px; margin-top: 4px; background: rgba(0, 0, 0, 0.45); }
+.ach__bar i { display: block; height: 100%; background: linear-gradient(90deg, #2a8ae0, #7ad8ff); }
+.ach__bar i.is-full { background: var(--gold); }
 .dex:not(.is-on) .dex__name { color: var(--muted); }
 
 /* ===== 환생 ===== */
