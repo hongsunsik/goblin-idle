@@ -1,0 +1,25 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 저장 데이터: 로그인한 본인만 자기 문서(saves/내 uid)를 읽고 쓸 수 있다.
+    match /saves/{uid} {
+      allow read, delete: if request.auth != null && request.auth.uid == uid;
+
+      // 새로 만들 때: rev는 1, 허용된 필드만, 저장 문자열은 20만 자 미만
+      allow create: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['save', 'summary', 'rev', 'updatedAt'])
+        && request.resource.data.save is string && request.resource.data.save.size() < 200000
+        && request.resource.data.summary is map
+        && request.resource.data.rev == 1
+        && request.resource.data.updatedAt == request.time;
+
+      // 고칠 때: rev가 정확히 1 늘어야 한다 (오래된 화면이 최신 저장을 덮어쓰는 것을 서버에서도 막는다)
+      allow update: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['save', 'summary', 'rev', 'updatedAt'])
+        && request.resource.data.save is string && request.resource.data.save.size() < 200000
+        && request.resource.data.summary is map
+        && request.resource.data.rev == resource.data.rev + 1
+        && request.resource.data.updatedAt == request.time;
+    }
+  }
+}

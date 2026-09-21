@@ -1,6 +1,7 @@
 (function () {
   const G = window.Game;
   const A = window.Art;
+  A.setParents(G.parentOf);   // 그림이 없는 3·4차 직업은 윗단계 직업 그림으로 대신 그린다
   const SAVE_KEY = 'goblin-idle-save-v1';
   const $ = (id) => document.getElementById(id);
 
@@ -440,8 +441,13 @@
     return m;
   }
 
-  function askPromote(id, isAdv) {
-    const info = isAdv ? G.ADVANCED[id] : G.CLASSES[id];
+  const TIER_NAME = { 1: '1차', 2: '2차', 3: '3차', 4: '4차' };
+  const STAGE_TIER = { base: 1, adv: 2, adv3: 3, adv4: 4 };
+  // 앞 단계 직업 이름들 (예: 성기사 → 전사, 기사)
+  const ancestorNames = (id) => { const out = []; for (let c = G.parentOf(id); c; c = G.parentOf(c)) out.unshift(G.NODES[c].name); return out; };
+
+  function askPromote(id) {
+    const info = G.NODES[id], tier = G.classTier(id);
     openModal(
       `${info.name}(으)로 전직할까요?`,
       A.goblin(id) + `<div>${info.desc}</div><div class="chips" style="justify-content:center;margin-top:8px">${chipsFor(info.mult)}</div>` +
@@ -451,7 +457,8 @@
         { text: '전직하기', cls: 'btn--gold', onClick: () => {
           if (!G.promote(state, id)) return;
           handleEvents(G.checkAchievements(state));
-          addLog(`${info.name}(으)로 전직했다!`, 'is-good', 'cap');
+          addLog(`${info.name}(으)로 ${TIER_NAME[tier]} 전직했다!`, 'is-good', 'cap');
+          cloudSoon();
           floatText('전직!', 'float--big', 'center');
           writeSave();
           render();
@@ -462,98 +469,113 @@
   }
 
   let classKey = '';
+  let dexView = 2;   // 도감에서 보고 있는 차수 (2·3·4)
   function renderClass(force) {
     const s = state;
-    const dexKey = Object.keys(G.ADVANCED).map((id) => { const r = G.dexRecord(s, id); return `${s.mastered[id] ? 1 : 0}:${r.best}:${r.kills}`; }).join(',');
-    const key = [s.cls, s.adv, s.level, dexKey].join('|');
+    const dexKey = G.ADV_IDS.map((id) => { const r = G.dexRecord(s, id); return `${s.mastered[id] ? 1 : 0}:${r.best}:${r.kills}`; }).join(',');
+    const key = [G.classPath(s).join('>'), s.level, dexKey, dexView].join('|');
     if (!force && key === classKey) return;
     classKey = key;
 
-    // 지금 직업
+    // 지금 직업과 지금까지 걸어온 길
     const id = G.lookId(s);
-    const desc = s.adv ? G.ADVANCED[s.adv].desc : s.cls ? G.CLASSES[s.cls].desc
+    const path = G.classPath(s);
+    const desc = path.length ? G.NODES[G.deepest(s)].desc
       : `아직 직업이 없는 견습 고블린이에요. Lv.${G.PROMO_LEVEL.base}이 되면 전직할 수 있어요.`;
+    const trail = path.length ? `<div class="classcard__path">견습 → ${path.map((i) => G.NODES[i].name).join(' → ')}</div>` : '';
     $('classNow').innerHTML =
       `<div class="classcard__art">${A.goblin(id)}</div>` +
-      `<div><div class="classcard__name">${G.classTitle(s)}</div><div class="classcard__desc">${desc}</div>` +
+      `<div><div class="classcard__name">${G.classTitle(s)}</div>${trail}<div class="classcard__desc">${desc}</div>` +
       `<div class="chips">${chipsFor(currentMult())}</div></div>`;
 
-    // 전직 선택
-    const box = $('classChoice');
+    // 전직 선택 (1차~4차)
+    const np = G.nextPromo(s);
     let html = '';
-    if (!s.cls || !s.adv) {
-      const isAdv = !!s.cls;
-      const need = isAdv ? G.PROMO_LEVEL.adv : G.PROMO_LEVEL.base;
-      const ids = isAdv ? G.CLASSES[s.cls].adv : Object.keys(G.CLASSES);
-      const ready = s.level >= need;
-      html += `<div class="choice__title">${isAdv ? '2차' : '1차'} 전직 (Lv.${need}) ${ready ? '· 지금 선택할 수 있어요!' : ''}</div><div class="choices">`;
-      for (const cid of ids) {
-        const info = isAdv ? G.ADVANCED[cid] : G.CLASSES[cid];
-        html += `<div class="card choice ${ready ? 'is-ready' : 'is-locked'}">` +
+    if (np) {
+      html += `<div class="choice__title">${TIER_NAME[np.tier]} 전직 (Lv.${np.need}) ${np.ready ? '· 지금 선택할 수 있어요!' : ''}</div><div class="choices">`;
+      for (const cid of np.options) {
+        const info = G.NODES[cid];
+        html += `<div class="card choice ${np.ready ? 'is-ready' : 'is-locked'}">` +
           `<div class="choice__art">${A.goblin(cid)}</div>` +
           `<div class="choice__name">${info.name}</div>` +
           `<div class="choice__desc">${info.desc}</div>` +
           `<div class="chips" style="justify-content:center">${chipsFor(info.mult)}</div>` +
-          `<button class="btn ${ready ? '' : 'btn--gray'}" type="button" data-pick="${cid}" data-adv="${isAdv ? 1 : 0}" ${ready ? '' : 'disabled'}>${ready ? '전직하기' : `Lv.${need} 필요`}</button>` +
+          `<button class="btn ${np.ready ? '' : 'btn--gray'}" type="button" data-pick="${cid}" ${np.ready ? '' : 'disabled'}>${np.ready ? '전직하기' : `Lv.${np.need} 필요`}</button>` +
           '</div>';
       }
       html += '</div>';
     } else {
-      html = '<div class="notice">모든 전직을 마쳤어요!<br>환생하면 직업이 초기화되어 다른 직업을 골라 볼 수 있어요.</div>';
+      html = '<div class="notice">모든 전직을 마쳤어요! (4차)<br>환생하면 직업이 초기화되어 다른 길을 골라 볼 수 있어요.</div>';
     }
-    box.innerHTML = html;
+    $('classChoice').innerHTML = html;
+    renderCodex();
+  }
 
-    // 도감: 1차 직업별로 묶고, 2차 직업마다 등급·최고 스테이지·처치 수를 보여 준다
-    const count = Object.keys(s.mastered).length;
-    $('codexBonus').textContent = `${count} / ${Object.keys(G.ADVANCED).length} · 공격력·골드 +${Math.round((G.masteryMult(s) - 1) * 100)}%`;
-    let dex = '';
-    for (const bid of Object.keys(G.CLASSES)) {
-      const base = G.CLASSES[bid];
-      dex += `<div class="dexrow"><div class="dexrow__head">${A.goblin(bid, { head: true })}<div class="dexrow__name">${base.name}</div>` +
-        `<div class="dexrow__stat">${Object.keys(base.mult).map((k) => `${STAT_LABEL[k]} ×${base.mult[k]}`).join(' · ')}</div></div><div class="dexrow__kids">`;
-      for (const aid of base.adv) {
-        const on = !!s.mastered[aid];
-        const rec = G.dexRecord(s, aid), tier = G.dexTier(s, aid);
-        dex += `<div class="dexcard ${on ? 'is-on' : 'is-off'}" data-dex="${aid}">` +
-          (on ? `<span class="medal medal--${tier}">${tier ? G.DEX_TIERS[tier - 1].name : '-'}</span>` : '') +
-          `<div class="dexcard__art">${A.goblin(aid)}</div>` +
-          `<div class="dexcard__name">${on ? G.ADVANCED[aid].name : '???'}</div>` +
-          `<div class="dexcard__rec">${on ? `최고 <b>${rec.best}</b>단계<br>처치 <b>${G.fmt(rec.kills)}</b>` : `${base.name} Lv.${G.PROMO_LEVEL.adv}에서 전직`}</div></div>`;
-      }
-      dex += '</div></div>';
+  // 도감 카드 하나
+  function dexCard(aid, compact) {
+    const s = state, info = G.NODES[aid], on = !!s.mastered[aid];
+    const rec = G.dexRecord(s, aid), tier = G.dexTier(s, aid);
+    return `<div class="dexcard ${on ? 'is-on' : 'is-off'} ${compact ? 'dexcard--compact' : ''}" data-dex="${aid}">` +
+      (on ? `<span class="medal medal--${tier}">${tier ? G.DEX_MEDALS[tier - 1] : '-'}</span>` : '') +
+      `<div class="dexcard__art">${A.goblin(aid, compact ? { head: true } : undefined)}</div>` +
+      `<div class="dexcard__name">${on ? info.name : '???'}</div>` +
+      `<div class="dexcard__rec">${on ? `최고 <b>${rec.best}</b>단계<br>처치 <b>${G.fmt(rec.kills)}</b>` : `Lv.${G.PROMO_LEVEL[['', 'base', 'adv', 'adv3', 'adv4'][G.classTier(aid)]]}에 전직`}</div></div>`;
+  }
+
+  // 도감: 2·3·4차 탭으로 나누고, 부모 직업별로 묶어 자식 2갈래를 보여 준다
+  function renderCodex() {
+    const s = state;
+    const done = (t) => G.advIdsOfTier(t).filter((id) => s.mastered[id]).length;
+    $('codexBonus').textContent = `${Object.keys(s.mastered).length} / ${G.ADV_IDS.length} · 공격력·골드 +${Math.round((G.masteryMult(s) - 1) * 100)}%`;
+    let html = '<div class="dextabs">' + [2, 3, 4].map((t) =>
+      `<button class="dextab ${dexView === t ? 'is-on' : ''}" type="button" data-dextab="${t}">${TIER_NAME[t]}<small>${done(t)}/${G.advIdsOfTier(t).length}</small></button>`).join('') + '</div>';
+    const compact = dexView >= 3;
+    const parents = dexView === 2 ? Object.keys(G.CLASSES) : G.advIdsOfTier(dexView - 1);
+    for (const pid of parents) {
+      const base = G.NODES[pid];
+      const kids = G.childrenOf(pid);
+      const stat = dexView === 2 ? Object.keys(base.mult).map((k) => `${STAT_LABEL[k]} ×${base.mult[k]}`).join(' · ') : `${kids.filter((k) => s.mastered[k]).length}/${kids.length}`;
+      html += `<div class="dexrow ${compact ? 'dexrow--compact' : ''}"><div class="dexrow__head">${A.goblin(pid, { head: true })}<div class="dexrow__name">${base.name}</div>` +
+        `<div class="dexrow__stat">${stat}</div></div><div class="dexrow__kids">${kids.map((k) => dexCard(k, compact)).join('')}</div></div>`;
     }
-    $('codex').innerHTML = dex;
+    $('codex').innerHTML = html;
   }
 
   // 도감 카드를 누르면 자세한 정보 창을 연다
   function showDex(aid) {
-    const info = G.ADVANCED[aid];
-    const s = state;
+    const info = G.NODES[aid], tier = G.classTier(aid), s = state;
     if (!s.mastered[aid]) {
-      const base = G.CLASSES[info.parent];
+      const need = G.PROMO_LEVEL[['', 'base', 'adv', 'adv3', 'adv4'][tier]];
       openModal('???',
         `<div class="dexd__art" style="filter:brightness(0) opacity(.4)">${A.goblin(aid)}</div>` +
-        `<div class="dexd__desc">아직 만나지 못한 직업이에요.<br><b>${base.name}</b>으로 1차 전직한 뒤 Lv.${G.PROMO_LEVEL.adv}에서 2차 전직하면 도감에 기록돼요.</div>`,
+        `<div class="dexd__desc">아직 만나지 못한 직업이에요.<br><b>${ancestorNames(aid).join(' → ')}</b> 순서로 전직한 뒤<br>Lv.${need}에서 ${TIER_NAME[tier]} 전직하면 도감에 기록돼요.</div>`,
         [{ text: '닫기' }]);
       return;
     }
-    const rec = G.dexRecord(s, aid), tier = G.dexTier(s, aid);
-    const bonus = Math.round((G.MASTERY_BONUS + G.TIER_BONUS * tier) * 100);
-    const tiers = G.DEX_TIERS.map((t, i) =>
-      `<div class="${tier > i ? 'is-done' : ''}"><span class="medal medal--${i + 1}">${t.name}</span><span>최고 스테이지 ${t.stage} 도달</span>` +
-      `<span>${tier > i ? '달성' : `${t.stage - rec.best}단계 남음`}</span></div>`).join('');
+    const rec = G.dexRecord(s, aid), medals = G.dexTier(s, aid), stages = G.dexStages(aid);
+    const bonus = Math.round(G.masteryOf(s, aid) * 1000) / 10;
+    const rows = stages.map((st, i) =>
+      `<div class="${medals > i ? 'is-done' : ''}"><span class="medal medal--${i + 1}">${G.DEX_MEDALS[i]}</span><span>최고 스테이지 ${st} 도달</span>` +
+      `<span>${medals > i ? '달성' : `${Math.max(0, st - rec.best)}단계 남음`}</span></div>`).join('');
     openModal(info.name,
       `<div class="dexd__art">${A.goblin(aid)}</div>` +
+      `<div class="dexd__path">${TIER_NAME[tier]} 직업 · ${ancestorNames(aid).join(' → ')}</div>` +
       `<div class="dexd__desc">${info.desc}</div>` +
       `<div class="chips" style="justify-content:center">${chipsFor(info.mult)}</div>` +
       `<div class="dexd__rec"><div><small>최고 스테이지</small><b>${rec.best}</b></div><div><small>처치 수</small><b>${G.fmt(rec.kills)}</b></div><div><small>전직 횟수</small><b>${rec.runs}</b></div></div>` +
-      `<div class="dexd__tiers">${tiers}</div>` +
-      `<div style="margin-top:10px"><small>이 직업 보너스: 공격력·골드 +${bonus}% (등급마다 +${Math.round(G.TIER_BONUS * 100)}%p)</small></div>`,
+      `<div class="dexd__tiers">${rows}</div>` +
+      `<div style="margin-top:10px"><small>이 직업 보너스: 공격력·골드 +${bonus}% (메달마다 기본 보너스의 +${Math.round(G.MEDAL_BONUS * 100)}%)</small></div>`,
       [{ text: '닫기' }]);
   }
   $('codex').addEventListener('click', (e) => {
+    const t = e.target.closest('.dextab');
+    if (t) { dexView = Number(t.dataset.dextab); renderClass(true); return; }
     const c = e.target.closest('.dexcard');
     if (c) showDex(c.dataset.dex);
+  });
+  $('classChoice').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-pick]');
+    if (b && !b.disabled) askPromote(b.dataset.pick);
   });
 
   // ---- 증표 상점 ----
@@ -607,6 +629,7 @@
         { text: '구매하기', cls: 'btn--gold', onClick: () => {
           if (!G.buyPerk(state, id)) return;
           addLog(`${p.name} Lv.${lv + 1} 구매! ${p.now(lv + 1)}`, 'is-gold', p.icon);
+          cloudSoon();
           floatText(`${p.name} Lv.${lv + 1}`, 'float--big', 'center');
           writeSave();
           render();
@@ -631,6 +654,7 @@
         { text: '초기화', cls: 'btn--blue', onClick: () => {
           G.respecPerks(state);
           addLog(`강화를 초기화했다. 증표 ${back}개를 돌려받았다`, 'is-good', 'crown');
+          cloudSoon();
           writeSave();
           render();
           renderShop(true);
@@ -648,6 +672,8 @@
   const gearNew = new Set();   // 장비 탭을 열기 전에 새로 얻은 장비 번호 (NEW 표시·알림 점용, 저장하지 않음)
   const KIND_SHORT = { dmg: '공격력', hp: '체력', gold: '골드', aps: '공속', comp: '동료', click: '직접' };
   const fmtVal = (v) => (Math.round(v * 10) / 10).toString();
+  // 장비 그림: 이름(디자인)마다 다르다. 이미지가 없으면 칸 종류의 기본 아이콘을 색만 달리해서 쓴다.
+  const gearArt = (it) => A.gear(G.itemDesign(it), G.GEAR[it.slot].icon);
   const itemStat = (it) => `${G.GEAR[it.slot].kinds[it.kind].label} +${fmtVal(it.val)}%`;
 
   function gearSummaryText() {
@@ -665,7 +691,7 @@
     if (!it) {
       return `<div class="slot is-empty" data-slot="${slot}"><div class="slot__cap">${G.GEAR[slot].name}</div>${A.icon(G.GEAR[slot].icon)}<div class="slot__name" style="color:var(--muted)">비어 있음</div></div>`;
     }
-    return `<button class="slot r${it.r}" type="button" data-slot="${slot}"><div class="slot__cap">${G.GEAR[slot].name}</div>${A.icon(G.GEAR[slot].icon)}` +
+    return `<button class="slot r${it.r}" type="button" data-slot="${slot}"><div class="slot__cap">${G.GEAR[slot].name}</div>${gearArt(it)}` +
       `<div class="slot__name">${G.itemName(it)}</div><div class="slot__stat">${itemStat(it)}</div><div class="slot__lv">Lv.${it.ilvl}</div></button>`;
   }
 
@@ -694,7 +720,7 @@
     bc.style.color = s.bag.length >= G.BAG_MAX ? 'var(--red)' : '';
     let html = '';
     s.bag.forEach((it) => {
-      html += `<button class="gitem r${it.r} ${gearNew.has(it.id) ? 'is-new' : ''}" type="button" data-item="${it.id}">${A.icon(G.GEAR[it.slot].icon)}` +
+      html += `<button class="gitem r${it.r} ${gearNew.has(it.id) ? 'is-new' : ''}" type="button" data-item="${it.id}">${gearArt(it)}` +
         `<div class="gitem__stat">${KIND_SHORT[it.kind]} +${fmtVal(it.val)}%</div><div class="gitem__lv">Lv.${it.ilvl}</div></button>`;
     });
     for (let i = s.bag.length; i < G.BAG_MAX; i++) html += '<div class="gitem is-empty"></div>';
@@ -720,7 +746,7 @@
       }
     }
     const body =
-      `<div class="itemd__head"><div class="slot r${it.r}">${A.icon(G.GEAR[it.slot].icon)}</div>` +
+      `<div class="itemd__head"><div class="slot r${it.r}">${gearArt(it)}</div>` +
       `<div><span class="itemd__tag r${it.r}">${R.name}</span><div class="itemd__main">${def.label} +${fmtVal(it.val)}%</div>` +
       `<small>${G.GEAR[it.slot].name} · 드롭 스테이지 ${it.ilvl}</small></div></div>${cmp}`;
     const done = (msg, icon) => { addLog(msg, 'is-good', icon); writeSave(); render(); renderGear(true); };
@@ -820,7 +846,7 @@
         addLog(`레벨 ${e.level} 달성!`, 'is-good', 'arrowup');
         levelUpFx();
       } else if (e.type === 'promoReady') {
-        addLog(`${e.stage === 'base' ? '1차' : '2차'} 전직이 가능해요! '전직' 메뉴를 확인하세요`, 'is-gold', 'cap');
+        addLog(`${TIER_NAME[STAGE_TIER[e.stage]]} 전직이 가능해요! '전직' 메뉴를 확인하세요`, 'is-gold', 'cap');
         floatText('전직 가능!', 'float--big', 'center');
       } else if (e.type === 'down') {
         addLog(`쓰러졌다... 스테이지 ${e.to}로 후퇴`, 'is-bad', 'skull');
@@ -1018,6 +1044,7 @@
           handleEvents(G.checkAchievements(state));
           lastLook = '';
           addLog(`환생했다! 왕의 증표 +${gain} (총 ${state.tokens}개)`, 'is-gold', 'crown');
+          cloudSoon();
           writeSave();
           render();
           goTab('class');
@@ -1026,7 +1053,7 @@
   });
 
   $('resetBtn').addEventListener('click', () => {
-    openModal('처음부터 다시 시작할까요?', '모든 진행 상황이 지워져요.<br><small>되돌릴 수 없어요.</small>', [
+    openModal('처음부터 다시 시작할까요?', `모든 진행 상황이 지워져요.${cloud.state().user ? '<br><b>로그인 중이라 클라우드 저장도 새로 시작돼요.</b>' : ''}<br><small>되돌릴 수 없어요.</small>`, [
       { text: '취소' },
       { text: '지우고 시작', cls: 'btn--blue', onClick: () => {
         clearSave();
@@ -1036,6 +1063,7 @@
         lastMonster = '';
         addLog('새로운 고블린이 태어났다!', 'is-good', 'sword');
         writeSave();
+        cloudSoon();
         render();
         goTab('upgrade');
       } },
@@ -1054,6 +1082,112 @@
       (r.seconds >= G.offlineCap(state) ? `<br><small>(오프라인 보상은 최대 ${Math.round(G.offlineCap(state) / 3600)}시간까지예요)</small>` : ''),
       [{ text: '받기', cls: '' }]);
   }
+
+
+  // ---- 계정 · 클라우드 저장 ----
+  // 로그인하면 진행 상황을 클라우드(Firebase)에 저장해서 기기를 바꿔도 이어서 할 수 있다. 설정이 없으면 이 기능은 꺼지고 게임은 그대로 동작한다.
+  const cloudStorage = {
+    get: (k) => { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    set: (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* 무시 */ } },
+    remove: (k) => { try { localStorage.removeItem(k); } catch (e) { /* 무시 */ } },
+  };
+  const cloudAdapter = window.CLOUD_ADAPTER ||
+    (window.FIREBASE_CONFIG && window.CloudFirebase ? window.CloudFirebase.createFirebaseAdapter(window.FIREBASE_CONFIG) : null);
+
+  const esc = (t) => String(t).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const agoText = (ms) => {
+    const sec = Math.max(0, Math.floor((Date.now() - ms) / 1000));
+    return sec < 10 ? '방금' : sec < 60 ? `${sec}초 전` : sec < 3600 ? `${Math.floor(sec / 60)}분 전` : `${Math.floor(sec / 3600)}시간 전`;
+  };
+  const sumRows = (sm) =>
+    `스테이지 <b>${sm.bestStage}</b><br>레벨 <b>${sm.level}</b><br>환생 <b>${sm.prestiges}</b>회<br>증표 <b>${sm.tokens}</b>개<br>처치 <b>${G.fmt(sm.kills)}</b>` +
+    (G.NODES[sm.look] ? `<br>직업 <b>${G.NODES[sm.look].name}</b>` : '');
+
+  // 클라우드 저장을 게임에 적용한다 (다른 기기의 진행을 이어받을 때)
+  function applyCloudSave(text) {
+    const next = G.deserialize(text);
+    if (!next) return false;
+    next.savedAt = Date.now();   // 기기를 바꾼 사이의 시간을 오프라인 보상으로 또 주지 않는다 (다른 기기가 이미 받았을 수 있다)
+    state = next;
+    logs.length = 0;
+    lastLook = ''; lastMonster = '';
+    gearKey = ''; shopKey = ''; classKey = ''; achieveKey = '';
+    gearNew.clear();
+    lastHits = state.hits;
+    addLog('클라우드 저장을 불러왔다', 'is-good', 'crown');
+    writeSave();
+    render();
+    return true;
+  }
+
+  // 이 기기와 클라우드의 저장이 다를 때 어느 쪽으로 계속할지 고르게 한다
+  function askConflict(info) {
+    return new Promise((resolve) => {
+      const rec = info.recommend;
+      const box = (title, sm, isRec) => `<div class="${isRec ? 'is-rec' : ''}"><h4>${title}${isRec ? '<span class="rec">진행이 더 앞서요</span>' : ''}</h4>${sumRows(sm)}</div>`;
+      openModal('어느 저장으로 계속할까요?',
+        '<div style="font-size:12px">이 기기와 클라우드에 서로 다른 저장이 있어요.</div>' +
+        `<div class="cmp">${box('이 기기', info.local, rec === 'local')}${box('클라우드', info.remote, rec === 'cloud')}</div>` +
+        `<small>${info.remoteUpdatedAt ? `클라우드 저장: ${agoText(info.remoteUpdatedAt)}<br>` : ''}선택하지 않은 쪽 저장은 사라져요.</small>`,
+        [
+          { text: '이 기기', onClick: () => resolve('local') },
+          { text: '클라우드', cls: 'btn--gold', onClick: () => resolve('cloud') },
+          { text: '나중에', onClick: () => resolve(null) },
+        ]);
+    });
+  }
+
+  const cloud = window.CloudClient.createCloud(cloudAdapter, {
+    getLocal: () => ({ text: G.serialize(state, Date.now()), summary: window.Sync.summaryOf(state, G.lookId(state)) }),
+    applySave: applyCloudSave,
+    askConflict,
+    storage: cloudStorage,
+    onChange: (st) => renderAccount(st),
+  });
+
+  function renderAccount(st) {
+    st = st || cloud.state();
+    const box = $('acct');
+    if (!st.configured) {
+      box.innerHTML = '<div class="acct__title">☁ 클라우드 저장</div>' +
+        '<div class="acct__desc" style="margin-bottom:0">지금은 이 기기(브라우저)에만 저장돼요. 로그인 기능이 설정되면 Google·Apple 계정으로 기기를 바꿔도 이어서 할 수 있어요.<br><small>개발자: docs/FIREBASE-SETUP.md</small></div>';
+      return;
+    }
+    const err = st.error ? `<div class="acct__err">${esc(st.error)}</div>` : '';
+    if (!st.user) {
+      box.innerHTML = '<div class="acct__title">☁ 클라우드 저장</div>' +
+        '<div class="acct__desc">로그인하면 진행 상황이 안전하게 저장되고, 다른 기기에서도 이어서 할 수 있어요.</div>' +
+        '<div class="acct__btns"><button class="btn btn--google" type="button" data-login="google">Google로 로그인</button>' +
+        '<button class="btn btn--apple" type="button" data-login="apple">Apple로 로그인</button></div>' + err;
+      return;
+    }
+    const u = st.user;
+    const statusText = st.status === 'syncing' ? '동기화하는 중…' : st.status === 'error' ? '저장하지 못했어요' : st.lastSyncedAt ? `마지막 저장 ${agoText(st.lastSyncedAt)}` : '로그인됨';
+    box.innerHTML =
+      `<div class="acct__user"><div class="acct__photo">${u.photo ? `<img src="${esc(u.photo)}" alt="" referrerpolicy="no-referrer">` : esc((u.name || '?').slice(0, 1))}</div>` +
+      `<div><div class="acct__name">${esc(u.name)}</div><div class="acct__mail">${esc(u.email || '')}</div></div></div>` +
+      `<div class="acct__status ${st.status === 'syncing' ? 'is-busy' : st.status === 'error' ? 'is-error' : ''}">☁ ${statusText}</div>` +
+      `<div class="acct__btns"><button class="btn" type="button" data-acct="sync" ${st.status === 'syncing' ? 'disabled' : ''}>지금 저장</button>` +
+      '<button class="btn btn--gray" type="button" data-acct="out">로그아웃</button></div>' + err;
+  }
+  $('acct').addEventListener('click', async (e) => {
+    const login = e.target.closest('button[data-login]');
+    if (login) { await cloud.signIn(login.dataset.login); renderAccount(); return; }
+    const act = e.target.closest('button[data-acct]');
+    if (!act) return;
+    if (act.dataset.acct === 'sync') { await cloud.sync(); renderAccount(); }
+    if (act.dataset.acct === 'out') {
+      openModal('로그아웃할까요?', '이 기기의 진행은 그대로 남아요.<br><small>마지막 진행은 클라우드에 저장하고 로그아웃해요.</small>',
+        [{ text: '취소' }, { text: '로그아웃', cls: 'btn--blue', onClick: () => cloud.signOut() }]);
+    }
+  });
+  // 저장 시각 문구("3분 전")가 멈춰 보이지 않게 기록 탭이 열려 있으면 가끔 다시 그린다
+  setInterval(() => { if (currentTab === 'log' && cloud.state().user) renderAccount(); }, 15000);
+
+  // 중요한 일(환생·전직·상점 구매·초기화) 뒤에는 바로, 평소에는 3분마다, 창을 가릴 때도 클라우드에 올린다
+  const cloudSoon = () => cloud.schedulePush(4000);
+  setInterval(() => cloud.push(), 180000);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) cloud.push(); });
 
   // ---- 시작: 자리를 비운 동안의 보상 ----
   buildUpgrades();
@@ -1109,4 +1243,7 @@
   setInterval(writeSave, 5000);
   document.addEventListener('visibilitychange', () => { if (document.hidden) writeSave(); });
   window.addEventListener('pagehide', writeSave);
+
+  renderAccount();
+  cloud.start();   // 로그인 상태를 확인하고, 로그인돼 있으면 클라우드와 저장을 맞춘다
 })();

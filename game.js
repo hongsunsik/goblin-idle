@@ -1,5 +1,6 @@
 // 고블린 키우기 - 게임 로직 (DOM과 무관한 순수 함수 모음)
 (function (root) {
+  const { ADVANCED3, ADVANCED4 } = typeof module !== 'undefined' && module.exports ? require('./classes.js') : root.GoblinClasses;
   const SAVE_VERSION = 1;
   const OFFLINE_CAP = 8 * 3600;   // 오프라인 보상은 최대 8시간까지
   const OFFLINE_MIN = 30;         // 이 시간(초) 이상 자리를 비웠을 때만 오프라인 보상 계산
@@ -29,9 +30,12 @@
   const UPGRADE_KEYS = Object.keys(UPGRADES);
 
   // ---- 직업 ----
-  // 1차 전직은 Lv.10, 2차 전직은 Lv.20부터 가능. 환생하면 직업이 초기화된다.
+  // 1차 전직은 Lv.10, 2차 Lv.20, 3차 Lv.30, 4차 Lv.40부터 가능. 환생하면 직업이 초기화된다.
+  // 2차 직업마다 3차 2갈래, 3차마다 4차 2갈래 (3·4차 데이터는 classes.js)
   // mult 항목: dmg 공격력, hp 최대 체력, aps 공격 속도, gold 골드, comp 동료 공격, regen 체력 회복, click 직접 때리기
-  const PROMO_LEVEL = { base: 10, adv: 20 };
+  const PROMO_LEVEL = { base: 10, adv: 20, adv3: 30, adv4: 40 };
+  const PATH_FIELDS = ['cls', 'adv', 'adv3', 'adv4'];   // 저장하는 직업 경로: 1차~4차
+  const PROMO_STAGES = ['base', 'adv', 'adv3', 'adv4'];  // 위 경로에 대응하는 전직 단계 이름
   const CLASSES = {
     warrior: { name: '전사',   desc: '튼튼한 체력과 빠른 회복. 오래 버티는 싸움이 특기.',
                mult: { hp: 1.5, regen: 1.3 }, adv: ['knight', 'berserker'] },
@@ -60,10 +64,29 @@
     pirate:      { name: '해적',     parent: 'rogue',   desc: '보물 사냥꾼. 골드를 엄청나게 벌고 동료도 조금 강해진다.',
                    mult: { gold: 1.7, comp: 1.2 } },
   };
-  const MASTERY_BONUS = 0.05;   // 2차 전직을 달성한 직업 1개당 공격력·골드 +5% (환생해도 유지)
-  // 도감 등급: 그 직업으로 도달한 최고 스테이지가 기준을 넘을 때마다 등급이 오르고, 등급 하나당 직업 보너스가 +1%p 늘어난다.
-  const DEX_TIERS = [{ name: '동', stage: 20 }, { name: '은', stage: 35 }, { name: '금', stage: 50 }];
-  const TIER_BONUS = 0.01;
+
+  // ---- 직업 트리 조회 ----
+  const CLASS_TABLES = { 1: CLASSES, 2: ADVANCED, 3: ADVANCED3, 4: ADVANCED4 };
+  const NODE = {};      // id → 직업 정의
+  const TIER_OF = {};   // id → 몇 차 직업인지 (1~4)
+  for (const t of [1, 2, 3, 4]) for (const id of Object.keys(CLASS_TABLES[t])) { NODE[id] = CLASS_TABLES[t][id]; TIER_OF[id] = t; }
+  const classTier = (id) => TIER_OF[id] || 0;
+  const parentOf = (id) => (TIER_OF[id] >= 2 ? NODE[id].parent : null);
+  const childrenOf = (id) => {
+    const t = TIER_OF[id];
+    if (t === 1) return CLASSES[id].adv.slice();
+    if (!t || t >= 4) return [];
+    return Object.keys(CLASS_TABLES[t + 1]).filter((k) => CLASS_TABLES[t + 1][k].parent === id);
+  };
+  const ADV_IDS = Object.keys(NODE).filter((id) => TIER_OF[id] >= 2);   // 도감에 기록되는 직업 (2~4차) 전부
+  const advIdsOfTier = (t) => Object.keys(CLASS_TABLES[t]);
+
+  // 직업 보너스: 전직을 달성한 직업마다 공격력·골드가 영구히 늘어난다 (환생해도 유지). 차수가 높을수록 하나당 보너스는 작다.
+  const MASTERY_BASE = { 2: 0.05, 3: 0.015, 4: 0.005 };
+  // 도감 등급(동·은·금): 그 직업으로 도달한 최고 스테이지가 기준을 넘을 때마다 올라가고, 등급 하나당 그 직업 보너스가 기본값의 20%씩 늘어난다.
+  const DEX_STAGES = { 2: [20, 35, 50], 3: [30, 45, 60], 4: [40, 55, 70] };
+  const DEX_MEDALS = ['동', '은', '금'];
+  const MEDAL_BONUS = 0.2;
 
   // ---- 증표 상점 (영구 강화 트리) ----
   // 환생으로 얻은 왕의 증표로 산다. 산 강화는 환생해도 유지된다. 레벨 lv → lv+1의 가격은 base × (lv+1)개.
@@ -111,6 +134,7 @@
   // ---- 업적 ----
   // val(s)이 goal에 닿으면 달성. 달성할 때마다 공격력·골드가 영구히 +2%, 환생해도 유지된다.
   const ACHIEVE_BONUS = 0.02;
+  const masteredIn = (s, tier) => Object.keys(s.mastered).filter((id) => TIER_OF[id] === tier).length;
   const maxUpgradeLv = (s) => Math.max(...UPGRADE_KEYS.map((k) => s.upgrades[k]));
   const ACHIEVEMENTS = [
     { id: 'kill100',    icon: 'sword',   name: '사냥꾼',         desc: '몬스터 100마리 처치',       goal: 100,   val: (s) => s.totalKills },
@@ -123,8 +147,11 @@
     { id: 'upgrade50',  icon: 'anvil',   name: '강화 장인',      desc: '강화 하나를 Lv.50까지',     goal: 50,    val: maxUpgradeLv },
     { id: 'prestige1',  icon: 'crown',   name: '첫 환생',        desc: '환생 1회',                  goal: 1,     val: (s) => s.prestiges },
     { id: 'prestige5',  icon: 'crown',   name: '윤회하는 왕',    desc: '환생 5회',                  goal: 5,     val: (s) => s.prestiges },
-    { id: 'codex4',     icon: 'cap',     name: '다재다능',       desc: '2차 직업 4종 달성',         goal: 4,     val: (s) => Object.keys(s.mastered).length },
-    { id: 'codex8',     icon: 'book',    name: '도감 완성',      desc: '2차 직업 8종 모두 달성',    goal: 8,     val: (s) => Object.keys(s.mastered).length },
+    { id: 'codex4',     icon: 'cap',     name: '다재다능',       desc: '2차 직업 4종 달성',         goal: 4,     val: (s) => masteredIn(s, 2) },
+    { id: 'codex8',     icon: 'book',    name: '도감 완성',      desc: '2차 직업 8종 모두 달성',    goal: 8,     val: (s) => masteredIn(s, 2) },
+    { id: 'tier3',      icon: 'cap',     name: '세 번째 길',     desc: '3차 전직 달성',             goal: 1,     val: (s) => masteredIn(s, 3) },
+    { id: 'tier4',      icon: 'crown',   name: '정점에 서다',    desc: '4차 전직 달성',             goal: 1,     val: (s) => masteredIn(s, 4) },
+    { id: 'elite8',     icon: 'book',    name: '전설의 수집가',  desc: '4차 직업 8종 달성',         goal: 8,     val: (s) => masteredIn(s, 4) },
   ];
   const achieveMult = (s) => 1 + ACHIEVE_BONUS * Object.keys(s.achieved).length;
 
@@ -159,14 +186,14 @@
   // 종류마다 올려 주는 능력(kind)과 등급별 기본 수치(%: 노말·고급·희귀·영웅·전설), 이름에 쓰는 명사
   const GEAR = {
     weapon:    { name: '무기',     icon: 'sword',  kinds: {
-      dmg:   { label: '공격력',    base: [4, 7, 11, 17, 26],   nouns: ['몽둥이', '단검', '손도끼', '장검', '지팡이'] } } },
+      dmg:   { label: '공격력',    base: [4, 7, 11, 17, 26],   nouns: [['club', '몽둥이'], ['dagger', '단검'], ['hatchet', '손도끼'], ['sword', '장검'], ['staff', '지팡이']] } } },
     armor:     { name: '방어구',   icon: 'shield', kinds: {
-      hp:    { label: '최대 체력', base: [6, 10, 16, 24, 36],  nouns: ['가죽 갑옷', '쇠사슬 갑옷', '판금 갑옷', '로브'] } } },
+      hp:    { label: '최대 체력', base: [6, 10, 16, 24, 36],  nouns: [['leather', '가죽 갑옷'], ['chainmail', '쇠사슬 갑옷'], ['plate', '판금 갑옷'], ['robe', '로브']] } } },
     accessory: { name: '액세서리', icon: 'gem',    kinds: {
-      gold:  { label: '골드 획득', base: [6, 10, 15, 23, 34],  nouns: ['황금 반지', '행운의 목걸이'] },
-      aps:   { label: '공격 속도', base: [2, 3.5, 5.5, 8, 12], nouns: ['질풍의 팔찌', '깃털 귀걸이'] },
-      comp:  { label: '동료 공격', base: [5, 9, 14, 21, 32],   nouns: ['동료의 부적', '우정의 반지'] },
-      click: { label: '직접 공격', base: [8, 14, 22, 33, 50],  nouns: ['강타의 장갑', '용사의 완장'] } } },
+      gold:  { label: '골드 획득', base: [6, 10, 15, 23, 34],  nouns: [['goldring', '황금 반지'], ['luckynecklace', '행운의 목걸이']] },
+      aps:   { label: '공격 속도', base: [2, 3.5, 5.5, 8, 12], nouns: [['galebracelet', '질풍의 팔찌'], ['featherearring', '깃털 귀걸이']] },
+      comp:  { label: '동료 공격', base: [5, 9, 14, 21, 32],   nouns: [['charm', '동료의 부적'], ['friendring', '우정의 반지']] },
+      click: { label: '직접 공격', base: [8, 14, 22, 33, 50],  nouns: [['glove', '강타의 장갑'], ['armband', '용사의 완장']] } } },
   };
   const SLOT_KEYS = Object.keys(GEAR);
   const has = (obj, key) => Object.prototype.hasOwnProperty.call(obj, key);   // 'constructor' 같은 이름을 걸러내려고 in/[] 대신 쓴다
@@ -176,7 +203,12 @@
   function setRandom(fn) { rnd = fn || Math.random; }
 
   const kindDef = (it) => GEAR[it.slot].kinds[it.kind];
-  const itemName = (it) => { const nouns = kindDef(it).nouns; return RARITY_PREFIX[it.r] + ' ' + nouns[it.n % nouns.length]; };
+  const itemNoun = (it) => { const nouns = kindDef(it).nouns; return nouns[it.n % nouns.length]; };   // [디자인 id, 이름]
+  const itemName = (it) => RARITY_PREFIX[it.r] + ' ' + itemNoun(it)[1];
+  // 장비 그림 이름 (images/gear/<디자인 id>). 같은 이름의 장비는 같은 모양이고 등급은 테두리 색으로 구분한다.
+  const itemDesign = (it) => itemNoun(it)[0];
+  const GEAR_DESIGNS = [];
+  for (const slot of Object.keys(GEAR)) for (const kind of Object.keys(GEAR[slot].kinds)) for (const [id] of GEAR[slot].kinds[kind].nouns) GEAR_DESIGNS.push(id);
   const round1 = (x) => Math.round(x * 10) / 10;
   const maxItemVal = (slot, kind, r, ilvl) => round1(GEAR[slot].kinds[kind].base[r] * (1 + ilvl / GEAR_SCALE_STAGE) * 1.15) + 0.1;
   const sellValue = (it) => Math.ceil(monsterGold(it.ilvl) * RARITIES[it.r].gold);
@@ -299,7 +331,9 @@
       prestiges: 0,
       cls: null,         // 1차 직업 (전사·궁수·마법사·도적)
       adv: null,         // 2차 직업
-      mastered: {},      // 2차 전직을 달성한 직업 도감 (환생해도 유지)
+      adv3: null,        // 3차 직업
+      adv4: null,        // 4차 직업
+      mastered: {},      // 2~4차 전직을 달성한 직업 도감 (환생해도 유지)
       achieved: {},      // 달성한 업적 (환생해도 유지)
       dex: {},           // 도감 기록: 2차 직업별 { best 최고 스테이지, kills 처치 수, runs 전직 횟수 } (환생해도 유지)
       perks: {},         // 증표 상점에서 산 영구 강화 { id: 레벨 } (환생해도 유지)
@@ -327,11 +361,14 @@
   const TOKEN_BONUS = 0.4;   // 왕의 증표 1개당 공격력·골드 보너스
   const tokenMult = (s) => 1 + TOKEN_BONUS * s.tokens;
   const dexRecord = (s, id) => s.dex[id] || { best: 0, kills: 0, runs: 0 };
+  const dexStages = (id) => DEX_STAGES[TIER_OF[id]] || [];
   // 도감 등급 0(없음)~3(금): 그 직업으로 도달한 최고 스테이지 기준
-  const dexTier = (s, id) => DEX_TIERS.filter((t) => dexRecord(s, id).best >= t.stage).length;
+  const dexTier = (s, id) => dexStages(id).filter((st) => dexRecord(s, id).best >= st).length;
+  // 직업 하나가 주는 공격력·골드 보너스 (예: 0.05 = +5%)
+  const masteryOf = (s, id) => (MASTERY_BASE[TIER_OF[id]] || 0) * (1 + MEDAL_BONUS * dexTier(s, id));
   function masteryMult(s) {
     let m = 1;
-    for (const id of Object.keys(s.mastered)) m += MASTERY_BONUS + TIER_BONUS * dexTier(s, id);
+    for (const id of Object.keys(s.mastered)) m += masteryOf(s, id);
     return m;
   }
   function dexEntry(s, id) {
@@ -366,11 +403,11 @@
   }
   const offlineCap = (s) => OFFLINE_CAP + 3600 * perkLv(s, 'rest');
   const kinglyMult = (s) => 1 + 0.05 * perkLv(s, 'kingly');
-  // 1차·2차 직업의 배율을 곱한 값 (해당 항목이 없으면 1)
+  // 1~4차 직업의 배율을 모두 곱한 값 (해당 항목이 없으면 1)
   function statMult(s, key) {
-    const b = s.cls && CLASSES[s.cls];
-    const a = s.adv && ADVANCED[s.adv];
-    return ((b && b.mult[key]) || 1) * ((a && a.mult[key]) || 1);
+    let m = 1;
+    for (const f of PATH_FIELDS) { const id = s[f]; if (id) m *= NODE[id].mult[key] || 1; }
+    return m;
   }
   const baseDmg = (s) => 3 + 1.5 * (s.level - 1);
   const maxHp = (s) => (50 + 12 * (s.level - 1)) * (1 + 0.25 * s.upgrades.armor) * mile(s.upgrades.armor) * statMult(s, 'hp') * (1 + 0.1 * perkLv(s, 'vitality')) * gearMult(s, 'hp');
@@ -404,29 +441,43 @@
     return { kind: pick[0], name: pick[1], boss: isBossStage(stage), biome: biomeOf(stage) };
   }
 
-  // 화면에 그릴 고블린 종류 (2차 직업 > 1차 직업 > 견습)
-  const lookId = (s) => s.adv || s.cls || 'novice';
-  const classTitle = (s) =>
-    (s.adv && ADVANCED[s.adv].name) || (s.cls && CLASSES[s.cls].name) || '견습 고블린';
+  // 지금 가장 높은 단계의 직업 (없으면 null)
+  const deepest = (s) => s.adv4 || s.adv3 || s.adv || s.cls || null;
+  // 지금까지 고른 직업 경로 [1차, 2차, ...]
+  const classPath = (s) => PATH_FIELDS.map((f) => s[f]).filter(Boolean);
+  // 화면에 그릴 고블린 종류 (가장 높은 단계 직업 > 견습)
+  const lookId = (s) => deepest(s) || 'novice';
+  const classTitle = (s) => { const id = deepest(s); return id ? NODE[id].name : '견습 고블린'; };
 
   // ---- 전직 ----
-  // 지금 할 수 있는 전직 단계: 'base' | 'adv' | null
+  // 지금 할 수 있는 전직 단계: 'base' | 'adv' | 'adv3' | 'adv4' | null
   function promoStage(s) {
-    if (!s.cls) return s.level >= PROMO_LEVEL.base ? 'base' : null;
-    if (!s.adv) return s.level >= PROMO_LEVEL.adv ? 'adv' : null;
+    for (let i = 0; i < PATH_FIELDS.length; i++) {
+      if (!s[PATH_FIELDS[i]]) return s.level >= PROMO_LEVEL[PROMO_STAGES[i]] ? PROMO_STAGES[i] : null;
+    }
+    return null;
+  }
+  // 다음에 할 전직 정보 (화면 표시용): { stage, tier, need 필요 레벨, ready 지금 가능한지, options 고를 수 있는 직업 } / 모두 끝났으면 null
+  function nextPromo(s) {
+    for (let i = 0; i < PATH_FIELDS.length; i++) {
+      if (s[PATH_FIELDS[i]]) continue;
+      const stage = PROMO_STAGES[i], need = PROMO_LEVEL[stage];
+      return { stage, tier: i + 1, need, ready: s.level >= need, options: i === 0 ? Object.keys(CLASSES) : childrenOf(s[PATH_FIELDS[i - 1]]) };
+    }
     return null;
   }
   function promoOptions(s) {
     const st = promoStage(s);
+    if (!st) return [];
     if (st === 'base') return Object.keys(CLASSES);
-    if (st === 'adv') return CLASSES[s.cls].adv.slice();
-    return [];
+    return childrenOf(s[PATH_FIELDS[PROMO_STAGES.indexOf(st) - 1]]);
   }
   function promote(s, id) {
     if (promoOptions(s).indexOf(id) < 0) return false;
     const oldMax = maxHp(s);
-    if (promoStage(s) === 'base') s.cls = id;
-    else { s.adv = id; s.mastered[id] = true; dexEntry(s, id).runs += 1; }
+    const i = PROMO_STAGES.indexOf(promoStage(s));
+    s[PATH_FIELDS[i]] = id;
+    if (i >= 1) { s.mastered[id] = true; dexEntry(s, id).runs += 1; }
     s.hp = Math.min(maxHp(s), s.hp + Math.max(0, maxHp(s) - oldMax));   // 늘어난 체력만큼 회복
     return true;
   }
@@ -483,9 +534,8 @@
       s.level += 1;
       s.hp += 12;   // 레벨업 시 늘어난 기본 체력만큼 회복
       ev.push({ type: 'levelup', level: s.level });
-      if ((s.level === PROMO_LEVEL.base && !s.cls) || (s.level === PROMO_LEVEL.adv && s.cls && !s.adv)) {
-        ev.push({ type: 'promoReady', stage: promoStage(s) });
-      }
+      const st = promoStage(s);
+      if (st && s.level === PROMO_LEVEL[st]) ev.push({ type: 'promoReady', stage: st });
     }
   }
 
@@ -494,7 +544,7 @@
     s.gold += gold;
     s.totalKills += 1;
     s.killsInStage += 1;
-    if (s.adv) dexEntry(s, s.adv).kills += 1;
+    for (const f of PATH_FIELDS) if (s[f] && f !== 'cls') dexEntry(s, s[f]).kills += 1;   // 고른 2~4차 직업 모두 기록
     ev.push({ type: 'kill', gold, boss: s.isBoss });
     gainExp(s, monsterExp(s.stage), ev);
     if (rnd() < dropChance(s, s.isBoss)) receiveItem(s, rollItem(s, s.stage, s.isBoss), ev);
@@ -504,7 +554,7 @@
       s.killsInStage = 0;
       if (s.stage > s.runBest) s.runBest = s.stage;
       if (s.stage > s.bestStage) s.bestStage = s.stage;
-      if (s.adv) { const d = dexEntry(s, s.adv); if (s.stage > d.best) d.best = s.stage; }
+      for (const f of PATH_FIELDS) if (s[f] && f !== 'cls') { const d = dexEntry(s, s[f]); if (s.stage > d.best) d.best = s.stage; }
       ev.push({ type: 'stage', stage: s.stage });
     }
     spawnMonster(s);
@@ -619,6 +669,8 @@
     s.upgrades.weapon = s.upgrades.armor = HEADSTART_LV * perkLv(s, 'headstart');   // 빠른 출발
     s.cls = null;   // 직업은 초기화 (도감은 유지)
     s.adv = null;
+    s.adv3 = null;
+    s.adv4 = null;
     s.downT = 0;
     s.atkT = 0;
     s.hp = maxHp(s);
@@ -657,11 +709,15 @@
       s.upgrades[k] = Math.min(lv, UPGRADES[k].max);
     }
     s.cls = typeof o.cls === 'string' && has(CLASSES, o.cls) ? o.cls : null;
-    s.adv = s.cls && typeof o.adv === 'string' && has(ADVANCED, o.adv) && ADVANCED[o.adv].parent === s.cls ? o.adv : null;
-    for (const k of Object.keys(ADVANCED)) if (o.mastered && o.mastered[k] === true) s.mastered[k] = true;
-    if (s.adv) s.mastered[s.adv] = true;
+    // 직업 경로: 앞 단계의 자식으로 이어지는 것만 받아들인다
+    for (let i = 1; i < PATH_FIELDS.length; i++) {
+      const prev = s[PATH_FIELDS[i - 1]], id = o[PATH_FIELDS[i]];
+      s[PATH_FIELDS[i]] = prev && typeof id === 'string' && has(CLASS_TABLES[i + 1], id) && CLASS_TABLES[i + 1][id].parent === prev ? id : null;
+    }
+    for (const k of ADV_IDS) if (o.mastered && o.mastered[k] === true) s.mastered[k] = true;
+    for (const f of PATH_FIELDS) if (s[f] && f !== 'cls') s.mastered[s[f]] = true;
     for (const a of ACHIEVEMENTS) if (o.achieved && o.achieved[a.id] === true) s.achieved[a.id] = true;
-    for (const k of Object.keys(ADVANCED)) {
+    for (const k of ADV_IDS) {
       const d = o.dex && o.dex[k];
       if (d && typeof d === 'object') {
         s.dex[k] = { best: clamp(Math.floor(num(d.best, 0)), 0, 999), kills: clamp(Math.floor(num(d.kills, 0)), 0, 1e15), runs: clamp(Math.floor(num(d.runs, 0)), 0, 99999) };
@@ -720,18 +776,18 @@
   }
 
   const api = {
-    UPGRADES, UPGRADE_KEYS, MILESTONE_EVERY, MILESTONE_MULT, mile, CLASSES, ADVANCED, PROMO_LEVEL, MASTERY_BONUS, KILLS_PER_STAGE, DOWN_TIME, PRESTIGE_MIN_STAGE, OFFLINE_CAP,
+    UPGRADES, UPGRADE_KEYS, MILESTONE_EVERY, MILESTONE_MULT, mile, CLASSES, ADVANCED, ADVANCED3, ADVANCED4, PROMO_LEVEL, KILLS_PER_STAGE, DOWN_TIME, PRESTIGE_MIN_STAGE, OFFLINE_CAP,
     createState, tick, simulate, clickAttack, applyOffline,
     upgradeCost, canBuy, buy, planBuy, buyMany,
     prestigeGain, canPrestige, prestige,
     serialize, deserialize,
     TOKEN_BONUS, maxHp, hitDmg, attacksPerSec, companionDps, totalDps, goldMult, expNeeded, tokenMult,
     monsterAtk, monsterGold, monsterInfo, biomeOf, isBossStage, lookId, classTitle,
-    promoStage, promoOptions, promote, statMult, masteryMult,
+    NODES: NODE, nextPromo, promoStage, promoOptions, promote, statMult, masteryMult,
     ACHIEVEMENTS, ACHIEVE_BONUS, achieveMult, checkAchievements,
-    DEX_TIERS, TIER_BONUS, dexRecord, dexTier,
+    PATH_FIELDS, ADV_IDS, advIdsOfTier, classTier, parentOf, childrenOf, classPath, deepest, DEX_STAGES, DEX_MEDALS, MASTERY_BASE, MEDAL_BONUS, dexStages, masteryOf, dexRecord, dexTier,
     RARITIES, GEAR, SLOT_KEYS, BAG_MAX, DROP_CHANCE, BOSS_DROP_CHANCE, LUCK_PER_LV,
-    setRandom, itemName, sellValue, rollItem, dropChance, isUpgrade, receiveItem, equipItem, unequipItem, sellBagItem, sellBagUpTo, gearMult,
+    GEAR_DESIGNS, itemDesign, setRandom, itemName, sellValue, rollItem, dropChance, isUpgrade, receiveItem, equipItem, unequipItem, sellBagItem, sellBagUpTo, gearMult,
     PERKS, PERK_KEYS, HEADSTART_LV, perkLv, perkCost, perkSpent, tokenBalance, perkMissing, perkUnlocked, canBuyPerk, buyPerk, respecPerks, offlineCap,
     fmt, fmtTime,
   };
