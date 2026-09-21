@@ -1,5 +1,7 @@
 # 이미지 폴더 사용법
 
+> **현재 그림은 `tools/generate-images.py`로 Pollinations API(FLUX.2 klein 모델)에서 생성했습니다.** 프롬프트와 배경 제거·크기 정리 과정이 모두 그 스크립트에 들어 있고, 아래 프롬프트 표와 같은 내용입니다. 한 장만 다시 뽑으려면 `python3 tools/generate-images.py --force --retry 1 goblins/knight` 처럼 실행하세요. API 키는 `~/.pollinations-key` 파일에서 읽으며 저장소에는 들어 있지 않습니다. 직접 만든 그림을 같은 이름으로 덮어써도 됩니다.
+
 여기에 그림을 넣으면 게임이 **기본 SVG 그림 대신 그 이미지를 씁니다.** 파일이 없는 항목은 기본 SVG로 나오기 때문에 한 장씩 바꿔 가도 게임이 깨지지 않습니다.
 
 ## 적용하는 방법
@@ -42,15 +44,15 @@
 **화풍을 통일하는 게 가장 중요합니다.** 모든 프롬프트 앞에 같은 "공통 문장"을 붙이세요. 같은 도구·같은 모델·같은 시드(또는 스타일 참조 이미지)를 쓰면 더 잘 맞습니다. 도구가 참조 이미지를 지원하면 처음 만든 마음에 드는 그림 한 장을 이후 모든 그림의 참조로 넣으세요.
 
 **공통 문장 (캐릭터·몬스터)**
-> cute cartoon mobile game character, thick dark purple outline, cel-shaded with hard-edged shadows, vibrant saturated colors, chibi proportions, full body, centered, isolated on a plain flat bright green background, no text, no ground shadow
+> cute cartoon mobile game character, thick dark purple outline, cel-shaded with hard-edged shadows, vibrant saturated colors, chibi proportions, full body, centered, isolated on a plain flat solid pure magenta (#FF00FF) background, no text, no ground shadow
 
 **공통 문장 (아이콘)**
-> game UI icon, bold dark purple outline, glossy cel-shaded, vibrant colors, centered, square composition, isolated on a plain flat bright green background, no text
+> game UI icon, bold dark purple outline, glossy cel-shaded, vibrant colors, centered, square composition, isolated on a plain flat solid pure magenta (#FF00FF) background, no text
 
 **공통 문장 (배경)**
 > 2D side-view mobile game background, painterly cartoon style, vibrant colors, empty flat ground across the bottom quarter for characters to stand on, no characters, no text, wide 4:3 composition
 
-배경색을 초록으로 하라고 한 이유는 나중에 지우기 쉽게 하려는 것입니다. 투명 배경은 `rembg`(무료 프로그램), remove.bg, Photoshop의 배경 제거 등으로 만드세요.
+배경색을 마젠타로 하라고 한 이유는 나중에 지우기 쉽게 하려는 것입니다. 고블린 피부가 초록이라 초록 배경은 피부까지 지워집니다. 투명 배경은 `rembg`(무료 프로그램), remove.bg, Photoshop의 배경 제거 등으로 만들 수도 있습니다.
 
 ### 고블린 (`goblins/`) — 모두 "작은 초록 피부 고블린, 큰 뾰족귀, 큰 주황색 눈, 작은 송곳니" 공통
 
