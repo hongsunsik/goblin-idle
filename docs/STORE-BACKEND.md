@@ -1,8 +1,8 @@
 # 인앱 결제·출석·랭킹 연동 검토 (Google Play Billing · Apple IAP · 뒤끝 · Firebase)
 
-작성 시점의 게임 상태를 기준으로, "개인이 스토어 결제와 게임 백엔드(BaaS)를 붙여 인앱 결제·출석 체크·랭킹을 서비스할 수 있는가"를 검토한 문서입니다. **구현은 하지 않았고**(결제·광고는 여전히 시연 모드), 무엇이 필요하고 무엇이 걸림돌인지, 어떤 순서가 현실적인지를 정리했습니다.
+작성 시점의 게임 상태를 기준으로, "개인이 스토어 결제와 게임 백엔드(BaaS)를 붙여 인앱 결제·출석 체크·랭킹을 서비스할 수 있는가"를 검토한 문서입니다. 무엇이 필요하고 무엇이 걸림돌인지, 어떤 순서가 현실적인지를 정리했습니다. **결제·광고는 여전히 시연 모드**이고, 서버 없이 되는 **친선 랭킹·서버 출석과 안드로이드 포장 준비는 구현했습니다**(아래 9번).
 
-> **확인한 것과 못 한 것.** 아래 "확인됨"은 공식 문서를 직접 읽고 적었습니다(출처는 맨 끝). "확인 못 함"은 문서에서 찾지 못했거나 이번에 조사하지 않은 것이라, 결정 전에 직접 알아봐야 합니다. 특히 **수수료율·연회비·뒤끝의 요금**은 확인하지 못했습니다. 법률 자문이 아닙니다.
+> **확인한 것과 못 한 것.** 아래 "확인됨"은 공식 문서를 직접 읽고 적었습니다(출처는 맨 끝). "확인 못 함"은 문서에서 찾지 못했거나 이번에 조사하지 않은 것이라, 결정 전에 직접 알아봐야 합니다. 특히 **뒤끝의 요금, Apple 연회비·수수료, 한국 수수료 개편 일정(공식 확인)** 은 확인하지 못했습니다. Google Play 등록비·수수료와 Firebase 요금은 아래에 출처와 함께 적었습니다. 법률 자문이 아닙니다.
 
 ## 1. 결론 요약
 
@@ -37,7 +37,9 @@
 - 필요한 것: Google Play 개발자 계정과 결제 프로필(merchant), Play Console에 상품 등록, 공개/비공개/내부 테스트 트랙 중 하나에 앱 등록, Bubblewrap 프로젝트와 Digital Asset Links 설정.
 - Play에 올린 앱에서 앱 내 디지털 상품(크리스탈)은 Play Billing을 써야 한다는 것이 문서의 전제입니다("Play policy will require you to implement Play Billing").
 
-**확인 못 함**: 개발자 계정 등록비, 수수료율, 한국 게임 등급 분류·확률형 아이템 표기 요건이 스토어별로 어떻게 적용되는지.
+**비용 (확인됨)**: 개발자 계정 **25달러, 한 번만**(환불 불가, [출처 7](https://support.google.com/googleplay/android-developer/answer/6112435?hl=en)). Play Billing을 쓰는 데 별도 이용료는 없고, **팔릴 때 매출에서 수수료**가 빠집니다. 구글 안내 페이지 기준으로 미국·영국·EEA를 뺀 지역은 **연 매출 100만 달러까지 15%, 넘는 부분 30%**입니다([출처 8](https://support.google.com/googleplay/android-developer/answer/112622?hl=en)). 구글은 6월 30일부터 미국·영국·EEA에서 "서비스 수수료 + 결제 수수료 5%"로 나눴고, 한국 일정은 구글 공식 페이지에 없으며 2차 자료([출처 9](https://taylancetech.com/blog/google-play-2026-changes-app-store-fees-third-party-stores))는 **2026-12-31**이라고 합니다. 런칭 시점에 Play Console 안내를 확인하세요.
+
+**확인 못 함**: 개인 계정의 본인 인증·출시 전 테스트 요건, 한국 게임 등급 분류·확률형 아이템 표기 요건이 스토어별로 어떻게 적용되는지.
 
 **우리 게임에서 할 일**: `payments.js`의 `live` 모드를 "TWA 안이면 Digital Goods API, 아니면 비활성"으로 채우고, 서버 함수가 구매 토큰을 검증해 `wallets/{uid}`에 적립. 게임은 잔액을 읽기만 하도록 변경.
 
@@ -68,7 +70,7 @@
 - **서버 지갑**: `wallets/{uid}`를 서버(Admin SDK)만 쓰게 하고 브라우저는 읽기만.
 - **결제 검증**: Cloud Functions에서 Google Play Developer API로 구매 토큰 검증·승인 후 지갑 적립(Android). PG를 붙이면 같은 지갑에 웹 결제도 적립.
 - **출석·랭킹**: Firestore에 서버 시각(`serverTimestamp`)으로 출석 기록, 랭킹 컬렉션을 Functions로 갱신.
-- **비용**: 외부(PG·Google API)로 요청을 보내려면 **Blaze(종량제) 요금제**가 필요합니다(결제 수단 등록 필요, 무료 한도는 있음). 정확한 요금은 확인 못 함.
+- **비용**: Cloud Functions는 **Blaze(종량제) 요금제에서만** 쓸 수 있습니다([출처 10](https://firebase.google.com/docs/projects/billing/firebase-pricing-plans)). 원화 추정은 아래 8번.
 
 ## 4. 랭킹에서 가장 조심할 점 (부정행위)
 
@@ -90,7 +92,8 @@
 | 단계 | 내용 | 필요한 것 | 상태 |
 |---|---|---|---|
 | 0 | 시연 모드 유지, 결제·광고 버튼 비활성(`off`)으로 공개 | 없음 | 지금 |
-| 1 | Firebase 서버 지갑 + 서버 출석 + 친선 랭킹(보상 없음) | Blaze 요금제 | 미구현 |
+| 1 | 서버 출석 + 친선 랭킹(보상 없음): **구현됨(Spark)** · 서버 지갑: Blaze 필요 | 규칙 게시 / 지갑은 Blaze | 부분 구현 |
+| 1.5 | 안드로이드 포장 준비(매니페스트·아이콘·서비스 워커) | [ANDROID-TWA.md](ANDROID-TWA.md) | 웹 쪽 준비 끝 |
 | 2 | Android TWA + Play Billing, Functions에서 구매 검증 | Play 개발자 계정, 상품 등록, Bubblewrap, 서버 함수 | 미구현 |
 | 3 | 확률형 아이템·등급 분류·청약철회·약관 정비 | `docs/PAYMENTS.md` 체크리스트 | 미구현 |
 | 4 | (선택) 웹 PG 결제 | 사업자등록, PG 계약 | 미구현 |
@@ -104,6 +107,44 @@
 3. **사업자등록·PG·스토어 개발자 계정** 보유 여부.
 4. **랭킹**: 친선 랭킹으로 충분한지, 보상을 걸고 싶다면 서버 재계산까지 갈지.
 
+## 8. Blaze 요금제는 얼마나 드나 (원화 추정)
+
+- **기본료가 없습니다.** Blaze는 "무료 한도를 포함하고, 넘은 만큼만 청구"하는 방식입니다(Spark의 무료 한도를 그대로 포함). 결제 수단 등록이 필요합니다.
+- 단가(미국 기준, 2차 자료 [출처 11](https://blog.back4app.com/firebase-pricing/)): Firestore 읽기 $0.06/10만 회, 쓰기 $0.18/10만 회, 삭제 $0.02/10만 회, 저장 $0.18/GiB. Cloud Functions는 월 200만 회 무료, 넘으면 $0.40/100만 회. **한국(서울) 리전은 단가가 다를 수 있어** 콘솔의 요금표로 확인하세요.
+- 환율은 **1달러 ≈ 1,340원**으로 계산했습니다(2026-09-13 종가 1,343.56원, [출처 12](https://ko.tradingeconomics.com/south-korea/currency)). 실제 청구 환율은 다릅니다.
+
+| 단위 | 원화 |
+|---|---|
+| 읽기 10만 회 | 약 80원 |
+| 쓰기 10만 회 | 약 240원 |
+| 저장 1GiB(월) | 약 240원 |
+| Functions 100만 회(무료 200만 회 초과분) | 약 540원 |
+
+**이 게임의 사용량으로 어림한 월 비용(Firestore만, 추정)**: 플레이하는 사람 한 명이 하루 쓰기 약 120~200회(저장은 바뀔 때만 1분에 한 번)·읽기 약 100회라고 가정했습니다. 무료 한도는 하루 읽기 5만·쓰기 2만입니다.
+
+| 하루 접속자 | 하루 쓰기 | 월 추정 비용 |
+|---|---|---|
+| 100명 | 약 2만 회 | **0원** (무료 한도 안) |
+| 1,000명 | 약 20만 회 | **약 1만 5천 원** |
+| 1만 명 | 약 200만 회 | **약 17만 원** |
+
+- 결제 확인용 Functions는 구매 한 건에 몇 번만 실행되어 **월 200만 회 무료 한도 안**에 들어갑니다(사실상 0원). 다만 Functions를 배포하면 빌드·컨테이너 저장 같은 소액 비용이 붙을 수 있습니다(확인 필요).
+- **예산 알림은 지출을 막지 못하고 알려 주기만 합니다.** Functions에는 지출 한도(spend cap)를 걸 수 있으니 같이 설정하세요([출처 10](https://firebase.google.com/docs/projects/billing/firebase-pricing-plans)). Firestore는 한도가 없어서, 게임 코드가 쓰기 횟수를 줄이도록 만들어 두었습니다(바뀐 게 없으면 안 씀, 랭킹 5분에 한 번, 랭킹 목록 1분 캐시).
+- 접속자가 늘면 쓰기가 가장 큰 비용입니다. 저장 주기를 1분에서 3분으로 늘리면 쓰기가 약 1/3로 줄어드는 조정 여지가 있습니다.
+
+## 9. 구현 현황 (Spark 요금제에서 되는 것)
+
+| 기능 | 상태 | 서버 규칙 |
+|---|---|---|
+| **친선 랭킹** (최고 스테이지·누적 증표·업적 수, 상위 50) | 구현됨. 기록 탭 > 랭킹. 닉네임을 정하고 참여, 내 기록 지우기 가능 | `firestore.rules`의 `ranks/{uid}`: 본인만 쓰기, 값 범위 검사, 기록은 줄지 않게, 30초에 한 번, 목록 100개까지 |
+| **서버 출석** (7일 주기 보상 3·3·5·5·8·8·20) | 구현됨. 기록 탭 > 일일 위쪽 카드 | `attendance/{uid}`: 하루 한 번, 날짜·연속·누적을 **서버 시각으로 규칙이 계산** |
+| 안드로이드 포장 준비 | 웹 매니페스트·아이콘·서비스 워커·TWA 초안 | [ANDROID-TWA.md](ANDROID-TWA.md) |
+
+- **Cloud Functions 없이** Firestore 규칙만으로 만들어서 Blaze가 필요 없습니다.
+- **규칙을 게시해야 켜집니다.** 코드는 규칙이 없으면 "서버 규칙이 아직 켜져 있지 않아요"라고 안내하고 조용히 실패합니다. 게시 방법은 [FIREBASE-SETUP.md](FIREBASE-SETUP.md).
+- **규칙은 실행 시험을 못 했습니다.** 이 컴퓨터에 Firebase 에뮬레이터(Java)가 없어서, 규칙 문법과 계산(`request.time.toMillis()`, `math.floor`, 조건 연산자)은 공식 문서의 함수 목록으로만 확인했습니다. 게시하면 문법 오류는 바로 거절되고, 계산이 틀리면 출석·랭킹 저장이 거절되어 화면에 안내가 뜹니다. **게시한 뒤 실제로 출석 체크와 랭킹 참여를 한 번 해 보세요.** 저장(`saves`) 규칙은 건드리지 않았습니다.
+- 랭킹은 **자기 신고 기록**이라 조작할 수 있고, 닉네임 욕설 필터는 없습니다(4번의 한계 그대로). 그래서 보상이 없습니다. 서버 출석 보상도 크리스탈을 브라우저 저장 데이터에 더하는 방식이라, **출석 날짜는 조작할 수 없지만 크리스탈 자체는 지금도 저장 데이터 수정으로 늘릴 수 있습니다**(서버 지갑 전까지의 한계).
+
 ## 출처
 
 1. [Receive Payments via Google Play Billing with the Digital Goods API and the Payment Request API (Chrome for Developers)](https://developer.chrome.com/docs/android/trusted-web-activity/receive-payments-play-billing)
@@ -112,3 +153,9 @@
 4. [뒤끝 구글 영수증 검증](https://developer.thebackend.io/unity3d/guide/receipt/google/)
 5. [뒤끝 iOS 영수증 검증](https://developer.thebackend.io/unity3d/guide/receipt/ios/)
 6. [뒤끝 요금 최적화 가이드](https://docs.backnd.com/sdk-docs/backend/base/optimize-cost/)
+7. [Get started with Play Console (Google)](https://support.google.com/googleplay/android-developer/answer/6112435?hl=en)
+8. [Service fees (Play Console Help)](https://support.google.com/googleplay/android-developer/answer/112622?hl=en)
+9. [Google Play 2026 fee changes (Taylance Tech, 2차 자료)](https://taylancetech.com/blog/google-play-2026-changes-app-store-fees-third-party-stores)
+10. [Firebase pricing plans](https://firebase.google.com/docs/projects/billing/firebase-pricing-plans)
+11. [Google Firebase Pricing Explained (Back4app, 2차 자료)](https://blog.back4app.com/firebase-pricing/)
+12. [USD/KRW (Trading Economics)](https://ko.tradingeconomics.com/south-korea/currency)

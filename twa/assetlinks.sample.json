@@ -1,0 +1,10 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "io.github.hongsunsik.raisegoblin",
+      "sha256_cert_fingerprints": ["여기에:앱:서명:키의:SHA-256:지문을:넣으세요"]
+    }
+  }
+]

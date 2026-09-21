@@ -992,7 +992,7 @@
     if (name === 'gear') renderGear(true);
     if (name === 'shop') renderShop(true);
     if (name === 'store') renderStore(true);
-    if (name === 'log') renderLog(true);
+    if (name === 'log') { renderLog(true); loadAttend(); }
     anim(document.querySelector(`.tab[data-tab="${name}"]`), [{ opacity: 0, transform: 'translateY(10px)' }, { opacity: 1, transform: 'none' }], { duration: 220, easing: 'ease-out' });
   }
   $('nav').addEventListener('click', (e) => {
@@ -1560,11 +1560,14 @@
       if (n > 0) { if (!badge) { badge = document.createElement('i'); badge.className = 'seg__n'; b.appendChild(badge); } if (badge.textContent !== String(n)) badge.textContent = n; }
       else if (badge) badge.remove();
     }
-    $('segQuest').hidden = logSeg === 'ach';
+    $('segQuest').hidden = logSeg === 'ach' || logSeg === 'rank';
     $('segAch').hidden = logSeg !== 'ach';
-    if (logSeg === 'ach') renderAchieves(force); else renderQuests(force);
+    $('segRank').hidden = logSeg !== 'rank';
+    if (logSeg === 'ach') renderAchieves(force);
+    else if (logSeg === 'rank') renderRank(force);
+    else { renderQuests(force); if (logSeg === 'daily') renderAttend(force); else $('attendCard').hidden = true; }
   }
-  $('logSeg').addEventListener('click', (e) => { const b = e.target.closest('button[data-seg]'); if (b) { logSeg = b.dataset.seg; questKey = ''; achieveKey = ''; renderLog(true); } });
+  $('logSeg').addEventListener('click', (e) => { const b = e.target.closest('button[data-seg]'); if (b) { logSeg = b.dataset.seg; questKey = ''; achieveKey = ''; attendKey = ''; rankKey = ''; if (logSeg === 'rank') { submitRank(true); loadRank(true); } if (logSeg === 'daily') loadAttend(); renderLog(true); } });
   function claimAchieves(ids) {
     let sum = 0;
     for (const id of ids) sum += G.claimAchievement(state, id);
@@ -1595,6 +1598,153 @@
       }
     }
   });
+
+
+  // ---- 서버 출석 · 친선 랭킹 (로그인해야 하고, 서버 규칙이 켜져 있어야 한다) ----
+  const Social = window.GoblinSocial;
+  const hasFn = (n) => !!cloudAdapter && typeof cloudAdapter[n] === 'function';
+  const loggedIn = () => !!cloud.state().user;
+  const socialError = (e) => {
+    const c = (e && e.code) || '';
+    if (c === 'permission-denied') return '서버 규칙이 아직 켜져 있지 않거나 값이 맞지 않아요. 잠시 뒤 다시 시도해 주세요.';
+    if (c === 'unavailable' || c === 'auth/network-request-failed') return '인터넷 연결을 확인해 주세요.';
+    if (c === 'auth/requires-login') return '먼저 Google 계정을 연동해 주세요.';
+    return (e && e.message) || '알 수 없는 오류가 났어요.';
+  };
+  const todayNum = () => { const t = serverNow(); return t === null ? null : Social.dayNumOf(t); };
+
+  // 출석
+  let socialUid = '';
+  let attendRec, attendKey = '', attendMsg = '', attendBusy = false, attendLoaded = false;   // attendRec: undefined 아직 모름 | null 기록 없음 | 기록
+  async function loadAttend() {
+    if (!hasFn('attendGet') || !loggedIn() || attendLoaded) return;
+    attendLoaded = true;
+    try { attendRec = await cloudAdapter.attendGet(); } catch (e) { attendLoaded = false; attendMsg = socialError(e); }
+    attendKey = ''; if (currentTab === 'log') renderLog(false);
+  }
+  function renderAttend(force) {
+    const el = $('attendCard');
+    if (!hasFn('attendCheckIn')) { el.hidden = true; return; }
+    el.hidden = false;
+    const today = todayNum(), rec = attendRec;
+    const key = [loggedIn(), today, rec ? rec.day + ':' + rec.streak : String(rec), state.attend.claimed, attendMsg, attendBusy].join('|');
+    if (!force && key === attendKey) return;
+    attendKey = key;
+    const done = rec && rec.day === today;
+    const streak = rec && today !== null && rec.day >= today - 1 ? rec.streak : 0;   // 하루 이상 건너뛰었으면 연속이 끊긴 것
+    const showStreak = done ? rec.streak : streak;
+    const cycle = Store.ATTEND_REWARDS;
+    const inCycle = showStreak === 0 ? 0 : ((showStreak - 1) % cycle.length) + 1;   // 이번 주기에서 채운 칸 수
+    const nextIdx = done ? inCycle : (inCycle % cycle.length);
+    let btn, msg = attendMsg;
+    if (!loggedIn()) { btn = '<button class="btn" type="button" data-attend="login">Google 연동</button>'; msg = msg || '계정을 연동하면 서버에 기록되는 출석 보상을 받아요. (기기 시계를 바꿔도 소용없어요)'; }
+    else if (today === null) { btn = '<button class="btn btn--gray" type="button" disabled>출석 체크</button>'; msg = msg || '서버 시각을 확인하지 못했어요. 인터넷에 연결되면 할 수 있어요.'; }
+    else if (rec === undefined) { btn = '<button class="btn btn--gray" type="button" disabled>불러오는 중</button>'; }
+    else if (!done) { btn = `<button class="btn btn--gold" type="button" data-attend="check" ${attendBusy ? 'disabled' : ''}>출석 체크</button>`; }
+    else if (state.attend.claimed < today) { btn = '<button class="btn btn--gold" type="button" data-attend="claim">보상 받기</button>'; }
+    else { btn = '<button class="btn btn--gray" type="button" disabled>오늘 완료</button>'; }
+    el.innerHTML = `<div class="attend__head"><span>출석 체크 <small>${showStreak > 0 ? `${showStreak}일 연속` : '연속 0일'}${rec ? ` · 누적 ${rec.total}일` : ''}</small></span>${btn}</div>` +
+      `<div class="attend__days">${cycle.map((r, i) => `<div class="attend__day ${i < inCycle ? 'is-done' : ''} ${i === nextIdx && !done ? 'is-today' : ''}">${i + 1}일<b>${r}</b></div>`).join('')}</div>` +
+      (msg ? `<p class="attend__msg">${msg}</p>` : '<p class="attend__msg">하루에 한 번, 한국 시간 자정에 바뀌어요. 7일을 채우면 처음부터 다시 시작해요.</p>');
+  }
+  async function doAttend() {
+    const today = todayNum();
+    if (attendBusy || today === null) return;
+    attendBusy = true; attendMsg = ''; renderAttend(true);
+    try {
+      const r = await cloudAdapter.attendCheckIn(today);
+      attendRec = r.rec;
+    } catch (e) { attendMsg = socialError(e); }
+    attendBusy = false;
+    claimAttendReward();
+    renderAttend(true);
+  }
+  function claimAttendReward() {
+    const today = todayNum();
+    if (today === null || !attendRec) return;
+    const got = G.claimAttend(state, attendRec, today);
+    if (got > 0) {
+      addLog(`출석 보상! 크리스탈 +${got} (${attendRec.streak}일 연속)`, 'is-gold', 'gem');
+      floatText(`+${got} 크리스탈`, 'float--big', 'center');
+      cloudSoon(); writeSave(); render();
+      openModal('출석 완료!', `<div style="font-size:15px;font-weight:900">${GEM} 크리스탈 +${got}</div><div style="margin-top:6px;color:var(--muted)">${attendRec.streak}일 연속 출석이에요.</div>`, [{ text: '확인', cls: 'btn--gold' }]);
+    }
+  }
+  $('attendCard').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-attend]');
+    if (!b) return;
+    if (b.dataset.attend === 'login') $('settingsBtn').click();
+    else if (b.dataset.attend === 'check') doAttend();
+    else if (b.dataset.attend === 'claim') { claimAttendReward(); renderAttend(true); }
+  });
+
+  // 랭킹
+  let rankBoard = 'best', rankKey = '', rankMsg = '', rankBusy = false, lastRankSent = null, lastRankAt = 0, rankBlockedUntil = 0;
+  const rankCache = {};   // { 종류: { at, rows } } — 읽기 횟수를 아끼려고 1분 동안 다시 부르지 않는다
+  async function submitRank(force) {
+    if (!hasFn('rankSubmit') || !loggedIn() || !state.nick || Date.now() < rankBlockedUntil) return;
+    const entry = Social.rankEntry(state, state.nick, G.lookId(state));
+    if (!entry || !Social.rankChanged(lastRankSent, entry)) return;
+    if (!force && Date.now() - lastRankAt < 5 * 60e3) return;
+    if (Date.now() - lastRankAt < 31e3) return;   // 서버 규칙: 30초에 한 번
+    lastRankAt = Date.now();
+    try { await cloudAdapter.rankSubmit(entry); lastRankSent = entry; rankMsg = ''; delete rankCache[rankBoard]; }
+    catch (e) { rankMsg = socialError(e); rankBlockedUntil = Date.now() + 10 * 60e3; }
+    if (currentTab === 'log' && logSeg === 'rank') { rankKey = ''; renderLog(false); }
+  }
+  async function loadRank(force) {
+    if (!hasFn('rankTop') || !loggedIn() || !state.nick || rankBusy) return;
+    const c = rankCache[rankBoard];
+    if (!force && c && Date.now() - c.at < 60e3) return;
+    if (c && Date.now() - c.at < 20e3) return;
+    rankBusy = true; rankKey = ''; if (currentTab === 'log') renderLog(false);
+    try { rankCache[rankBoard] = { at: Date.now(), rows: await cloudAdapter.rankTop(Social.RANK_BOARDS.find((b) => b.id === rankBoard).field, 50) }; rankMsg = ''; }
+    catch (e) { rankMsg = socialError(e); }
+    rankBusy = false; rankKey = ''; if (currentTab === 'log') renderLog(false);
+  }
+  function renderRank(force) {
+    const el = $('rankBody');
+    const c = rankCache[rankBoard];
+    const key = [loggedIn(), state.nick, rankBoard, rankBusy, rankMsg, c ? c.at : 0, hasFn('rankTop')].join('|');
+    if (!force && key === rankKey) return;
+    rankKey = key;
+    if (!hasFn('rankTop')) { el.innerHTML = '<div class="rankempty">랭킹은 Firebase 연결이 있어야 해요.</div>'; return; }
+    if (!loggedIn()) { el.innerHTML = '<div class="rankempty">Google 계정을 연동하면 랭킹에 참여할 수 있어요.<br><button class="btn btn--gold" type="button" data-rank="login" style="margin-top:8px">Google 연동</button></div>'; return; }
+    if (!state.nick) { el.innerHTML = '<div class="rankempty">랭킹에 보일 닉네임을 정해 주세요.<br>참여하면 닉네임과 기록이 다른 로그인 사용자에게 보여요.<br><button class="btn btn--gold" type="button" data-rank="nick" style="margin-top:8px">닉네임 정하고 참여</button></div>'; return; }
+    const board = Social.RANK_BOARDS.find((b) => b.id === rankBoard);
+    const chips = `<div class="rankchips">${Social.RANK_BOARDS.map((b) => `<button type="button" data-board="${b.id}" class="${b.id === rankBoard ? 'is-on' : ''}">${b.label}</button>`).join('')}</div>`;
+    let rows = '';
+    if (rankBusy && !c) rows = '<div class="rankempty">불러오는 중…</div>';
+    else if (c && c.rows.length === 0) rows = '<div class="rankempty">아직 기록이 없어요. 첫 번째가 되어 보세요!</div>';
+    else if (c) rows = c.rows.map((r, i) => `<div class="rankrow ${r.me ? 'is-me' : ''}"><div class="rankrow__n">${i + 1}</div><div class="rankrow__av">${A.goblin(G.NODES[r.look] ? r.look : 'novice', { head: true })}</div>` +
+      `<div class="rankrow__name">${esc(r.name)}<small>Lv.${r.level} · 환생 ${r.prestiges}회</small></div><div class="rankrow__val">${G.fmt(r[board.field])}${board.unit}</div></div>`).join('');
+    const mine = Social.rankEntry(state, state.nick, G.lookId(state));
+    el.innerHTML = chips + rows +
+      (mine ? `<div class="rankrow is-me" style="margin-top:8px"><div class="rankrow__n">나</div><div class="rankrow__av">${A.goblin(G.lookId(state), { head: true })}</div><div class="rankrow__name">${esc(mine.name)}<small>${rankMsg ? '' : '내 기록 (5분마다 올라가요)'}</small></div><div class="rankrow__val">${G.fmt(mine[board.field])}${board.unit}</div></div>` : '') +
+      (rankMsg ? `<div class="rankempty">${rankMsg}</div>` : '') +
+      '<div class="rankfoot"><button class="link" type="button" data-rank="refresh">새로고침</button><button class="link" type="button" data-rank="nick">닉네임 바꾸기</button><button class="link" type="button" data-rank="remove">내 기록 지우기</button></div>';
+  }
+  function askNick() {
+    openModal('닉네임 정하기', `<div>랭킹에 보일 이름이에요. 한글·영문·숫자 12자까지.<br><small>다른 로그인 사용자에게 보여요.</small></div><input class="nickinput" id="nickInput" maxlength="12" value="${esc(state.nick)}" autocomplete="off">`,
+      [{ text: '취소' }, { text: '저장', cls: 'btn--gold', onClick: () => {
+        const v = Social.sanitizeNick(($('nickInput') || {}).value);
+        if (!v) { openModal('닉네임을 확인해 주세요', '한글·영문·숫자로 1~12자를 써 주세요.', [{ text: '확인', onClick: askNick }]); return; }
+        state.nick = v; lastRankSent = null; cloudSoon(); writeSave(); rankKey = '';
+        submitRank(true); loadRank(true); renderLog(true);
+      } }]);
+  }
+  $('rankBody').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-rank], button[data-board]');
+    if (!b) return;
+    if (b.dataset.board) { rankBoard = b.dataset.board; rankKey = ''; loadRank(false); renderLog(true); return; }
+    const a = b.dataset.rank;
+    if (a === 'login') $('settingsBtn').click();
+    else if (a === 'nick') askNick();
+    else if (a === 'refresh') loadRank(true);
+    else if (a === 'remove') openModal('랭킹에서 지울까요?', '서버에 올린 내 기록을 지워요. 게임 진행에는 영향이 없고, 닉네임을 다시 정하면 다시 참여해요.',
+      [{ text: '취소' }, { text: '지우기', cls: 'btn--blue', onClick: async () => { try { await cloudAdapter.rankRemove(); state.nick = ''; lastRankSent = null; for (const k of Object.keys(rankCache)) delete rankCache[k]; cloudSoon(); writeSave(); } catch (err) { rankMsg = socialError(err); } rankKey = ''; renderLog(true); } }]);
+  });
+  setInterval(() => { if (!booting && !document.hidden) submitRank(false); }, 60000);   // 기록이 바뀌었을 때만, 5분에 한 번까지 올린다
 
   // ---- 이벤트 처리 ----
   function handleEvents(events) {
@@ -2185,7 +2335,16 @@
     applySave: applyCloudSave,
     askConflict,
     storage: cloudStorage,
-    onChange: (st) => renderAccount(st),
+    onChange: (st) => {
+      renderAccount(st);
+      const uid = st.user ? st.user.uid : '';
+      if (uid !== socialUid) {   // 로그인하거나 계정이 바뀌면 출석·랭킹 기록을 다시 확인한다
+        socialUid = uid; attendRec = undefined; attendLoaded = false; attendKey = ''; rankKey = ''; lastRankSent = null; lastRankAt = 0; rankBlockedUntil = 0; attendMsg = ''; rankMsg = '';
+        for (const k of Object.keys(rankCache)) delete rankCache[k];
+        if (uid) { loadAttend(); submitRank(true); }
+        if (currentTab === 'log') renderLog(true);
+      }
+    },
   });
 
   window.GoblinCloud = cloud;   // 점검 도구와 개발자 콘솔에서 동기화를 직접 불러 볼 수 있게 한다 (화면에는 저장 버튼이 없다)

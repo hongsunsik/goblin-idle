@@ -1,3 +1,8 @@
 .DS_Store
 CLAUDE.local.md
 images/_raw/
+
+# 안드로이드 앱 서명 키 (절대 올리지 않는다)
+*.keystore
+*.jks
+goblin-android/

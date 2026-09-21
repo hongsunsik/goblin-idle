@@ -2,6 +2,7 @@
 // 저장 위치: Firestore 문서 saves/{uid} = { save(문자열), summary, rev(정수), updatedAt }
 // 필요한 설정은 docs/FIREBASE-SETUP.md 참고. 설정(firebase-config.js)이 비어 있으면 이 파일은 쓰이지 않는다.
 (function (root) {
+  const Social = typeof module !== 'undefined' && module.exports ? require('./social.js') : root.GoblinSocial;
   const SDK_VERSION = '10.14.1';
   const CDN = `https://www.gstatic.com/firebasejs/${SDK_VERSION}/`;
 
@@ -79,6 +80,52 @@
         const u = b.auth.currentUser;
         if (!u) throw Object.assign(new Error('로그인이 필요해요'), { code: 'auth/requires-login' });
         return toRemote(await b.m.firestore.getDoc(ref(b, u.uid)));
+      },
+
+      // ---- 친선 랭킹 (ranks/{uid}) · 서버 출석 (attendance/{uid}) ----
+      // 둘 다 로그인해야 하고, 값의 범위·날짜는 firestore.rules가 서버에서 검사한다 (규칙이 게시되지 않았으면 permission-denied가 난다).
+      async rankSubmit(entry) {
+        const b = await boot();
+        const u = b.auth.currentUser;
+        if (!u) throw Object.assign(new Error('로그인이 필요해요'), { code: 'auth/requires-login' });
+        await b.m.firestore.setDoc(b.m.firestore.doc(b.db, 'ranks', u.uid), Object.assign({}, entry, { updatedAt: b.m.firestore.serverTimestamp() }));
+      },
+      async rankTop(field, n) {
+        const b = await boot();
+        const f = b.m.firestore;
+        const snap = await f.getDocs(f.query(f.collection(b.db, 'ranks'), f.orderBy(field, 'desc'), f.limit(Math.min(100, n || 50))));
+        const me = b.auth.currentUser ? b.auth.currentUser.uid : '';
+        return snap.docs.map((d) => Object.assign({ me: d.id === me }, d.data(), { updatedAt: undefined }));
+      },
+      async rankRemove() {
+        const b = await boot();
+        const u = b.auth.currentUser;
+        if (!u) throw Object.assign(new Error('로그인이 필요해요'), { code: 'auth/requires-login' });
+        await b.m.firestore.deleteDoc(b.m.firestore.doc(b.db, 'ranks', u.uid));
+      },
+      async attendGet() {
+        const b = await boot();
+        const u = b.auth.currentUser;
+        if (!u) throw Object.assign(new Error('로그인이 필요해요'), { code: 'auth/requires-login' });
+        const snap = await b.m.firestore.getDoc(b.m.firestore.doc(b.db, 'attendance', u.uid));
+        if (!snap.exists()) return null;
+        const d = snap.data();
+        return { day: d.day, streak: d.streak, total: d.total, best: d.best };
+      },
+      // 오늘(today = 한국 시간 날짜 번호)의 출석을 기록한다. 이미 했으면 { already: true, rec }. 날짜가 서버 시각과 어긋나면 규칙이 거절한다.
+      async attendCheckIn(today) {
+        const b = await boot();
+        const u = b.auth.currentUser;
+        if (!u) throw Object.assign(new Error('로그인이 필요해요'), { code: 'auth/requires-login' });
+        const r = b.m.firestore.doc(b.db, 'attendance', u.uid);
+        return b.m.firestore.runTransaction(b.db, async (tx) => {
+          const snap = await tx.get(r);
+          const prev = snap.exists() ? (({ day, streak, total, best }) => ({ day, streak, total, best }))(snap.data()) : null;
+          const next = Social.nextAttend(prev, today);
+          if (!next) return { already: true, rec: prev };
+          tx.set(r, Object.assign({}, next, { updatedAt: b.m.firestore.serverTimestamp() }));
+          return { ok: true, rec: next };
+        });
       },
 
       // 트랜잭션으로 "내가 마지막으로 본 rev와 서버 rev가 같을 때만" 저장한다. 다르면 다른 기기가 먼저 저장한 것이라 덮어쓰지 않고 알린다.

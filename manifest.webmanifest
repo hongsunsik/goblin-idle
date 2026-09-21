@@ -1,0 +1,19 @@
+{
+  "id": "./",
+  "name": "고블린 키우기",
+  "short_name": "고블린",
+  "description": "작은 고블린을 키워 직업을 고르고 왕이 되는 방치형 RPG",
+  "lang": "ko",
+  "start_url": "./?source=pwa",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#070d1c",
+  "theme_color": "#070d1c",
+  "categories": ["games"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

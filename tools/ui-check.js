@@ -30,6 +30,21 @@ const FAKE_CLOUD = `(() => {
       store({ save, summary, rev: c + 1, updatedAt: Date.now() });
       return { ok: true, rev: c + 1 };
     },
+    // 친선 랭킹·서버 출석 (서버 규칙은 흉내 내지 않고, 화면이 올바르게 부르는지만 본다)
+    async rankSubmit(e) { const d = JSON.parse(localStorage.getItem('fake-ranks') || '{}'); d[user.uid] = e; localStorage.setItem('fake-ranks', JSON.stringify(d)); },
+    async rankTop(field, n) {
+      const d = Object.assign({ x1: { name: '고수', best: 120, tokens: 300, ach: 60, prestiges: 30, level: 90, look: 'mage' }, x2: { name: '뉴비', best: 12, tokens: 0, ach: 3, prestiges: 0, level: 8, look: 'novice' } }, JSON.parse(localStorage.getItem('fake-ranks') || '{}'));
+      return Object.keys(d).map((k) => Object.assign({ me: k === user.uid }, d[k])).sort((a, b) => b[field] - a[field]).slice(0, n);
+    },
+    async rankRemove() { const d = JSON.parse(localStorage.getItem('fake-ranks') || '{}'); delete d[user.uid]; localStorage.setItem('fake-ranks', JSON.stringify(d)); },
+    async attendGet() { return JSON.parse(localStorage.getItem('fake-attend') || 'null'); },
+    async attendCheckIn(today) {
+      const prev = JSON.parse(localStorage.getItem('fake-attend') || 'null');
+      const next = window.GoblinSocial.nextAttend(prev, today);
+      if (!next) return { already: true, rec: prev };
+      localStorage.setItem('fake-attend', JSON.stringify(next));
+      return { ok: true, rec: next };
+    },
   };
 })();`;
 
@@ -492,7 +507,7 @@ const FAKE_CLOUD = `(() => {
     await reopen(t1);
     check('받을 업적 보상이 있으면 기록 탭에 알림 점이 뜬다', await ev(`!document.querySelector('[data-go="log"] .dot').hidden`));
     await click('[data-go="log"]'); await sleep(400);
-    check('기록 탭에 일일·주간·월간·업적 분류 단추가 있고 일일이 먼저 열려 있다', (await ev(`[...document.querySelectorAll('#logSeg button')].map((b) => b.dataset.seg).join(',')`)) === 'daily,weekly,monthly,ach' && (await ev(`document.querySelector('#logSeg .is-on').dataset.seg`)) === 'daily');
+    check('기록 탭에 일일·주간·월간·업적·랭킹 분류 단추가 있고 일일이 먼저 열려 있다', (await ev(`[...document.querySelectorAll('#logSeg button')].map((b) => b.dataset.seg).join(',')`)) === 'daily,weekly,monthly,ach,rank' && (await ev(`document.querySelector('#logSeg .is-on').dataset.seg`)) === 'daily');
     check('일일 퀘스트 5개가 보이고 "접속하기"는 이미 끝나 받을 수 있다', (await ev(`document.querySelectorAll('#qList .ach').length`)) === 5 && (await txt('#qList')).includes('오늘 접속하기') && (await ev(`!!document.querySelector('#qList [data-qclaim="daily:attend"]')`)));
     check('퀘스트 화면에 초기화까지 남은 시간(또는 서버 시각 안내)과 완료 보너스 칸이 있다', (await txt('#qHead')).length > 5 && (await txt('#qBonus')).includes('모두 완료 보너스'));
     for (const seg of ['weekly', 'monthly']) { await click(`#logSeg [data-seg="${seg}"]`); await sleep(200); check(`${seg === 'weekly' ? '주간' : '월간'} 퀘스트가 ${seg === 'weekly' ? 5 : 4}개 보인다`, (await ev(`document.querySelectorAll('#qList .ach').length`)) === (seg === 'weekly' ? 5 : 4)); }
@@ -624,6 +639,34 @@ const FAKE_CLOUD = `(() => {
     await click('#modalActions .btn'); await sleep(200);
     await click('[data-go="log"]'); await sleep(300);
     check('기록 탭에 오프라인 보상 한도와 시간 기준 안내가 있다', (await txt('#awayNote')).includes('최대 8시간') && (await txt('#awayNote')).includes('기준'));
+
+    console.log('서버 출석 · 친선 랭킹 (가짜 서버)');
+    const injS = (await send('Page.addScriptToEvaluateOnNewDocument', { source: `window.__realNow = Date.now.bind(Date); window.fetch = async () => new Response(null, { headers: { Date: new Date(window.__realNow()).toUTCString() } });` })).result.identifier;
+    await ev(`localStorage.removeItem('fake-attend'); localStorage.removeItem('fake-ranks')`);
+    const fresh = G.createState(0);
+    await reopen(fresh);
+    await click('[data-go="log"]'); await sleep(400);
+    check('일일 화면 위에 출석 카드가 있고, 로그인 전에는 연동 안내가 나온다', !(await ev(`document.getElementById('attendCard').hidden`)) && (await txt('#attendCard')).includes('계정을 연동') && (await ev(`document.querySelectorAll('#attendCard .attend__day').length`)) === 7);
+    await ev(`window.CLOUD_ADAPTER.signIn('google')`); await sleep(1200);
+    check('로그인하면 출석 체크 단추가 켜진다', await ev(`!!document.querySelector('#attendCard [data-attend="check"]:not(:disabled)')`), await txt('#attendCard'));
+    await click('#attendCard [data-attend="check"]'); await sleep(500);
+    check('출석 체크를 하면 1일차 보상 3개 창이 뜨고 카드가 "오늘 완료"·1일 연속이 된다', (await txt('#modalTitle')).includes('출석') && (await txt('#modalBody')).includes('+3') && (await txt('#attendCard')).includes('오늘 완료') && (await txt('#attendCard')).includes('1일 연속') && (await ev(`document.querySelectorAll('#attendCard .attend__day.is-done').length`)) === 1, await txt('#attendCard'));
+    await click('#modalActions .btn'); await sleep(200);
+    await click('#logSeg [data-seg="rank"]'); await sleep(400);
+    check('랭킹 화면에 "보상 없는 친선 랭킹" 안내가 있고, 닉네임이 없으면 참여 단추가 나온다', (await txt('#segRank')).includes('보상은 없어요') && !!(await ev(`document.querySelector('[data-rank="nick"]')`)));
+    await click('[data-rank="nick"]'); await sleep(250);
+    await ev(`document.getElementById('nickInput').value = '<>!!'`); await click('#modalActions .btn--gold'); await sleep(300);
+    check('쓸 수 없는 닉네임이면 다시 안내하고 저장하지 않는다', (await txt('#modalTitle')).includes('닉네임') && (await ev(`!!document.querySelector('[data-rank="nick"]')`)));
+    await click('#modalActions .btn'); await sleep(250);
+    await ev(`document.getElementById('nickInput').value = '테스트 고블린'`); await click('#modalActions .btn--gold'); await sleep(900);
+    check('닉네임을 저장하면 랭킹 3줄(고수·뉴비·나)이 높은 순으로 보이고 내 줄이 표시된다', (await ev(`document.querySelectorAll('#rankBody .rankrow').length`)) >= 3 && (await ev(`document.querySelectorAll('#rankBody .rankrow.is-me').length`)) >= 1 && (await txt('#rankBody .rankrow')).includes('고수'), await txt('#rankBody'));
+    check('종류 단추 3개(최고 스테이지·누적 증표·업적)가 있다', (await ev(`document.querySelectorAll('#rankBody .rankchips button').length`)) === 3);
+    await click('#rankBody [data-board="ach"]'); await sleep(500);
+    check('종류를 바꾸면 그 기준으로 다시 정렬해 보여 준다', (await ev(`document.querySelector('#rankBody .rankchips .is-on').dataset.board`)) === 'ach' && (await txt('#rankBody .rankrow')).includes('고수'));
+    await click('[data-rank="remove"]'); await sleep(250);
+    await click('#modalActions .btn--blue'); await sleep(600);
+    check('내 기록 지우기를 하면 닉네임이 비워져 참여 화면으로 돌아간다', !!(await ev(`document.querySelector('[data-rank="nick"]')`)) && (await txt('#rankBody')).includes('닉네임을 정해'));
+    await send('Page.removeScriptToEvaluateOnNewDocument', { identifier: injS });
 
     console.log('오래 돌려도 안정적인가 (전투 10초)');
     await ev(`document.querySelector('[data-go="upgrade"]').click()`);

@@ -1,0 +1,23 @@
+{
+  "_설명": "Bubblewrap이 `bubblewrap init`으로 만들어 주는 twa-manifest.json의 참고용 초안입니다. packageId·서명 키·버전은 직접 정하세요. docs/ANDROID-TWA.md 참고.",
+  "packageId": "io.github.hongsunsik.raisegoblin",
+  "host": "hongsunsik.github.io",
+  "name": "고블린 키우기",
+  "launcherName": "고블린 키우기",
+  "display": "standalone",
+  "orientation": "portrait",
+  "themeColor": "#070d1c",
+  "navigationColor": "#070d1c",
+  "backgroundColor": "#070d1c",
+  "startUrl": "/goblin-idle/?source=twa",
+  "iconUrl": "https://hongsunsik.github.io/goblin-idle/icons/icon-512.png",
+  "maskableIconUrl": "https://hongsunsik.github.io/goblin-idle/icons/icon-maskable-512.png",
+  "webManifestUrl": "https://hongsunsik.github.io/goblin-idle/manifest.webmanifest",
+  "fullScopeUrl": "https://hongsunsik.github.io/goblin-idle/",
+  "appVersionName": "1.0.0",
+  "appVersionCode": 1,
+  "enableNotifications": false,
+  "signingKey": { "path": "./android.keystore", "alias": "goblin" },
+  "features": {},
+  "_결제를_켤_때": "Play Billing을 쓰려면 features에 playBilling을 켜고 alphaDependencies를 켠다 (Bubblewrap 1.8.2 이상). 서버 검증이 준비된 뒤에만."
+}

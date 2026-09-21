@@ -913,6 +913,18 @@ function stubSdk() {
       doc: (db, col, id) => ({ path: col + '/' + id }),
       getDoc: async (ref) => ({ exists: () => ref.path in store, data: () => store[ref.path] }),
       serverTimestamp: () => ({ toMillis: () => 12345 }),
+      setDoc: async (ref, data) => { store[ref.path] = data; calls.push('setDoc:' + ref.path); },
+      deleteDoc: async (ref) => { delete store[ref.path]; calls.push('deleteDoc:' + ref.path); },
+      collection: (db, name) => ({ col: name }),
+      orderBy: (f, dir) => ({ f, dir }),
+      limit: (n) => ({ n }),
+      query: (c, ...cons) => ({ c, cons }),
+      getDocs: async (q) => {
+        const f = q.cons.find((x) => x.f).f, n = q.cons.find((x) => x.n).n;
+        calls.push(`query:${q.c.col}:${f}:${n}`);
+        const docs = Object.keys(store).filter((p) => p.startsWith(q.c.col + '/')).map((p) => ({ id: p.split('/')[1], data: () => store[p] })).sort((x, y) => y.data()[f] - x.data()[f]).slice(0, n);
+        return { docs };
+      },
       runTransaction: async (db, fn) => fn({
         get: async (ref) => ({ exists: () => ref.path in store, data: () => store[ref.path] }),
         set: (ref, data) => { store[ref.path] = data; },
@@ -2374,6 +2386,151 @@ test('퀘스트 보상 크리스탈이 상한(10억)을 넘지 않는다', () =>
   const s = G.createState(0); G.questSync(s, '2026-09-22'); s.crystals = 1e9 - 1;
   G.claimQuest(s, 'daily', 'attend');
   assert.strictEqual(s.crystals, 1e9);
+});
+
+
+section('친선 랭킹 · 서버 출석');
+const Social = require('../social.js');
+test('한국 시간 기준 날짜 번호: 자정(한국 시간)에 바뀐다', () => {
+  const kst = (y, m, d, h, mi) => Date.UTC(y, m - 1, d, h - 9, mi);
+  assert.strictEqual(Social.dayNumOf(kst(2026, 9, 22, 0, 0)), Social.dayNumOf(kst(2026, 9, 22, 23, 59)));
+  assert.strictEqual(Social.dayNumOf(kst(2026, 9, 23, 0, 0)), Social.dayNumOf(kst(2026, 9, 22, 12, 0)) + 1);
+  assert.strictEqual(Social.dayNumOf(Date.UTC(1970, 0, 1, 14, 59)), 0);   // 1970-01-01 23:59 KST
+  assert.strictEqual(Social.dayNumOf(Date.UTC(1970, 0, 1, 15, 0)), 1);
+});
+test('닉네임은 한글·영문·숫자·공백·밑줄만 12자까지 남기고, 못 쓰면 빈 문자열이다', () => {
+  assert.strictEqual(Social.sanitizeNick('  홍길동  '), '홍길동');
+  assert.strictEqual(Social.sanitizeNick('a<b>c"d\'e&f'), 'abcdef');
+  assert.strictEqual(Social.sanitizeNick('가나다라마바사아자차카타파하'), '가나다라마바사아자차카타');
+  assert.strictEqual(Social.sanitizeNick('Goblin   King_1'), 'Goblin King_', '공백은 하나로, 12자까지');
+  assert.strictEqual(Social.sanitizeNick('Goblin_1'), 'Goblin_1');
+  for (const bad of ['', '   ', '<>!@#', null, undefined, 123]) assert.ok(Social.sanitizeNick(bad) === '' || typeof Social.sanitizeNick(bad) === 'string');
+  assert.strictEqual(Social.sanitizeNick('<>!@#'), '');
+});
+test('랭킹에 올리는 값은 서버 규칙이 허용하는 범위 안으로 맞춰지고, 닉네임이 없으면 올리지 않는다', () => {
+  const s = G.createState(0); s.bestStage = 9999; s.tokens = -5; s.level = 3.7; s.prestiges = 2; s.achieved = { kill100: true, stage10: true };
+  assert.strictEqual(Social.rankEntry(s, '', 'mage'), null);
+  const e = Social.rankEntry(s, '고블린왕', 'mage');
+  assert.deepStrictEqual(e, { name: '고블린왕', best: 500, tokens: 0, ach: 2, prestiges: 2, level: 3, look: 'mage' });
+  assert.deepStrictEqual(Object.keys(e).sort(), ['ach', 'best', 'level', 'look', 'name', 'prestiges', 'tokens']);
+  assert.strictEqual(Social.rankEntry(s, '이름', 5).look, 'novice');
+});
+test('랭킹 값이 그대로면 다시 올리지 않는다 (쓰기 횟수 절약)', () => {
+  const s = G.createState(0); const a = Social.rankEntry(s, '나', 'novice');
+  assert.strictEqual(Social.rankChanged(null, a), true);
+  assert.strictEqual(Social.rankChanged(a, Object.assign({}, a)), false);
+  assert.strictEqual(Social.rankChanged(a, Object.assign({}, a, { best: 2 })), true);
+});
+test('출석 계산: 첫 출석 1일, 어제 했으면 연속 +1, 건너뛰면 1부터, 오늘 이미 했으면 없음 (서버 규칙과 같은 계산)', () => {
+  assert.deepStrictEqual(Social.nextAttend(null, 100), { day: 100, streak: 1, total: 1, best: 1 });
+  const a = Social.nextAttend(null, 100), b = Social.nextAttend(a, 101), c = Social.nextAttend(b, 102);
+  assert.deepStrictEqual(c, { day: 102, streak: 3, total: 3, best: 3 });
+  assert.strictEqual(Social.nextAttend(c, 102), null, '같은 날');
+  assert.strictEqual(Social.nextAttend(c, 101), null, '과거 날짜');
+  assert.deepStrictEqual(Social.nextAttend(c, 105), { day: 105, streak: 1, total: 4, best: 3 }, '끊기면 1부터, 최고 기록은 남는다');
+});
+test('출석 보상은 연속 일수의 7일 주기대로 3·3·5·5·8·8·20이다', () => {
+  const R = G.STORE.ATTEND_REWARDS;
+  assert.deepStrictEqual(R, [3, 3, 5, 5, 8, 8, 20]);
+  assert.deepStrictEqual([1, 2, 3, 4, 5, 6, 7, 8, 14, 15].map((d) => Social.attendReward(d, R)), [3, 3, 5, 5, 8, 8, 20, 3, 20, 3]);
+});
+test('서버 출석 보상은 그날의 기록이 있고 그날 아직 안 받았을 때만 한 번 준다', () => {
+  const s = G.createState(0);
+  assert.strictEqual(G.claimAttend(s, null, 100), 0);
+  assert.strictEqual(G.claimAttend(s, { day: 99, streak: 3 }, 100), 0, '어제 기록은 오늘 보상이 아니다');
+  assert.strictEqual(G.claimAttend(s, { day: 100, streak: 3 }, 100), 5);
+  assert.strictEqual(G.claimAttend(s, { day: 100, streak: 3 }, 100), 0, '두 번 받을 수 없다');
+  assert.strictEqual(G.claimAttend(s, { day: 101, streak: 4 }, 101), 5);
+  assert.strictEqual(s.crystals, 10);
+  const back = G.deserialize(G.serialize(s, 1));
+  assert.deepStrictEqual([back.attend.claimed, back.crystals], [101, 10]);
+  s.crystals = 1e9 - 1; assert.strictEqual(G.claimAttend(s, { day: 102, streak: 7 }, 102), 20); assert.strictEqual(s.crystals, 1e9);
+});
+test('닉네임과 출석 받은 기록은 저장·복원되고, 조작된 값은 걸러진다', () => {
+  const s = G.createState(0); s.nick = '고블린왕';
+  assert.strictEqual(G.deserialize(G.serialize(s, 1)).nick, '고블린왕');
+  const o = JSON.parse(G.serialize(s, 1)); o.nick = '<script>alert(1)</script>가나'; o.attend = { claimed: -9 };
+  const c = G.deserialize(JSON.stringify(o));
+  assert.strictEqual(c.nick, 'scriptalert1', '특수문자는 지우고 12자까지');
+  assert.strictEqual(c.attend.claimed, 0);
+  const old = JSON.parse(G.serialize(s, 1)); delete old.nick; delete old.attend;
+  const d = G.deserialize(JSON.stringify(old));
+  assert.deepStrictEqual([d.nick, d.attend], ['', { claimed: 0 }]);
+});
+test('Firebase 어댑터: 랭킹 올리기·불러오기·지우기가 규칙에 맞는 모양으로 SDK를 부른다', async () => {
+  const sdk = stubSdk(), ad = CloudFirebase.createFirebaseAdapter(CFG, sdk);
+  await assert.rejects(() => ad.rankSubmit({ name: 'a' }), /로그인/);
+  sdk.loginNow();
+  const e1 = { name: '가', best: 50, tokens: 3, ach: 4, prestiges: 1, level: 30, look: 'mage' };
+  await ad.rankSubmit(e1);
+  assert.ok(sdk.calls.includes('setDoc:ranks/abc'));
+  assert.deepStrictEqual(Object.keys(sdk.store['ranks/abc']).sort(), ['ach', 'best', 'level', 'look', 'name', 'prestiges', 'tokens', 'updatedAt']);
+  sdk.store['ranks/other'] = { name: '나', best: 90, tokens: 1, ach: 1, prestiges: 0, level: 10, look: 'novice' };
+  const rows = await ad.rankTop('best', 500);
+  assert.deepStrictEqual(rows.map((r) => [r.name, r.me]), [['나', false], ['가', true]], '높은 순, 내 것 표시');
+  assert.ok(sdk.calls.includes('query:ranks:best:100'), '한 번에 100개까지만 요청한다: ' + sdk.calls.join(' '));
+  await ad.rankRemove();
+  assert.ok(!('ranks/abc' in sdk.store));
+});
+test('Firebase 어댑터: 출석은 하루 한 번, 연속·누적이 서버 규칙과 같게 계산된다', async () => {
+  const sdk = stubSdk(), ad = CloudFirebase.createFirebaseAdapter(CFG, sdk);
+  await assert.rejects(() => ad.attendCheckIn(100), /로그인/);
+  sdk.loginNow();
+  assert.strictEqual(await ad.attendGet(), null);
+  assert.deepStrictEqual((await ad.attendCheckIn(100)).rec, { day: 100, streak: 1, total: 1, best: 1 });
+  assert.deepStrictEqual(await ad.attendCheckIn(100), { already: true, rec: { day: 100, streak: 1, total: 1, best: 1 } });
+  assert.deepStrictEqual((await ad.attendCheckIn(101)).rec, { day: 101, streak: 2, total: 2, best: 2 });
+  assert.deepStrictEqual((await ad.attendCheckIn(105)).rec, { day: 105, streak: 1, total: 3, best: 2 });
+  assert.deepStrictEqual(await ad.attendGet(), { day: 105, streak: 1, total: 3, best: 2 });
+  assert.deepStrictEqual(Object.keys(sdk.store['attendance/abc']).sort(), ['best', 'day', 'streak', 'total', 'updatedAt']);
+});
+test('firestore.rules에 랭킹·출석 규칙이 있고 서버 시각·범위·30초 제한·본인 문서만 검사한다 (문자열 점검)', () => {
+  const rules = require('fs').readFileSync(require('path').join(__dirname, '..', 'firestore.rules'), 'utf8');
+  for (const must of ['match /ranks/{uid}', 'match /attendance/{uid}', 'math.floor((request.time.toMillis() + 32400000) / 86400000)', 'request.query.limit <= 100', "duration.value(30, 's')",
+    'request.resource.data.updatedAt == request.time', 'hasOnly([\'name\', \'best\'', 'match /wallets/{uid}', 'allow write: if false']) assert.ok(rules.includes(must), must);
+  assert.ok(!/allow (read|write)[^:]*: if true/.test(rules), '아무나 허용하는 규칙이 없다');
+  assert.strictEqual((rules.match(/\{/g) || []).length, (rules.match(/\}/g) || []).length, '중괄호 짝');
+});
+
+
+section('배포 파일 (웹 앱 설치 · 안드로이드 TWA 준비)');
+const fsx = require('fs'), pathx = require('path');
+const rootPath = (...p) => pathx.join(__dirname, '..', ...p);
+const pngSize = (file) => { const b = fsx.readFileSync(file); assert.strictEqual(b.slice(1, 4).toString(), 'PNG'); return [b.readUInt32BE(16), b.readUInt32BE(20)]; };
+test('manifest.webmanifest에 앱 이름·시작 주소·범위·세로 화면·색·아이콘(192·512·maskable)이 있고 아이콘 파일 크기가 맞다', () => {
+  const m = JSON.parse(fsx.readFileSync(rootPath('manifest.webmanifest'), 'utf8'));
+  for (const k of ['name', 'short_name', 'start_url', 'scope', 'display', 'background_color', 'theme_color', 'icons', 'lang']) assert.ok(m[k], k);
+  assert.strictEqual(m.display, 'standalone'); assert.strictEqual(m.orientation, 'portrait');
+  assert.ok(m.start_url.startsWith('./') && m.scope === './', '주소는 상대 경로라서 어느 주소에 올려도 맞다');
+  const has = (size, purpose) => m.icons.some((i) => i.sizes === size && i.purpose === purpose && i.type === 'image/png');
+  assert.ok(has('192x192', 'any') && has('512x512', 'any') && has('512x512', 'maskable'));
+  for (const i of m.icons) { const [w, h] = pngSize(rootPath(i.src)); assert.strictEqual(`${w}x${h}`, i.sizes, i.src); }
+  assert.deepStrictEqual(pngSize(rootPath('icons', 'apple-touch-icon.png')), [180, 180]);
+});
+test('index.html이 매니페스트·아이콘을 연결하고 https에서만 서비스 워커를 등록한다', () => {
+  const h = fsx.readFileSync(rootPath('index.html'), 'utf8');
+  assert.ok(h.includes('rel="manifest" href="manifest.webmanifest"') && h.includes('rel="apple-touch-icon"'));
+  assert.ok(h.includes("location.protocol === 'https:'") && h.includes("register('sw.js')"));
+  assert.ok(h.indexOf('social.js') < h.indexOf('game.js') && h.indexOf('store.js') < h.indexOf('game.js'), 'game.js보다 먼저 불러와야 하는 파일 순서');
+  for (const m of h.matchAll(/(?:src|href)="([^"?#:]+\.(?:js|css|png|webmanifest))(?:\?[^"]*)?"/g)) assert.ok(fsx.existsSync(rootPath(m[1])), '없는 파일: ' + m[1]);
+});
+test('서비스 워커는 GET·같은 사이트 요청만 다루고 네트워크 우선이라서 배포하면 바로 새 버전이 뜬다', () => {
+  const sw = fsx.readFileSync(rootPath('sw.js'), 'utf8');
+  assert.ok(sw.includes("req.method !== 'GET'") && sw.includes('url.origin !== self.location.origin'), 'HEAD·POST·다른 사이트 요청은 통과');
+  assert.ok(sw.indexOf('await fetch(req)') < sw.indexOf('caches.match'), '네트워크를 먼저 시도한다');
+  assert.ok(sw.includes('skipWaiting') && sw.includes('clients.claim'));
+  assert.ok(!sw.includes('cache.addAll'), '미리 저장하지 않는다 (오래된 파일이 남지 않게)');
+});
+test('TWA 초안과 assetlinks 견본이 올바른 JSON이고 주소·패키지 이름이 서로 맞는다', () => {
+  const tw = JSON.parse(fsx.readFileSync(rootPath('twa', 'twa-manifest.json'), 'utf8'));
+  const al = JSON.parse(fsx.readFileSync(rootPath('twa', 'assetlinks.sample.json'), 'utf8'));
+  assert.strictEqual(tw.host, 'hongsunsik.github.io');
+  assert.ok(tw.webManifestUrl.startsWith(`https://${tw.host}/goblin-idle/`) && tw.startUrl.startsWith('/goblin-idle/'));
+  assert.strictEqual(al[0].target.package_name, tw.packageId);
+  assert.strictEqual(al[0].target.namespace, 'android_app');
+  assert.ok(al[0].relation.includes('delegate_permission/common.handle_all_urls'));
+  assert.ok(!('playBilling' in tw.features), '결제는 서버 검증이 준비된 뒤에 켠다');
+  assert.ok(/keystore/.test(fsx.readFileSync(rootPath('.gitignore'), 'utf8')), '서명 키는 올리지 않는다');
 });
 
 queue.then(() => console.log(`\n${passed}개 통과` + (process.exitCode ? ', 실패 있음' : '')));

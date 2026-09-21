@@ -22,6 +22,53 @@ service cloud.firestore {
         && request.resource.data.updatedAt == request.time;
     }
 
+    function isOwner(uid) { return request.auth != null && request.auth.uid == uid; }
+    // 오늘의 날짜 번호 (한국 시간 기준, 1970-01-01 = 0). 서버 시각(request.time)으로만 정해서 기기 시계를 바꿔도 소용없다.
+    function today() { return math.floor((request.time.toMillis() + 32400000) / 86400000); }
+
+    // 친선 랭킹: 기록은 본인이 알리는 값이라 진짜인지 서버가 알 수 없다 → 보상을 걸지 않는다 (docs/STORE-BACKEND.md).
+    // 규칙이 하는 일: 본인 문서만 쓰기, 필드·범위 검사, 기록은 줄어들지 않게, 30초에 한 번만, 목록은 한 번에 100개까지.
+    function validRank(d) {
+      return d.keys().hasOnly(['name', 'best', 'tokens', 'ach', 'prestiges', 'level', 'look', 'updatedAt'])
+        && d.name is string && d.name.size() >= 1 && d.name.size() <= 12
+        && d.best is int && d.best >= 1 && d.best <= 500
+        && d.tokens is int && d.tokens >= 0 && d.tokens <= 100000
+        && d.ach is int && d.ach >= 0 && d.ach <= 300
+        && d.prestiges is int && d.prestiges >= 0 && d.prestiges <= 99999
+        && d.level is int && d.level >= 1 && d.level <= 999
+        && d.look is string && d.look.size() <= 24
+        && d.updatedAt == request.time;
+    }
+    match /ranks/{uid} {
+      allow get: if request.auth != null;
+      allow list: if request.auth != null && request.query.limit <= 100;
+      allow create: if isOwner(uid) && validRank(request.resource.data);
+      allow update: if isOwner(uid) && validRank(request.resource.data)
+        && request.resource.data.best >= resource.data.best
+        && request.resource.data.tokens >= resource.data.tokens
+        && request.resource.data.ach >= resource.data.ach
+        && request.resource.data.prestiges >= resource.data.prestiges
+        && request.time > resource.data.updatedAt + duration.value(30, 's');
+      allow delete: if isOwner(uid);   // 랭킹에서 내 기록 지우기
+    }
+
+    // 서버 출석: 하루에 한 번, 날짜는 서버 시각이 정한다. 연속 일수·누적 일수도 규칙이 계산해서 맞지 않으면 거절한다.
+    match /attendance/{uid} {
+      allow read: if isOwner(uid);
+      allow create: if isOwner(uid)
+        && request.resource.data.keys().hasOnly(['day', 'streak', 'total', 'best', 'updatedAt'])
+        && request.resource.data.day == today() && request.resource.data.streak == 1
+        && request.resource.data.total == 1 && request.resource.data.best == 1
+        && request.resource.data.updatedAt == request.time;
+      allow update: if isOwner(uid)
+        && request.resource.data.keys().hasOnly(['day', 'streak', 'total', 'best', 'updatedAt'])
+        && request.resource.data.day == today() && request.resource.data.day > resource.data.day
+        && request.resource.data.streak == (resource.data.day + 1 == request.resource.data.day ? resource.data.streak + 1 : 1)
+        && request.resource.data.total == resource.data.total + 1
+        && request.resource.data.best == (request.resource.data.streak > resource.data.best ? request.resource.data.streak : resource.data.best)
+        && request.resource.data.updatedAt == request.time;
+    }
+
     // 지갑(크리스탈): 나중에 실제 결제를 붙일 때 서버(Admin SDK)만 쓰게 할 자리다. 브라우저는 읽기만 하고, 쓰기는 모두 막아 둔다.
     // 지금은 아무 데도 쓰이지 않는다. (docs/PAYMENTS.md)
     match /wallets/{uid} {

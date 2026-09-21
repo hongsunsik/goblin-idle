@@ -802,3 +802,32 @@ svg { display: block; }
 .fx-wing { width: 58px; height: 76px; margin-top: -60px; mix-blend-mode: screen; clip-path: polygon(0 100%, 8% 55%, 30% 30%, 55% 12%, 100% 0, 78% 34%, 90% 44%, 62% 58%, 72% 74%, 38% 80%, 40% 100%); }
 .fx-speed { height: 3px; border-radius: 2px; }
 .fx-wing--l { clip-path: polygon(100% 100%, 92% 55%, 70% 30%, 45% 12%, 0 0, 22% 34%, 10% 44%, 38% 58%, 28% 74%, 62% 80%, 60% 100%); }
+
+/* ===== 출석 · 랭킹 ===== */
+.attend { padding: 10px 12px; margin-bottom: 10px; }
+.attend__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; font-size: 13px; font-weight: 900; }
+.attend__head small { font-size: 11px; font-weight: 700; color: var(--muted); }
+.attend__days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 8px; }
+.attend__day { padding: 4px 0 3px; text-align: center; font-size: 10px; font-weight: 800; color: var(--muted); background: rgba(0, 0, 0, 0.3); border: 1px solid var(--line); }
+.attend__day b { display: block; font-size: 12px; color: #8fd8ff; }
+.attend__day.is-done { color: #3a2400; background: linear-gradient(180deg, #fff0b8, #ffc84a); border-color: #ffd479; }
+.attend__day.is-done b { color: #6a3a00; }
+.attend__day.is-today { box-shadow: 0 0 8px rgba(255, 212, 121, 0.8); }
+.attend__msg { margin: 6px 0 0; font-size: 11px; color: var(--muted); line-height: 1.5; }
+.rankinfo { margin-bottom: 8px; padding: 6px 10px; font-size: 11px; line-height: 1.5; color: var(--muted); border: 1px dashed var(--line); }
+.rankinfo b { color: var(--gold); }
+.rankchips { display: flex; gap: 6px; margin-bottom: 8px; }
+.rankchips button { flex: 1; padding: 7px 4px 5px; font: inherit; font-size: 12px; font-weight: 900; color: var(--muted); background: rgba(0, 0, 0, 0.35); border: 1px solid var(--line); cursor: pointer; }
+.rankchips button.is-on { color: #3a2400; background: linear-gradient(180deg, #fff0b8, #ffc84a); }
+.rankrow { display: grid; grid-template-columns: 30px 32px 1fr auto; align-items: center; gap: 8px; padding: 6px 8px; margin-bottom: 4px; background: rgba(10, 30, 70, 0.5); border: 1px solid var(--line); }
+.rankrow.is-me { border-color: #ffd479; background: linear-gradient(180deg, rgba(90, 64, 10, 0.45), rgba(10, 30, 70, 0.5)); }
+.rankrow__n { text-align: center; font-size: 15px; font-weight: 900; color: var(--muted); }
+.rankrow:nth-child(-n+3) .rankrow__n { color: #ffd479; }
+.rankrow__av { width: 32px; height: 32px; overflow: hidden; }
+.rankrow__av svg, .rankrow__av img { width: 100%; height: 100%; object-fit: contain; }
+.rankrow__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 800; }
+.rankrow__name small { display: block; font-size: 10px; color: var(--muted); font-weight: 700; }
+.rankrow__val { font-size: 14px; font-weight: 900; color: #8fd8ff; }
+.rankempty { padding: 16px 8px; text-align: center; font-size: 12px; color: var(--muted); line-height: 1.6; }
+.rankfoot { display: flex; gap: 12px; justify-content: center; margin-top: 8px; }
+.nickinput { width: 100%; padding: 10px; margin-top: 8px; font: inherit; font-size: 16px; font-weight: 800; color: var(--ink); background: #0a1a3e; border: 1px solid var(--line); text-align: center; }

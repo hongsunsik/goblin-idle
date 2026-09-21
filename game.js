@@ -2,6 +2,7 @@
 (function (root) {
   const { ADVANCED3, ADVANCED4 } = typeof module !== 'undefined' && module.exports ? require('./classes.js') : root.GoblinClasses;
   const Sk = typeof module !== 'undefined' && module.exports ? require('./skills.js') : root.GoblinSkills;
+  const Social = typeof module !== 'undefined' && module.exports ? require('./social.js') : root.GoblinSocial;
   const St = typeof module !== 'undefined' && module.exports ? require('./store.js') : root.GoblinStore;
   const SAVE_VERSION = 1;
   const UNITS = ['', 'K', 'M', 'B', 'T', 'Qa', 'Qi', 'Sx', 'Sp', 'Oc'];
@@ -297,6 +298,16 @@
     return ev;
   }
 
+
+  // ---- 서버 출석 보상 ----
+  // rec = 서버에 기록된 출석 { day(날짜 번호), streak(연속 일수) }. 그 기록이 오늘(today = 날짜 번호)의 것이고 아직 이 날짜의 보상을 안 받았으면 크리스탈을 준다.
+  function claimAttend(s, rec, today) {
+    if (!rec || rec.day !== today || s.attend.claimed >= rec.day) return 0;
+    const reward = Social.attendReward(rec.streak, St.ATTEND_REWARDS);
+    s.attend.claimed = rec.day;
+    s.crystals = Math.min(1e9, s.crystals + reward);
+    return reward;
+  }
 
   // ---- 일일·주간·월간 퀘스트 ----
   // 기간이 시작될 때 목표 몇 개를 뽑고, 그 순간의 누적 기록을 기준점(base)으로 적어 둔다. 진행도 = 지금 기록 - 기준점이라서 이벤트마다 따로 셀 필요가 없다.
@@ -833,6 +844,8 @@
       dot: null,         // 몬스터에게 걸린 지속 피해 { t 남은 시간, dps 초당 피해, variant } (몬스터가 바뀌면 사라진다)
       hits: 0,           // 표시용: 지금까지 고블린이 때린 횟수. 화면이 타격 연출을 넣는 시점을 알려고 쓴다 (저장하지 않음)
       savedAt: now || 0,
+      nick: '',          // 랭킹에 보이는 닉네임 (비어 있으면 랭킹에 참여하지 않는다)
+      attend: { claimed: 0 },   // 서버 출석 보상을 마지막으로 받은 날짜 번호 (같은 날 두 번 받지 않게)
       srvSavedAt: 0,     // 마지막 저장 때 알던 서버 시각(ms, 모르면 0). 자리를 비운 시간을 서버 시각으로 재려고 쓴다
     };
     s.hp = maxHp(s);
@@ -1386,6 +1399,8 @@
     for (const k of Object.keys(s.stats)) s.stats[k] = clamp(num(o.stats && o.stats[k], 0), 0, 1e300);
     s.runT = clamp(num(o.runT, PRESTIGE_FULL_SEC), 0, 1e9);
     s.srvSavedAt = clamp(Math.floor(num(o.srvSavedAt, 0)), 0, 1e14);
+    s.nick = typeof o.nick === 'string' ? Social.sanitizeNick(o.nick) : '';
+    s.attend = { claimed: clamp(Math.floor(num(o.attend && o.attend.claimed, 0)), 0, 1e6) };
     for (const p of QUEST_PERIODS) {   // 퀘스트: 이름표와 목표 종류·수치를 검사하고, 받은 기록은 남아 있는 목표만 인정한다
       const q = o.quests && o.quests[p];
       const keyOk = q && typeof q.key === 'string' && (p === 'monthly' ? /^\d{4}-\d{2}$/ : /^\d{4}-\d{2}-\d{2}$/).test(q.key);
@@ -1495,7 +1510,7 @@
     PATH_FIELDS, ADV_IDS, advIdsOfTier, classTier, parentOf, childrenOf, classPath, deepest, DEX_STAGES, DEX_MEDALS, MASTERY_BASE, MEDAL_BONUS, dexStages, masteryOf, dexRecord, dexTier,
     RARITIES, GEAR, SLOT_KEYS, BAG_MAX, bagLimit, DROP_CHANCE, BOSS_DROP_CHANCE, LUCK_PER_LV,
     GEAR_DESIGNS, itemDesign, setRandom, itemName, sellValue, rollItem, dropChance, isUpgrade, receiveItem, equipItem, unequipItem, sellBagItem, sellBagUpTo, sellBagItems, isWeaker, bagWeaker, gearMult,
-    QUEST_PERIODS, QUEST_CFG, QUEST_DEFS, periodKeys, periodSecsLeft, questSync, questBoard, questClaimable, claimQuest, claimQuestBonus,
+    claimAttend, QUEST_PERIODS, QUEST_CFG, QUEST_DEFS, periodKeys, periodSecsLeft, questSync, questBoard, questClaimable, claimQuest, claimQuestBonus,
     PERKS, PERK_KEYS, HEADSTART_LV, perkLv, perkCost, perkSpent, tokenBalance, perkMissing, perkUnlocked, canBuyPerk, buyPerk, respecPerks, offlineCap,
     fmt, fmtTime,
   };

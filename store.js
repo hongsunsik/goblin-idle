@@ -81,6 +81,9 @@
   // ---- 시작 패키지 (계정당 1번) ----
   const STARTER = { id: 'starter', name: '시작 패키지', price: 250, desc: '영웅 장비 1개 + 황금 물약 + 힘의 물약 (1회 한정)', items: { rarity: 3, count: 1 }, potions: ['gold', 'might'] };
 
+  // ---- 출석 보상: 서버에 기록된 연속 출석 일수(7일 주기)마다 받는 크리스탈. 7일째가 가장 크다. ----
+  const ATTEND_REWARDS = [3, 3, 5, 5, 8, 8, 20];
+
   // ---- 광고 ----
   const AD_DAILY_LIMIT = 3;   // 하루 3번 (자정에 초기화)
   const AD_CRYSTALS = 10;     // 광고 1번을 볼 때마다 받는 크리스탈 (물약도 하나 함께 받는다)
@@ -90,7 +93,7 @@
   const byId = (list, id) => list.find((x) => x.id === id) || null;
   const POTION_IDS = POTIONS.map((p) => p.id);
 
-  const api = { CRYSTAL_PACKS, POTIONS, BOXES, UTILITIES, STARTER, POTION_CAP, POTION_IDS, BAG_STEP, BAG_EXTRA_MAX, AD_DAILY_LIMIT, AD_CRYSTALS, AD_SECONDS, RELICS, RELIC_SLOTS, SPECIALS, GEAR_SHOP, specialOf, byId };
+  const api = { CRYSTAL_PACKS, POTIONS, BOXES, UTILITIES, STARTER, POTION_CAP, POTION_IDS, BAG_STEP, BAG_EXTRA_MAX, AD_DAILY_LIMIT, AD_CRYSTALS, AD_SECONDS, RELICS, RELIC_SLOTS, ATTEND_REWARDS, SPECIALS, GEAR_SHOP, specialOf, byId };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.GoblinStore = api;
 })(typeof window !== 'undefined' ? window : globalThis);
