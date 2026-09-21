@@ -868,7 +868,7 @@ function stubSdk() {
   const store = {};
   let authCb = null;
   const auth = { currentUser: null };
-  class GoogleAuthProvider { constructor() { this.id = 'google.com'; calls.push('new Google'); } }
+  class GoogleAuthProvider { constructor() { this.id = 'google.com'; this.params = null; calls.push('new Google'); } setCustomParameters(p) { this.params = p; calls.push('params:' + JSON.stringify(p)); } }
   class OAuthProvider { constructor(id) { this.id = id; this.scopes = []; calls.push('new OAuth:' + id); } addScope(s) { this.scopes.push(s); } }
   const user = { uid: 'abc', displayName: '홍길동', email: 'a@b.c', photoURL: 'http://p', providerData: [{ providerId: 'google.com' }] };
   const sdk = {
@@ -914,6 +914,13 @@ test('Google은 팝업으로, Apple은 apple.com 제공자에 이메일·이름 
   await ad.signIn('google');
   await ad.signIn('apple');
   assert.ok(sdk.calls.includes('popup:google.com') && sdk.calls.includes('new OAuth:apple.com') && sdk.calls.includes('popup:apple.com'));
+});
+
+test('Google 로그인은 매번 계정 선택 화면을 띄우도록 요청한다 (계정이 여러 개인 사람용)', async () => {
+  const sdk = stubSdk(), ad = CloudFirebase.createFirebaseAdapter(CFG, sdk);
+  await ad.signIn('google');
+  assert.ok(sdk.calls.includes('params:{"prompt":"select_account"}'), sdk.calls.join(' | '));
+  assert.ok(sdk.calls.indexOf('params:{"prompt":"select_account"}') < sdk.calls.indexOf('popup:google.com'), '창을 열기 전에 옵션을 넣어야 한다');
 });
 
 test('알 수 없는 로그인 방식은 거절한다', async () => {

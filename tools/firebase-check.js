@@ -62,14 +62,20 @@ const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; cha
       await send('Input.dispatchMouseEvent', { type, x: box.x, y: box.y, button: 'left', buttons: type === 'mousePressed' ? 1 : 0, clickCount: 1 });
     }
     let popup, msg = '';
-    for (let i = 0; i < 20 && !popup && !msg; i++) {
-      await sleep(500);
+    const seenUrls = [];   // 로그인 창이 거치는 주소들 (계정 선택 요청이 실렸는지 보려고 모아 둔다)
+    for (let i = 0; i < 100 && !popup && !msg; i++) {
+      await sleep(100);
       const targets = (await (await fetch(`http://127.0.0.1:${DEBUG_PORT}/json`)).json()).filter((t) => t.type === 'page');
+      for (const t of targets) if (!seenUrls.includes(t.url)) seenUrls.push(t.url);
       popup = targets.find((t) => /firebaseapp\.com\/__\/auth|accounts\.google\.com/.test(t.url));
       msg = await ev(`(document.querySelector('.acct__err') || {}).textContent || ''`);
     }
     if (popup) {
       await sleep(4000);   // 인증 처리 페이지가 구글 로그인 화면으로 넘어갈 시간
+      for (const t of (await (await fetch(`http://127.0.0.1:${DEBUG_PORT}/json`)).json())) if (t.type === 'page' && !seenUrls.includes(t.url)) seenUrls.push(t.url);
+      const dec = (u) => { let x = u; for (let i = 0; i < 4; i++) x = decodeURIComponent(x.replace(/\+/g, ' ')); return x; };
+      const wantsChooser = seenUrls.some((u) => { try { return /select_account/.test(dec(u)); } catch (e) { return /select_account/.test(u); } });
+      check('로그인 창 요청에 "계정 선택(select_account)" 옵션이 실려 있다', wantsChooser, wantsChooser ? '' : '거친 주소: ' + seenUrls.map((u) => u.slice(0, 110)).join(' → '));
       const now = (await (await fetch(`http://127.0.0.1:${DEBUG_PORT}/json`)).json()).filter((t) => t.type === 'page').find((t) => /firebaseapp\.com\/__\/auth|accounts\.google\.com/.test(t.url));
       const url = (now || popup).url;
       console.log('  로그인 창 주소: ' + url.split('?')[0]);

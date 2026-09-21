@@ -57,7 +57,10 @@
         const b = await boot();
         const { GoogleAuthProvider, OAuthProvider, signInWithPopup, signInWithRedirect } = b.m.auth;
         let p;
-        if (provider === 'google') p = new GoogleAuthProvider();
+        if (provider === 'google') {
+          p = new GoogleAuthProvider();
+          p.setCustomParameters({ prompt: 'select_account' });   // 기기에 로그인된 계정이 있어도 매번 계정을 고르게 한다 (계정을 여러 개 쓰는 사람용)
+        }
         else if (provider === 'apple') { p = new OAuthProvider('apple.com'); p.addScope('email'); p.addScope('name'); }
         else throw new Error('지원하지 않는 로그인 방식이에요: ' + provider);
         try {
