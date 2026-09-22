@@ -436,13 +436,67 @@
       ], { duration: 250, delay: delay + i * 90, easing: 'ease-out' });
     }
   }
-  // 원거리: 반동(총·활) 또는 마법을 모으는 동작(마법구)
+  // 원거리: 무기마다 다른 동작 (총 반동, 활 당김-발사, 석궁 들어올림, 표창 몸을 틀어 던지기, 동전 튕기기, 마법 시전).
+  // 몸동작이 끝나고 실제로 손을 떠나는 시각(ms)을 돌려준다 (투사체는 이 시각에 맞춰 날아간다).
   function shootBody(style, soft) {
     const k = soft ? 0.6 : 1;
-    const cast = style === 'orb' || style === 'fire' || style === 'dark';
-    anim($('hero'), cast
-      ? [{ transform: 'translateY(0) scale(1, 1)' }, { transform: `translateY(${-5 * k}px) scale(1.03, 0.98)`, offset: 0.4 }, { transform: 'translateY(0) scale(1, 1)' }]
-      : [{ transform: 'translateX(0)' }, { transform: `translateX(${-5 * k}px)`, offset: 0.25 }, { transform: 'translateX(0)' }], { duration: 260 });
+    let kf, dur, release;
+    switch (style) {
+      case 'bullet':   // 총: 거의 즉시 쏘고 짧게 반동한다
+        dur = 220; release = 0.15;
+        kf = [{ transform: 'translate(0, 0) rotate(0deg)' },
+          { transform: `translate(${1 * k}px, 0) rotate(${-1 * k}deg)`, offset: 0.15 },
+          { transform: `translate(${-8 * k}px, ${1 * k}px) rotate(${5 * k}deg)`, offset: 0.4, easing: 'ease-out' },
+          { transform: 'translate(0, 0) rotate(0deg)' }];
+        break;
+      case 'arrow':   // 활: 시위를 당겨 버티다가 놓는다
+        dur = 460; release = 0.6;
+        kf = [{ transform: 'translate(0, 0) rotate(0deg)' },
+          { transform: `translate(${-8 * k}px, 0) rotate(${-7 * k}deg)`, offset: 0.55, easing: 'cubic-bezier(0.4, 0, 0.2, 1)' },
+          { transform: `translate(${7 * k}px, 0) rotate(${6 * k}deg)`, offset: 0.72, easing: 'ease-out' },
+          { transform: 'translate(0, 0) rotate(0deg)' }];
+        break;
+      case 'bolt':   // 석궁: 짧게 들어 올렸다가 바로 쏜다
+        dur = 260; release = 0.4;
+        kf = [{ transform: 'translate(0, 0) rotate(0deg)' },
+          { transform: `translate(0, ${-4 * k}px) rotate(${-4 * k}deg)`, offset: 0.35 },
+          { transform: `translate(${4 * k}px, 0) rotate(${3 * k}deg)`, offset: 0.55, easing: 'ease-out' },
+          { transform: 'translate(0, 0) rotate(0deg)' }];
+        break;
+      case 'shuriken':   // 표창: 팔을 크게 젖혔다가 몸을 틀며 던진다
+        dur = 320; release = 0.45;
+        kf = [{ transform: 'translate(0, 0) rotate(0deg)' },
+          { transform: `translate(${6 * k}px, 0) rotate(${11 * k}deg)`, offset: 0.35, easing: 'ease-in' },
+          { transform: `translate(${-9 * k}px, 0) rotate(${-15 * k}deg)`, offset: 0.6, easing: 'ease-out' },
+          { transform: 'translate(0, 0) rotate(0deg)' }];
+        break;
+      case 'coin':   // 동전: 살짝 숙였다가 튕겨 던진다
+        dur = 300; release = 0.5;
+        kf = [{ transform: 'translate(0, 0) rotate(0deg)' },
+          { transform: `translate(0, ${4 * k}px) rotate(${-4 * k}deg)`, offset: 0.4, easing: 'ease-in' },
+          { transform: `translate(0, ${-6 * k}px) rotate(${7 * k}deg)`, offset: 0.65, easing: 'ease-out' },
+          { transform: 'translate(0, 0) rotate(0deg)' }];
+        break;
+      case 'fire':   // 화염: 크게 힘을 모았다가 내지른다
+        dur = 420; release = 0.68;
+        kf = [{ transform: 'translate(0, 0) scale(1, 1)' },
+          { transform: `translate(${-4 * k}px, 0) scale(${1 + 0.05 * k}, ${1 - 0.03 * k})`, offset: 0.55, easing: 'ease-in' },
+          { transform: `translate(${6 * k}px, 0) scale(1, 1)`, offset: 0.76, easing: 'ease-out' },
+          { transform: 'translate(0, 0) scale(1, 1)' }];
+        break;
+      case 'dark':   // 어둠: 안으로 웅크렸다가 뿜어낸다
+        dur = 420; release = 0.68;
+        kf = [{ transform: 'translate(0, 0) scale(1, 1)' },
+          { transform: `translate(0, ${3 * k}px) scale(${1 - 0.04 * k}, ${1 + 0.03 * k})`, offset: 0.55, easing: 'ease-in' },
+          { transform: `translate(0, ${-4 * k}px) scale(1, 1)`, offset: 0.76, easing: 'ease-out' },
+          { transform: 'translate(0, 0) scale(1, 1)' }];
+        break;
+      default:   // orb(마법구) 등: 살짝 떠올라 시전한다
+        dur = 300; release = 0.55;
+        kf = [{ transform: 'translateY(0) scale(1, 1)' }, { transform: `translateY(${-5 * k}px) scale(1.03, 0.98)`, offset: 0.5 }, { transform: 'translateY(0) scale(1, 1)' }];
+    }
+    anim($('hero'), kf, { duration: dur });
+    return dur * release;
   }
   // 원거리: 손에서 몬스터까지 날아가는 것. 도착까지 걸리는 시간(ms)을 돌려준다.
   function projectile(style, delay, big) {
@@ -477,7 +531,7 @@
     const soft = calm() && !strong;
     let land;
     if (G.MELEE_STYLES.includes(style)) { land = swingBody(style, soft); arcFx(style, strong, land); }
-    else { shootBody(style, soft); land = 60 + projectile(style, 60, strong); }
+    else { const rel = shootBody(style, soft); land = rel + projectile(style, rel, strong); }
     monsterHit(strong, land, soft);
     if (!calm() || strong) impactSprite(style, strong, land);   // 화려하게: 맞는 순간 폭발
     return land;
@@ -784,7 +838,7 @@
     const rich = !calm();
     const num = () => floatText('-' + G.fmt(e.amount), 'float--tap', 'enemy');
     // 근접이면 크게 휘두르고, 원거리면 굵은 투사체를 날린다. 닿는 시각(ms)을 돌려준다.
-    const bigHit = () => (melee ? (() => { const l = swingBody(style, false); arcFx(style, true, l); return l; })() : (shootBody(style, false), 60 + projectile(style, 60, true)));
+    const bigHit = () => (melee ? (() => { const l = swingBody(style, false); arcFx(style, true, l); return l; })() : (() => { const rel = shootBody(style, false); return rel + projectile(style, rel, true); })());
     switch (e.kind) {
       case 'strike': case 'execute': case 'bossbane': {
         const land = bigHit();

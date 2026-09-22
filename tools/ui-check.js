@@ -405,6 +405,18 @@ const FAKE_CLOUD = `(() => {
     const maxShift = await ev(`new Promise((res) => { let mx = 0; const b = document.getElementById('hero'); const iv = setInterval(() => { const m = new DOMMatrix(getComputedStyle(b).transform); mx = Math.max(mx, Math.abs(m.m41)); }, 25); setTimeout(() => { clearInterval(iv); res(mx); }, 3500); })`);
     check('근접 공격도 제자리에서 휘두른다 (가로 이동 14px 이하, 예전 돌진은 34px)', maxShift > 0 && maxShift <= 14, `최대 ${maxShift.toFixed(1)}px`);
 
+    // 원거리 무기마다 몸동작이 다른지: 회전각을 재서 활(당기기)·표창(몸 틀기)은 회전이 있고, 총(반동)은 회전이 훨씬 작은지 확인한다
+    const measureRot = async (route) => {
+      await reopen(mk(30, route)); await sleep(300);
+      return ev(`new Promise((res) => { let mx = 0; const b = document.getElementById('hero'); const iv = setInterval(() => { const m = new DOMMatrix(getComputedStyle(b).transform); mx = Math.max(mx, Math.abs(Math.atan2(m.b, m.a) * 180 / Math.PI)); }, 20); setTimeout(() => { clearInterval(iv); res(mx); }, 2500); })`);
+    };
+    const arrowRot = await measureRot(['archer']);
+    check('궁수는 활을 당기며 몸을 기울이는 동작이 있다 (회전 각도 2도 이상)', arrowRot >= 2, `회전 ${arrowRot.toFixed(1)}도`);
+    const shurikenRot = await measureRot(['rogue']);
+    check('도적은 표창을 던지며 몸을 트는 동작이 있다 (회전 각도 2도 이상)', shurikenRot >= 2, `회전 ${shurikenRot.toFixed(1)}도`);
+    const bulletRot = await measureRot(['archer', 'sniper']);
+    check('저격수는 활 당기기보다 반동이 짧고 작다 (회전 각도가 궁수보다 작음)', bulletRot < arrowRot, `저격수 ${bulletRot.toFixed(1)}도 vs 궁수 ${arrowRot.toFixed(1)}도`);
+
     // 스킬 바와 자동 시전 (마법사 → 화염술사: 마법 화살(연타), 점화(지속 피해))
     await reopen(mk(30, ['mage', 'pyromancer'])); await sleep(300);
     check('직업이 있으면 스킬 바에 스킬이 직업 수(2개)만큼 보이고 "화면을 눌러 공격" 안내는 숨는다', (await ev(`document.querySelectorAll('#skillbar .skill').length`)) === 2 && (await ev(`!document.getElementById('skillbar').hidden`)) && (await ev(`getComputedStyle(document.querySelector('.tap-hint')).display`)) === 'none');
