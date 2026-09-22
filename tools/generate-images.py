@@ -132,6 +132,10 @@ ICONS = {
     'hand': 'pointing hand, finger tapping', 'lock': 'golden padlock', 'check': 'green check mark',
     'book': 'open old book', 'gem': 'blue faceted gemstone', 'arrowup': 'bold green arrow pointing up',
     'dot': 'a single perfectly round glossy red circle, just one red ball, nothing else',
+    'gate': 'a glowing purple magic portal inside a stone archway, dungeon entrance',
+    'ticket': 'a golden admission ticket with a dashed perforated line and a checkmark stamp',
+    'chest': 'a closed wooden treasure chest with gold trim and a gold lock',
+    'medal': 'a gold ribbon medal with a star, first place award',
 }
 GEAR = {
     # 무기

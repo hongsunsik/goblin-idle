@@ -1,0 +1,39 @@
+// 고블린 키우기 - 일일·주간·월간 던전 데이터 (game.js가 불러 쓴다)
+//
+// 던전은 일반 스테이지와 별개로, 기간마다 정해진 횟수만큼 도전하는 '한 방 승부'다.
+// 도전하면 그 순간의 총 초당 피해(totalDps) × budgetSec를 '피해 예산'으로 삼아, 파동(웨이브) 보스를 순서대로 물리친다
+// (dealDamage의 연쇄 처치와 같은 개념: 예산이 남으면 다음 파동까지 이어간다). 예산이 모자라면 그 자리에서 멈춘다.
+// 물리친 파동마다 바로 보상(크리스탈·골드·장비)을 주고, 마지막 파동까지 다 물리치면(그 기간 처음 한 번만) 큰 보너스를 더 준다.
+// 보스 체력은 그 캐릭터의 최고 스테이지(bestStage) 기준 몬스터 체력에 비례해서, 어느 진행 단계에서도 도전할 만하다.
+(function (root) {
+  const DUNGEON_PERIODS = ['daily', 'weekly', 'monthly'];
+  const DUNGEONS = {
+    daily: {
+      id: 'daily', name: '일일 던전', period: 'daily', attempts: 3, waves: 1,
+      hpMult: 5.5, hpStep: 1, budgetSec: 20,
+      boss: ['고블린 우두머리', '노략질 오크', '동굴 트롤', '늪지 히드라'],
+      odds: { 2: 60, 3: 32, 4: 7, 5: 1 },                        // 파동 하나를 물리칠 때마다 주는 장비 등급 확률 (희귀 위주)
+      reward: { crystals: 8, gold: 2.5 },
+      clear: { crystals: 30, gold: 5, boxOdds: { 3: 72, 4: 25, 5: 3 } },
+    },
+    weekly: {
+      id: 'weekly', name: '주간 던전', period: 'weekly', attempts: 1, waves: 3,
+      hpMult: 3.7, hpStep: 1.5, budgetSec: 55,
+      boss: ['서리 거인', '용암 군주', '심연의 파수꾼', '뇌운의 화신'],
+      odds: { 3: 55, 4: 38, 5: 6, 6: 1 },                        // 영웅 위주
+      reward: { crystals: 22, gold: 6 },
+      clear: { crystals: 160, tokens: 4, gold: 18, boxOdds: { 4: 62, 5: 32, 6: 6 } },
+    },
+    monthly: {
+      id: 'monthly', name: '월간 던전', period: 'monthly', attempts: 1, waves: 5,
+      hpMult: 3.6, hpStep: 1.45, budgetSec: 110,
+      boss: ['천 개의 눈 리치', '태초의 화룡', '왕좌를 삼킨 그림자', '종말의 문지기'],
+      odds: { 4: 55, 5: 35, 6: 10 },                             // 전설 위주
+      reward: { crystals: 55, gold: 16 },
+      clear: { crystals: 550, tokens: 12, gold: 45, boxOdds: { 5: 55, 6: 45 } },
+    },
+  };
+  const api = { DUNGEON_PERIODS, DUNGEONS };
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  else root.GoblinDungeon = api;
+})(typeof window !== 'undefined' ? window : globalThis);

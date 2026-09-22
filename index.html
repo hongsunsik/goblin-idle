@@ -118,6 +118,7 @@
         <button class="tabnav__btn" data-go="prestige" type="button"><svg class="ic"><use href="#i-crown"/></svg><span>환생</span><i class="dot" hidden></i></button>
         <button class="tabnav__btn" data-go="shop" type="button"><svg class="ic"><use href="#i-pouch"/></svg><span>증표</span><i class="dot" hidden></i></button>
         <button class="tabnav__btn" data-go="store" type="button"><svg class="ic"><use href="#i-gem"/></svg><span>상점</span><i class="dot" hidden></i></button>
+        <button class="tabnav__btn" data-go="dungeon" type="button"><svg class="ic"><use href="#i-gate"/></svg><span>던전</span><i class="dot" hidden></i></button>
         <button class="tabnav__btn" data-go="log" type="button"><svg class="ic"><use href="#i-scroll"/></svg><span>기록</span><i class="dot" hidden></i></button>
       </nav>
 
@@ -210,6 +211,11 @@
           <div class="card storenote" id="storeNote"></div>
         </section>
 
+        <section class="tab" data-tab="dungeon" hidden>
+          <div class="rankinfo">기간마다 정해진 횟수만큼 도전할 수 있어요. 도전하면 지금 초당 피해로 보스를 순서대로 물리치고, 다 물리치면 큰 보상을 더 받아요.</div>
+          <div id="dungeonList"></div>
+        </section>
+
         <section class="tab" data-tab="log" hidden>
           <div class="seg seg--full" id="logSeg">
             <button type="button" data-seg="daily" class="is-on">일일</button><button type="button" data-seg="weekly">주간</button><button type="button" data-seg="monthly">월간</button><button type="button" data-seg="ach">업적</button><button type="button" data-seg="rank">랭킹</button>
@@ -287,6 +293,7 @@
   <script src="classes.js?v=202609220130"></script>
   <script src="skills.js?v=202609220130"></script>
   <script src="store.js?v=202609220130"></script>
+  <script src="dungeon.js?v=202609220130"></script>
   <script src="social.js?v=202609220130"></script>
   <script src="game.js?v=202609220130"></script>
   <script src="sync.js?v=202609220130"></script>

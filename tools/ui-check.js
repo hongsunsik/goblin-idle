@@ -424,7 +424,7 @@ const FAKE_CLOUD = `(() => {
     await reopen(only);
     await ev(`Game.STORE.AD_SECONDS = 1`);   // 시연 광고를 1초로 줄인다 (점검이 길어지지 않게)
     await click('[data-go="store"]'); await sleep(400);
-    check('증표 탭 이름이 "증표"이고 새 "상점" 탭이 따로 있다', (await ev(`[...document.querySelectorAll('.tabnav__btn span')].map((x) => x.textContent).join(',')`)) === '강화,장비,전직,환생,증표,상점,기록');
+    check('증표 탭 이름이 "증표"이고 새 "상점"·"던전" 탭이 따로 있다', (await ev(`[...document.querySelectorAll('.tabnav__btn span')].map((x) => x.textContent).join(',')`)) === '강화,장비,전직,환생,증표,상점,던전,기록');
     check('상점 탭이 열리고 크리스탈은 0이다', (await ev(`!document.querySelector('.tab[data-tab="store"]').hidden`)) && (await txt('#crystalBal')) === '0');
     check('시연 결제·광고라는 안내가 보인다', (await txt('#demoNote')).includes('실제 돈은 청구되지 않고'));
     check('크리스탈이 없으면 모든 구매 버튼이 잠긴다', (await ev(`[...document.querySelectorAll('#gearShop [data-gbuy], #boxList [data-buy], #utilList [data-buy]')].every((b) => b.disabled)`)) && (await ev(`document.querySelectorAll('#gearShop .gshop').length`)) === 6);
@@ -667,6 +667,26 @@ const FAKE_CLOUD = `(() => {
     await click('#modalActions .btn--blue'); await sleep(600);
     check('내 기록 지우기를 하면 닉네임이 비워져 참여 화면으로 돌아간다', !!(await ev(`document.querySelector('[data-rank="nick"]')`)) && (await txt('#rankBody')).includes('닉네임을 정해'));
     await send('Page.removeScriptToEvaluateOnNewDocument', { identifier: injS });
+
+    console.log('일일·주간·월간 던전');
+    const dg = mk(60, ['mage', 'necromancer', 'lich', 'lichking']);
+    for (const k of G.UPGRADE_KEYS) dg.upgrades[k] = 200;   // 어떤 던전도 여유 있게 물리칠 초당 피해
+    dg.hp = G.maxHp(dg);
+    await reopen(dg);
+    await click('[data-go="dungeon"]'); await sleep(400);
+    check('던전 탭에 일일·주간·월간 카드 3개가 보인다', (await ev(`document.querySelectorAll('#dungeonList .dungeon').length`)) === 3);
+    check('카드마다 보스 이름과 도전권 표시가 있다', (await txt('#dungeonList')).includes('일일 던전') && (await txt('#dungeonList')).includes('주간 던전') && (await txt('#dungeonList')).includes('월간 던전'));
+    await click('[data-dchallenge="weekly"]'); await sleep(300);
+    check('도전 확인 창에 보스 이름과 남은 도전 횟수가 보인다', (await txt('#modalTitle')).includes('주간 던전') && (await txt('#modalBody')).includes('남은 도전'));
+    await click('#modalActions .btn--gold'); await sleep(400);
+    check('충분히 강하면 파동을 모두 물리치고 완주 결과 창이 뜬다', (await txt('#modalTitle')).includes('완주'));
+    await click('#modalActions .btn'); await sleep(300);
+    check('완주하면 파동 진행 점이 모두 켜진 채로 표시된다', (await ev(`document.querySelectorAll('#dungeonList .dungeon')[1].querySelectorAll('.dwave.is-on').length`)) === 3);
+    check('완주 보상을 받았다는 표시가 남는다', (await txt('#dungeonList')).includes('완주 보상 받음'));
+    await click('[data-dchallenge="daily"]'); await sleep(300);
+    await click('#modalActions .btn--gold'); await sleep(400);
+    await click('#modalActions .btn'); await sleep(300);
+    check('일일 던전은 하루 3번까지라, 한 번 쓰면 2/3로 준다', (await txt('#dungeonList')).includes('2/3'));
 
     console.log('오래 돌려도 안정적인가 (전투 10초)');
     await ev(`document.querySelector('[data-go="upgrade"]').click()`);

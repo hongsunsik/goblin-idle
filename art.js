@@ -212,6 +212,15 @@
     gem: `<path d="M18 8 H46 L58 24 L32 58 L6 24 Z" fill="url(#gBlue)" ${IO}/><path d="M6 24 H58 M18 8 L26 24 L32 58 L38 24 L46 8" fill="none" stroke="#1b1533" stroke-width="2.2" stroke-linejoin="round" stroke-opacity=".7"/><path d="M14 22 L22 12" stroke="#fff" stroke-opacity=".85" stroke-width="3" stroke-linecap="round"/>`,
     arrowup: `<path d="M32 6 L54 30 H40 V58 H24 V30 H10 Z" fill="url(#gGreen)" ${IO}/><path d="M26 32 V52" stroke="#fff" stroke-opacity=".6" stroke-width="3" stroke-linecap="round"/>`,
     dot: `<circle cx="32" cy="32" r="20" fill="url(#gRed)" ${IO}/>`,
+    gate: `<path d="M8 58 V28 Q8 4 32 4 Q56 4 56 28 V58 H44 V29 Q44 15 32 15 Q20 15 20 29 V58 Z" fill="url(#gSteel)" ${IO}/>
+      <ellipse cx="32" cy="40" rx="11" ry="17" fill="url(#gPurple)" ${io(2.4)}/><ellipse cx="32" cy="36" rx="5" ry="9" fill="#fff" fill-opacity=".4"/>`,
+    ticket: `<path d="M6 18 Q6 12 12 12 H52 Q58 12 58 18 V24 A6 6 0 0 0 58 36 V42 Q58 48 52 48 H12 Q6 48 6 42 V36 A6 6 0 0 0 6 24 Z" fill="url(#gGold)" ${IO}/>
+      <path d="M26 12 V48" stroke="#8a5a06" stroke-width="2.6" stroke-dasharray="4 4"/><circle cx="41" cy="30" r="7" fill="#fff6c0" stroke="#b8760a" stroke-width="2"/><path d="M38 30 L40 32 L44 27" fill="none" stroke="#8a5a06" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>`,
+    chest: `<path d="M8 30 H56 V54 Q56 58 52 58 H12 Q8 58 8 54 Z" fill="url(#gWood)" ${IO}/><path d="M8 30 Q8 16 20 14 H44 Q56 16 56 30 Z" fill="url(#gWood)" ${IO}/>
+      <path d="M8 30 H56" stroke="url(#gGold)" stroke-width="5"/><rect x="26" y="27" width="12" height="14" rx="3" fill="url(#gGold)" ${io(2.4)}/><circle cx="32" cy="34" r="2.6" fill="#5a3a06"/>`,
+    medal: `<path d="M22 8 L13 28 L26 25 Z M42 8 L51 28 L38 25 Z" fill="url(#gRed)" ${io(2.4)}/>
+      <circle cx="32" cy="41" r="18" fill="url(#gGold)" ${IO}/><circle cx="32" cy="41" r="11" fill="none" stroke="#a8660a" stroke-width="3"/>
+      <polygon points="${starPts(5, 8, 3.6).replace(/(\d+\.?\d*),(\d+\.?\d*)/g, (m, x, y) => `${x},${(+y + 9).toFixed(1)}`)}" fill="#fff6c0" stroke="#a8660a" stroke-width="1.4" stroke-linejoin="round"/>`,
   };
 
   function spriteMarkup() {

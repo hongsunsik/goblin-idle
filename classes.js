@@ -5,9 +5,9 @@
   const ADVANCED3 = {
     // ---- 기사 ----
     paladin:     { name: '성기사',        parent: 'knight',      desc: '신성한 가호로 체력과 회복이 더 늘어난다.',
-                   mult: { hp: 1.3, regen: 1.4, dmg: 1.3 } },
+                   mult: { hp: 1.25, regen: 1.35, dmg: 1.45 } },
     crusader:    { name: '십자군',        parent: 'knight',      desc: '방패를 든 채 돌격한다. 공격과 체력이 함께 오른다.',
-                   mult: { dmg: 1.35, hp: 1.2 } },
+                   mult: { dmg: 1.5, hp: 1.15 } },
     // ---- 광전사 ----
     warlord:     { name: '전쟁군주',      parent: 'berserker',   desc: '전장을 지휘한다. 공격력과 동료의 힘이 오른다.',
                    mult: { dmg: 1.2, comp: 1.1 } },
@@ -47,15 +47,15 @@
 
   const ADVANCED4 = {
     // ---- 성기사 ----
-    seraph:        { name: '세라핌 기사',   parent: 'paladin',     desc: '날개 달린 수호자. 체력과 회복이 극에 달한다.',
-                     mult: { hp: 1.3, regen: 2.4, dmg: 1.9 } },
+    seraph:        { name: '세라핌 기사',   parent: 'paladin',     desc: '날개 달린 수호자. 체력·회복과 함께 동료도 축복받는다.',
+                     mult: { hp: 1.25, regen: 2.1, dmg: 2.05, comp: 1.08 } },
     holyking:      { name: '성왕',          parent: 'paladin',     desc: '신성한 왕. 공격·체력·골드가 고르게 오른다.',
-                     mult: { dmg: 2.02, hp: 1.25, gold: 1.15 } },
+                     mult: { dmg: 1.98, hp: 1.15, gold: 1.15, comp: 1.04 } },
     // ---- 십자군 ----
     inquisitor:    { name: '심판관',        parent: 'crusader',    desc: '죄를 심판하는 일격. 공격력과 직접 공격이 크게 오른다.',
-                     mult: { dmg: 1.65, click: 1.5 } },
-    templarlord:   { name: '성전 사령관',   parent: 'crusader',    desc: '성전을 이끄는 지휘관. 체력과 연사가 늘어난다.',
-                     mult: { hp: 1.3, aps: 1.15, dmg: 1.67 } },
+                     mult: { dmg: 1.76, click: 1.5, comp: 1.04 } },
+    templarlord:   { name: '성전 사령관',   parent: 'crusader',    desc: '성전을 이끄는 지휘관. 체력과 연사, 동료가 늘어난다.',
+                     mult: { hp: 1.15, aps: 1.15, dmg: 1.76, comp: 1.04 } },
     // ---- 전쟁군주 ----
     conqueror:     { name: '정복왕',        parent: 'warlord',     desc: '땅을 차지하고 전리품을 거둔다. 공격력과 골드가 오른다.',
                      mult: { dmg: 1, gold: 1.3 } },

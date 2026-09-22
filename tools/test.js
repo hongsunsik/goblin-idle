@@ -2389,6 +2389,96 @@ test('퀘스트 보상 크리스탈이 상한(10억)을 넘지 않는다', () =>
 });
 
 
+section('일일·주간·월간 던전');
+test('동기화하면 세 기간 모두 뽑히고, 각 기간의 횟수·파동 수는 dungeon.js 설정과 같다', () => {
+  const s = G.createState(0);
+  G.dungeonSync(s, '2026-09-22');
+  for (const p of G.DUNGEON_PERIODS) {
+    const d = s.dungeons[p], cfg = G.DUNGEONS[p];
+    assert.ok(d && d.key, p);
+    assert.strictEqual(d.used, 0);
+    assert.strictEqual(d.cleared, false);
+    assert.strictEqual(d.bonusClaimed, false);
+    assert.ok(cfg.boss.includes(d.boss), '보스 이름표 안에서 고른다');
+    const info = G.dungeonInfo(s, p);
+    assert.strictEqual(info.waves, cfg.waves);
+    assert.strictEqual(info.attempts, cfg.attempts);
+    assert.strictEqual(info.bossHp.length, cfg.waves);
+  }
+});
+test('같은 기간에는 다시 동기화해도 진행이 그대로고, 날이 바뀌면 일일만 새로 뽑힌다', () => {
+  const s = G.createState(0);
+  G.dungeonSync(s, '2026-09-22');
+  s.dungeons.daily.used = 2;
+  G.dungeonSync(s, '2026-09-22');
+  assert.strictEqual(s.dungeons.daily.used, 2, '같은 날에는 안 바뀐다');
+  const weeklyKey = s.dungeons.weekly.key;
+  G.dungeonSync(s, '2026-09-23');
+  assert.strictEqual(s.dungeons.daily.used, 0, '날짜가 바뀌면 일일이 새로 뽑힌다');
+  assert.strictEqual(s.dungeons.weekly.key, weeklyKey, '같은 주 안에서는 주간이 그대로다');
+});
+test('도전은 기간의 한도(attempts) 안에서만 되고, 넘으면 reason:limit이다', () => {
+  const s = G.createState(0);
+  G.dungeonSync(s, '2026-09-22');
+  for (let i = 0; i < G.DUNGEONS.weekly.attempts; i++) assert.strictEqual(G.challengeDungeon(s, 'weekly').ok, true);
+  const r = G.challengeDungeon(s, 'weekly');
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.reason, 'limit');
+});
+test('피해 예산이 충분하면 모든 파동을 물리치고, 처음 완주할 때만 완주 보너스를 준다', () => {
+  const s = G.createState(0); s.bestStage = 5; s.level = 60;
+  for (const k of G.UPGRADE_KEYS) s.upgrades[k] = 200;
+  G.promote(s, 'mage'); G.promote(s, 'necromancer'); G.promote(s, 'lich'); G.promote(s, 'lichking');
+  G.dungeonSync(s, '2026-09-22');
+  const before = { gold: s.gold, crystals: s.crystals, tokens: s.tokens };
+  const r1 = G.challengeDungeon(s, 'weekly');
+  assert.strictEqual(r1.wavesCleared, G.DUNGEONS.weekly.waves);
+  assert.strictEqual(r1.fullClear, true);
+  assert.ok(r1.bonus, '처음 완주하면 보너스가 있다');
+  assert.strictEqual(r1.drops.length, G.DUNGEONS.weekly.waves, '파동마다 장비를 하나씩 준다');
+  assert.ok(s.gold > before.gold && s.crystals > before.crystals && s.tokens > before.tokens);
+  assert.strictEqual(s.dungeons.weekly.cleared, true);
+  assert.strictEqual(s.dungeons.weekly.bonusClaimed, true);
+});
+test('피해 예산이 모자라면 그 자리에서 멈추고, 도전은 소모되지만 완주 보상은 없다', () => {
+  const s = G.createState(0); s.bestStage = 90;   // 갓 시작한 고블린이 스테이지 90 던전에 도전
+  G.dungeonSync(s, '2026-09-22');
+  const r = G.challengeDungeon(s, 'monthly');
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.wavesCleared, 0);
+  assert.strictEqual(r.fullClear, false);
+  assert.strictEqual(r.bonus, null);
+  assert.strictEqual(s.dungeons.monthly.used, 1, '실패해도 도전 횟수는 줄어든다');
+});
+test('저장·복원: 그대로 돌아오고, 조작된 값(없는 이름표·한도를 넘는 횟수·가짜 보스)은 걸러진다', () => {
+  const s = G.createState(0); s.bestStage = 5; s.level = 60;
+  for (const k of G.UPGRADE_KEYS) s.upgrades[k] = 200;
+  G.promote(s, 'mage'); G.promote(s, 'necromancer'); G.promote(s, 'lich'); G.promote(s, 'lichking');
+  G.dungeonSync(s, '2026-09-22');
+  G.challengeDungeon(s, 'daily'); G.challengeDungeon(s, 'weekly');
+  const back = G.deserialize(G.serialize(s, 1));
+  assert.deepStrictEqual(back.dungeons, s.dungeons);
+  const o = JSON.parse(G.serialize(s, 1));
+  o.dungeons.daily.key = 'hacked';
+  o.dungeons.weekly.used = 999; o.dungeons.weekly.bestWaves = 999; o.dungeons.weekly.boss = '조작된 보스';
+  const c = G.deserialize(JSON.stringify(o));
+  assert.strictEqual(c.dungeons.daily, null, '이름표가 이상하면 버린다');
+  assert.strictEqual(c.dungeons.weekly.used, G.DUNGEONS.weekly.attempts, '도전 횟수는 한도를 넘지 못한다');
+  assert.strictEqual(c.dungeons.weekly.bestWaves, G.DUNGEONS.weekly.waves, '물리친 파동은 그 던전의 파동 수를 넘지 못한다');
+  assert.ok(G.DUNGEONS.weekly.boss.includes(c.dungeons.weekly.boss), '목록에 없는 보스 이름표는 버리고 첫 번째로 되돌린다');
+  const old = JSON.parse(G.serialize(s, 1)); delete old.dungeons;
+  assert.deepStrictEqual(G.deserialize(JSON.stringify(old)).dungeons, { daily: null, weekly: null, monthly: null });
+});
+test('던전 보상 크리스탈이 상한(10억)을 넘지 않는다', () => {
+  const s = G.createState(0); s.bestStage = 5; s.level = 60;
+  for (const k of G.UPGRADE_KEYS) s.upgrades[k] = 200;
+  G.promote(s, 'mage'); G.promote(s, 'necromancer'); G.promote(s, 'lich'); G.promote(s, 'lichking');
+  G.dungeonSync(s, '2026-09-22'); s.crystals = 1e9 - 1;
+  G.challengeDungeon(s, 'daily');
+  assert.strictEqual(s.crystals, 1e9);
+});
+
+
 section('친선 랭킹 · 서버 출석');
 const Social = require('../social.js');
 test('한국 시간 기준 날짜 번호: 자정(한국 시간)에 바뀐다', () => {

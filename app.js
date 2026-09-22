@@ -992,6 +992,7 @@
     if (name === 'gear') renderGear(true);
     if (name === 'shop') renderShop(true);
     if (name === 'store') renderStore(true);
+    if (name === 'dungeon') renderDungeon(true);
     if (name === 'log') { renderLog(true); loadAttend(); }
     anim(document.querySelector(`.tab[data-tab="${name}"]`), [{ opacity: 0, transform: 'translateY(10px)' }, { opacity: 1, transform: 'none' }], { duration: 220, easing: 'ease-out' });
   }
@@ -1914,6 +1915,7 @@
     if (currentTab === 'gear') renderGear(false);
     if (currentTab === 'shop') renderShop(false);
     if (currentTab === 'store') renderStore(false);
+    if (currentTab === 'dungeon') renderDungeon(false);
     renderPotionbar();
     if (currentTab === 'log') renderLog(false);
 
@@ -1943,8 +1945,10 @@
 
     // 메뉴 알림 점
     const dots = document.querySelectorAll('.tabnav__btn .dot');
+    G.dungeonSync(s, today());
     const want = [anyBuy && currentTab !== 'upgrade', gearNew.size > 0 && currentTab !== 'gear', G.promoStage(s) !== null && currentTab !== 'class', gain > 0 && currentTab !== 'prestige',
-      G.PERK_KEYS.some((id) => G.canBuyPerk(s, id)) && currentTab !== 'shop', G.adStatus(s, today()).left > 0 && adsMod.available && currentTab !== 'store', (G.unclaimedAchievements(s).length > 0 || G.questClaimable(s) > 0) && currentTab !== 'log'];
+      G.PERK_KEYS.some((id) => G.canBuyPerk(s, id)) && currentTab !== 'shop', G.adStatus(s, today()).left > 0 && adsMod.available && currentTab !== 'store',
+      G.dungeonClaimable(s) > 0 && currentTab !== 'dungeon', (G.unclaimedAchievements(s).length > 0 || G.questClaimable(s) > 0) && currentTab !== 'log'];
     dots.forEach((d, i) => { if (d.hidden === want[i]) d.hidden = !want[i]; });
   }
 
@@ -2184,6 +2188,53 @@
       } else if (r.status === 'unavailable') openModal('광고를 볼 수 없어요', esc(r.reason || ''), [{ text: '확인' }]);
     } finally { adBusy = false; }
   }
+
+  // ---- 던전 (일일·주간·월간) ----
+  let dungeonKey = '';
+  function renderDungeon(force) {
+    const s = state;
+    G.dungeonSync(s, today());
+    const left = G.periodSecsLeft(serverNow());
+    const key = G.DUNGEON_PERIODS.map((p) => { const d = s.dungeons[p]; return `${d.key}:${d.used}:${d.bestWaves}:${d.bonusClaimed ? 1 : 0}`; }).join('|') + '#' + G.DUNGEON_PERIODS.map((p) => (left[p] === null ? 'x' : Math.floor(left[p] / 60))).join(',');
+    if (!force && key === dungeonKey) return;
+    dungeonKey = key;
+    $('dungeonList').innerHTML = G.DUNGEON_PERIODS.map((p) => {
+      const info = G.dungeonInfo(s, p), secLeft = left[p];
+      const dots = Array.from({ length: info.waves }, (_, i) => `<i class="dwave ${i < info.bestWaves ? 'is-on' : ''}"></i>`).join('');
+      const clearNote = info.bonusClaimed ? `<span class="dclear">${A.icon('chest')}완주 보상 받음</span>` : '';
+      const btn = `<button class="btn ${info.left > 0 ? 'btn--gold' : 'btn--gray'} prod__btn" type="button" data-dchallenge="${p}" ${info.left > 0 ? '' : 'disabled'}><span>${info.left > 0 ? '도전' : '오늘 끝'}</span><small>${A.icon('ticket')}${info.left}/${info.attempts}</small></button>`;
+      return `<div class="card prod dungeon"><div class="prod__tile" style="--tone:#7a4aff99">${A.icon('gate')}</div>` +
+        `<div><div class="prod__name">${info.name} <span class="prod__chip">${info.boss}</span></div>` +
+        `<div class="prod__desc">파동 ${info.waves > 1 ? `${info.bestWaves}/${info.waves} 최고 기록` : (info.cleared ? '처치' : '미처치')} ${clearNote}</div>` +
+        `<div class="dwaves">${dots}</div>` +
+        `<div class="prod__desc">초기화까지 ${secLeft === null ? '서버 시각을 확인하지 못했어요' : clockText(secLeft)}</div></div>${btn}</div>`;
+    }).join('');
+  }
+  function showDungeonResult(info, r) {
+    const item = (it) => { const R = G.RARITIES[it.r]; return `<div class="got" style="--rc:${R.color}">${gearArt(it)}<div><b>[${R.name}] ${G.itemName(it)}</b><small>${G.GEAR[it.slot].kinds[it.kind].label} +${fmtVal(it.val)}%</small></div></div>`; };
+    const waveLines = r.drops.map(item).join('');
+    const bonus = r.bonus ? `<div style="margin:10px 0 6px;font-weight:900;color:var(--gold)">${A.icon('chest')} 완주 보상! ${GEM}${r.bonus.crystals}${r.bonus.tokens ? ` · ${A.icon('crown')}증표 +${r.bonus.tokens}` : ''}</div>${item(r.bonus.item)}` : '';
+    const body = (waveLines + bonus) || '<div>보스를 물리치지 못했어요. 더 강해져서 다시 도전해 보세요.</div>';
+    openModal(r.fullClear ? `${info.name} 완주!` : `${info.name} · 파동 ${r.wavesCleared}/${r.waves}`, body, [{ text: '확인', cls: 'btn--gold' }]);
+  }
+  function doDungeonChallenge(period) {
+    const cfg = G.DUNGEONS[period], info = G.dungeonInfo(state, period);
+    if (!info || info.left <= 0) return;
+    openModal(`${info.name} 도전`, `<b>${info.boss}</b>${info.waves > 1 ? ` 외 파동 ${info.waves}마리` : ''}에게 도전해요.<br><small>지금 초당 피해로 ${cfg.budgetSec}초만큼 싸워요. 남은 도전 ${info.left}/${info.attempts}번.</small>`,
+      [{ text: '취소' }, { text: '도전!', cls: 'btn--gold', onClick: () => {
+        const r = G.challengeDungeon(state, period);
+        if (!r.ok) { openModal('도전할 수 없어요', r.reason === 'limit' ? '오늘 도전 횟수를 다 썼어요' : '다시 시도해 주세요', [{ text: '확인' }]); return; }
+        for (const it of r.drops) gearNew.add(it.id);
+        if (r.bonus) gearNew.add(r.bonus.item.id);
+        addLog(`${info.name}: 파동 ${r.wavesCleared}/${r.waves}${r.fullClear ? ' 완주!' : ''}`, r.fullClear ? 'is-gold' : '', 'gate');
+        cloudSoon(); writeSave(); render(); renderDungeon(true); renderGear(true);
+        showDungeonResult(info, r);
+      } }]);
+  }
+  document.querySelector('.tab[data-tab="dungeon"]').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-dchallenge]');
+    if (b && !b.disabled) doDungeonChallenge(b.dataset.dchallenge);
+  });
 
   // ---- 공격 (화면 누르기) ----
   function attack(px, py) {

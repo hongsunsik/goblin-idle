@@ -4,6 +4,7 @@
   const Sk = typeof module !== 'undefined' && module.exports ? require('./skills.js') : root.GoblinSkills;
   const Social = typeof module !== 'undefined' && module.exports ? require('./social.js') : root.GoblinSocial;
   const St = typeof module !== 'undefined' && module.exports ? require('./store.js') : root.GoblinStore;
+  const Dg = typeof module !== 'undefined' && module.exports ? require('./dungeon.js') : root.GoblinDungeon;
   const SAVE_VERSION = 1;
   const UNITS = ['', 'K', 'M', 'B', 'T', 'Qa', 'Qi', 'Sx', 'Sp', 'Oc'];
   const OFFLINE_CAP = 8 * 3600;   // 오프라인 보상은 최대 8시간까지
@@ -56,7 +57,7 @@
   };
   const ADVANCED = {
     knight:      { name: '기사',     parent: 'warrior', desc: '철벽 방어. 체력과 회복이 크게 늘지만 공격은 조금 약해진다.',
-                   mult: { hp: 1.6, regen: 1.5, dmg: 1.15 } },
+                   mult: { hp: 1.5, regen: 1.4, dmg: 1.22 } },
     berserker:   { name: '광전사',   parent: 'warrior', desc: '분노의 일격. 공격력이 크게 오르는 대신 체력이 줄어든다.',
                    mult: { dmg: 1.5, hp: 0.85 } },
     sniper:      { name: '저격수',   parent: 'archer',  desc: '한 방이 강력하다. 연사는 조금 느려진다.',
@@ -236,7 +237,7 @@
     // 직업
     { id: 'tier2', group: '직업', icon: 'cap', name: '갈림길', desc: '2차 전직 달성', goal: 1, val: (s) => masteredIn(s, 2), reward: 5 },
     { id: 'elite16', group: '직업', icon: 'book', name: '절반의 정점', desc: '4차 직업 16종 달성', goal: 16, val: (s) => masteredIn(s, 4), reward: 240 },
-    ...fam('직업', 'star', goldMedals, [[1, 15], [8, 50], [24, 120]], (g, i) => ({ id: 'medal' + g, name: ['첫 금메달', '메달 수집가', '금메달 컬렉터'][i], desc: `도감 금메달 ${g}개` })),
+    ...fam('직업', 'medal', goldMedals, [[1, 15], [8, 50], [24, 120]], (g, i) => ({ id: 'medal' + g, name: ['첫 금메달', '메달 수집가', '금메달 컬렉터'][i], desc: `도감 금메달 ${g}개` })),
     // 장비: 등급별로 얻은 수
     ...fam('장비', 'shield', (s) => s.stats.epics, [[1, 10], [10, 25], [50, 50]], (g, i) => ({ id: 'epic' + g, name: ['보랏빛 첫 장비', '영웅의 수집', '영웅 창고'][i], desc: `영웅 이상 장비 ${g}개 얻기` })),
     ...fam('장비', 'shield', (s) => s.stats.rares, [[10, 5], [100, 15], [1000, 40]], (g, i) => ({ id: 'rare' + g, name: ['파란 장비', '희귀 사냥꾼', '희귀 장비 창고'][i], desc: `희귀 이상 장비 ${g}개 얻기` })),
@@ -413,6 +414,73 @@
     let potion = null;
     if (period === 'daily') { potion = rollPotion(); s.potions[potion.id] = Math.min(St.POTION_CAP, (s.potions[potion.id] || 0) + potion.dur); s.stats.potions += 1; }
     return { crystals: b.bonus.reward, potion };
+  }
+
+  // ---- 던전 (일일·주간·월간) ----
+  // 기간마다 정해진 횟수만큼 도전한다. 도전 한 번 = 그 순간의 총 초당 피해 × budgetSec을 '피해 예산'으로,
+  // 파동(보스) 순서대로 물리친다 (예산이 남으면 다음 파동까지, 모자라면 그 자리에서 멈춘다). 자세한 수치는 dungeon.js.
+  function dungeonSync(s, day) {
+    const keys = periodKeys(day);
+    let changed = false;
+    for (const p of Dg.DUNGEON_PERIODS) {
+      if (!s.dungeons[p] || s.dungeons[p].key !== keys[p]) {
+        const cfg = Dg.DUNGEONS[p];
+        const rng = seededRng([...keys[p]].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 11) + p.length * 733);
+        s.dungeons[p] = { key: keys[p], used: 0, cleared: false, bonusClaimed: false, bestWaves: 0, boss: cfg.boss[Math.floor(rng() * cfg.boss.length)] };
+        changed = true;
+      }
+    }
+    return changed;
+  }
+  const dungeonBossHp = (s, period, wave) => Math.round(monsterMaxHp(s.bestStage) * Dg.DUNGEONS[period].hpMult * Math.pow(Dg.DUNGEONS[period].hpStep, wave));
+  // 화면 표시용 현황
+  function dungeonInfo(s, period) {
+    const d = s.dungeons[period], cfg = Dg.DUNGEONS[period];
+    if (!d || !cfg) return null;
+    return { period, name: cfg.name, boss: d.boss, waves: cfg.waves, bestWaves: d.bestWaves, used: d.used, attempts: cfg.attempts,
+             left: Math.max(0, cfg.attempts - d.used), cleared: d.cleared, bonusClaimed: d.bonusClaimed,
+             bossHp: Array.from({ length: cfg.waves }, (_, w) => dungeonBossHp(s, period, w)) };
+  }
+  const dungeonClaimable = (s) => Dg.DUNGEON_PERIODS.filter((p) => s.dungeons[p] && s.dungeons[p].used < Dg.DUNGEONS[p].attempts).length;
+  // 도전 한 번. 결과: { ok, reason? | wavesCleared, waves, fullClear, drops[], bonus?, left }
+  function challengeDungeon(s, period) {
+    const cfg = Dg.DUNGEONS[period];
+    const d = s.dungeons[period];
+    if (!cfg || !d) return { ok: false, reason: 'unknown' };
+    if (d.used >= cfg.attempts) return { ok: false, reason: 'limit' };
+    d.used += 1;
+    s.stats.dungeonRuns += 1;
+    let budget = totalDps(s) * cfg.budgetSec;
+    let wavesCleared = 0;
+    const drops = [];
+    for (let w = 0; w < cfg.waves; w++) {
+      const need = dungeonBossHp(s, period, w);
+      if (budget < need) break;
+      budget -= need;
+      wavesCleared += 1;
+      const it = rollItem(s, s.bestStage, true, rollFromOdds(cfg.odds));
+      giveItem(s, it);
+      tallyRarity(s, it);
+      drops.push(it);
+      s.gold += Math.ceil(monsterGold(s.bestStage) * cfg.reward.gold * goldMult(s));
+      s.crystals = Math.min(1e9, s.crystals + cfg.reward.crystals);
+    }
+    if (wavesCleared > d.bestWaves) d.bestWaves = wavesCleared;
+    const fullClear = wavesCleared >= cfg.waves;
+    if (fullClear) d.cleared = true;
+    let bonus = null;
+    if (fullClear && !d.bonusClaimed) {
+      d.bonusClaimed = true;
+      s.crystals = Math.min(1e9, s.crystals + cfg.clear.crystals);
+      s.gold += Math.ceil(monsterGold(s.bestStage) * cfg.clear.gold * goldMult(s));
+      if (cfg.clear.tokens) s.tokens += cfg.clear.tokens;
+      const it = rollItem(s, s.bestStage, true, rollFromOdds(cfg.clear.boxOdds));
+      giveItem(s, it);
+      tallyRarity(s, it);
+      bonus = { crystals: cfg.clear.crystals, gold: cfg.clear.gold, tokens: cfg.clear.tokens || 0, item: it };
+    }
+    s.stats.drops += drops.length;
+    return { ok: true, wavesCleared, waves: cfg.waves, fullClear, drops, bonus, left: Math.max(0, cfg.attempts - d.used) };
   }
 
   // ---- 장비 ----
@@ -811,8 +879,9 @@
       achieved: {},      // 달성한 업적 (환생해도 유지)
       achClaimed: {},    // 크리스탈 보상을 받은 업적 (환생해도 유지)
       quests: { daily: null, weekly: null, monthly: null },   // 일일·주간·월간 퀘스트 { key 기간 이름표, list [{ id, goal, base }], claimed, bonus } (환생해도 유지)
+      dungeons: { daily: null, weekly: null, monthly: null },   // 일일·주간·월간 던전 { key, used, cleared, bonusClaimed, bestWaves, boss } (환생해도 유지)
       stats: { bossKills: 0, gold: 0, drops: 0, rares: 0, epics: 0, legends: 0, uniques: 0, myths: 0, sold: 0, casts: 0, downs: 0, taps: 0, ads: 0, potions: 0,
-               stageUps: 0, levelUps: 0, shopBuys: 0, boxes: 0, spent: 0, days: 0, time: 0, away: 0, questClaims: 0, dailyClears: 0, weeklyClears: 0, monthlyClears: 0 },   // 업적용 누적 기록 (환생해도 유지)
+               stageUps: 0, levelUps: 0, shopBuys: 0, boxes: 0, spent: 0, days: 0, time: 0, away: 0, questClaims: 0, dailyClears: 0, weeklyClears: 0, monthlyClears: 0, dungeonRuns: 0 },   // 업적용 누적 기록 (환생해도 유지)
       runT: 0,           // 이번 판을 키운 시간(초). 환생 보상이 시간에 따라 달라진다
       rescueT: 0,        // 유물 '불사조의 깃털'이 다시 쓸 수 있을 때까지 남은 시간 (저장하지 않음)
       dex: {},           // 도감 기록: 2차 직업별 { best 최고 스테이지, kills 처치 수, runs 전직 횟수 } (환생해도 유지)
@@ -1416,6 +1485,20 @@
       for (const it of list) if (q.claimed && q.claimed[it.id] === true) claimed[it.id] = true;
       s.quests[p] = { key: q.key, list, claimed, bonus: q.bonus === true && list.length > 0 && list.every((x) => claimed[x.id]) };
     }   // 예전 저장에는 없으므로 손해 보지 않게 가득 찬 것으로 시작한다
+    for (const p of Dg.DUNGEON_PERIODS) {   // 던전: 이름표를 검사하고, 도전 횟수·물리친 파동은 그 기간의 한도를 넘지 않게 자른다
+      const d = o.dungeons && o.dungeons[p], cfg = Dg.DUNGEONS[p];
+      const keyOk = d && typeof d.key === 'string' && (p === 'monthly' ? /^\d{4}-\d{2}$/ : /^\d{4}-\d{2}-\d{2}$/).test(d.key);
+      if (!keyOk) continue;
+      const bestWaves = clamp(Math.floor(num(d.bestWaves, 0)), 0, cfg.waves);
+      s.dungeons[p] = {
+        key: d.key,
+        used: clamp(Math.floor(num(d.used, 0)), 0, cfg.attempts),
+        bestWaves,
+        cleared: d.cleared === true && bestWaves >= cfg.waves,
+        bonusClaimed: d.bonusClaimed === true,
+        boss: typeof d.boss === 'string' && cfg.boss.includes(d.boss) ? d.boss : cfg.boss[0],
+      };
+    }
     for (const k of ADV_IDS) {
       const d = o.dex && o.dex[k];
       if (d && typeof d === 'object') {
@@ -1511,6 +1594,7 @@
     RARITIES, GEAR, SLOT_KEYS, BAG_MAX, bagLimit, DROP_CHANCE, BOSS_DROP_CHANCE, LUCK_PER_LV,
     GEAR_DESIGNS, itemDesign, setRandom, itemName, sellValue, rollItem, dropChance, isUpgrade, receiveItem, equipItem, unequipItem, sellBagItem, sellBagUpTo, sellBagItems, isWeaker, bagWeaker, gearMult,
     claimAttend, QUEST_PERIODS, QUEST_CFG, QUEST_DEFS, periodKeys, periodSecsLeft, questSync, questBoard, questClaimable, claimQuest, claimQuestBonus,
+    DUNGEON_PERIODS: Dg.DUNGEON_PERIODS, DUNGEONS: Dg.DUNGEONS, dungeonSync, dungeonInfo, dungeonClaimable, dungeonBossHp, challengeDungeon,
     PERKS, PERK_KEYS, HEADSTART_LV, perkLv, perkCost, perkSpent, tokenBalance, perkMissing, perkUnlocked, canBuyPerk, buyPerk, respecPerks, offlineCap,
     fmt, fmtTime,
   };
