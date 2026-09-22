@@ -567,7 +567,7 @@ svg { display: block; }
 
 /* ===== 3·4차 전직 / 도감 탭 ===== */
 .classcard__path { font-size: 10.5px; color: var(--cyan); font-weight: 800; margin: 2px 0 3px; }
-.dextabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 8px; }
+.dextabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 8px; }
 .dextab { padding: 7px 4px; font: inherit; font-size: 13px; font-weight: 900; color: var(--muted); background: rgba(0, 0, 0, 0.35); border: 1px solid var(--line); cursor: pointer; }
 .dextab small { display: block; font-size: 10px; font-weight: 700; margin-top: 1px; }
 .dextab.is-on { color: #3a2400; background: linear-gradient(180deg, #fff0b8, #ffc84a); border-color: var(--gold-d); }

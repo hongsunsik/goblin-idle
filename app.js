@@ -2,7 +2,7 @@
   const G = window.Game;
   const A = window.Art;
   const Mini = window.Mini;
-  A.setParents(G.parentOf);   // 그림이 없는 3·4차 직업은 윗단계 직업 그림으로 대신 그린다
+  A.setParents(G.parentOf);   // 그림이 없는 3~5차 직업은 윗단계 직업 그림으로 대신 그린다
   const SAVE_KEY = 'goblin-idle-save-v1';
   const $ = (id) => document.getElementById(id);
 
@@ -1061,8 +1061,9 @@
     return m;
   }
 
-  const TIER_NAME = { 1: '1차', 2: '2차', 3: '3차', 4: '4차' };
-  const STAGE_TIER = { base: 1, adv: 2, adv3: 3, adv4: 4 };
+  const TIER_NAME = { 1: '1차', 2: '2차', 3: '3차', 4: '4차', 5: '5차' };
+  const STAGE_TIER = { base: 1, adv: 2, adv3: 3, adv4: 4, adv5: 5 };
+  const TIER_FIELD = ['', 'base', 'adv', 'adv3', 'adv4', 'adv5'];   // 차수(1~5) → PROMO_LEVEL 이름표
   // 앞 단계 직업 이름들 (예: 성기사 → 전사, 기사)
   const ancestorNames = (id) => { const out = []; for (let c = G.parentOf(id); c; c = G.parentOf(c)) out.unshift(G.NODES[c].name); return out; };
 
@@ -1089,12 +1090,33 @@
     );
   }
 
+  function askAscend() {
+    const id = G.deepest(state), info = G.NODES[id], nextRank = state.transcend + 1;
+    openModal(
+      `${info.name}을(를) 초월할까요?`,
+      A.goblin(id) + `<div>갈래는 늘지 않지만, 공격력·골드가 +${Math.round(G.TRANSCEND_BONUS * 100)}%p 더 강해져요.</div>` +
+      '<div style="margin-top:10px"><small>환생하기 전까지는 되돌릴 수 없어요.</small></div>',
+      [
+        { text: '취소' },
+        { text: '초월하기', cls: 'btn--gold', onClick: () => {
+          if (!G.ascend(state)) return;
+          addLog(`${info.name}${'★'.repeat(nextRank)}(으)로 초월했다!`, 'is-good', 'cap');
+          cloudSoon();
+          floatText('초월!', 'float--big', 'center');
+          writeSave();
+          render();
+          renderClass(true);
+        } },
+      ]
+    );
+  }
+
   let classKey = '';
-  let dexView = 2;   // 도감에서 보고 있는 차수 (2·3·4)
+  let dexView = 2;   // 도감에서 보고 있는 차수 (2·3·4·5)
   function renderClass(force) {
     const s = state;
     const dexKey = G.ADV_IDS.map((id) => { const r = G.dexRecord(s, id); return `${s.mastered[id] ? 1 : 0}:${r.best}:${r.kills}`; }).join(',');
-    const key = [G.classPath(s).join('>'), s.level, dexKey, dexView].join('|');
+    const key = [G.classPath(s).join('>'), s.level, s.transcend, dexKey, dexView].join('|');
     if (!force && key === classKey) return;
     classKey = key;
 
@@ -1111,7 +1133,7 @@
     const mySkills = G.skillsOf(s);
     $('classSkills').innerHTML = mySkills.length ? `<h3 class="sect">스킬 <small>쿨타임이 차면 자동으로 사용해요</small></h3>` + mySkills.map(skillLine).join('') : '';
 
-    // 전직 선택 (1차~4차)
+    // 전직 선택 (1차~5차)
     const np = G.nextPromo(s);
     let html = '';
     if (np) {
@@ -1129,7 +1151,20 @@
       }
       html += '</div>';
     } else {
-      html = '<div class="notice">모든 전직을 마쳤어요! (4차)<br>환생하면 직업이 초기화되어 다른 길을 골라 볼 수 있어요.</div>';
+      // 5차까지 전직을 마쳤다: 갈래 없이 랭크만 오르는 '초월'
+      const rank = s.transcend, maxRank = G.TRANSCEND_LEVEL.length;
+      if (rank >= maxRank) {
+        html = `<div class="notice">${G.classTitle(s)} · 초월을 모두 마쳤어요! (초월 ${maxRank}랭크)<br>환생하면 직업이 초기화되어 다른 길을 골라 볼 수 있어요.</div>`;
+      } else {
+        const need = G.TRANSCEND_LEVEL[rank], ready = s.level >= need;
+        html = `<div class="choice__title">초월 ${rank + 1}랭크 (Lv.${need}) ${ready ? '· 지금 초월할 수 있어요!' : ''}</div><div class="choices">` +
+          `<div class="card choice ${ready ? 'is-ready' : 'is-locked'}">` +
+          `<div class="choice__art">${A.goblin(G.deepest(s))}</div>` +
+          `<div class="choice__name">${G.NODES[G.deepest(s)].name}${'★'.repeat(rank + 1)}</div>` +
+          `<div class="choice__desc">갈래는 없지만, 공격력·골드가 +${Math.round(G.TRANSCEND_BONUS * 100)}%p 더 강해져요.</div>` +
+          `<button class="btn ${ready ? '' : 'btn--gray'}" type="button" data-ascend="1" ${ready ? '' : 'disabled'}>${ready ? '초월하기' : `Lv.${need} 필요`}</button>` +
+          '</div></div>';
+      }
     }
     $('classChoice').innerHTML = html;
     renderCodex();
@@ -1143,15 +1178,15 @@
       (on ? `<span class="medal medal--${tier}">${tier ? G.DEX_MEDALS[tier - 1] : '-'}</span>` : '') +
       `<div class="dexcard__art">${A.goblin(aid, compact ? { head: true } : undefined)}</div>` +
       `<div class="dexcard__name">${on ? info.name : '???'}</div>` +
-      `<div class="dexcard__rec">${on ? `최고 <b>${rec.best}</b>단계<br>처치 <b>${G.fmt(rec.kills)}</b>` : `Lv.${G.PROMO_LEVEL[['', 'base', 'adv', 'adv3', 'adv4'][G.classTier(aid)]]}에 전직`}</div></div>`;
+      `<div class="dexcard__rec">${on ? `최고 <b>${rec.best}</b>단계<br>처치 <b>${G.fmt(rec.kills)}</b>` : `Lv.${G.PROMO_LEVEL[TIER_FIELD[G.classTier(aid)]]}에 전직`}</div></div>`;
   }
 
-  // 도감: 2·3·4차 탭으로 나누고, 부모 직업별로 묶어 자식 2갈래를 보여 준다
+  // 도감: 2~5차 탭으로 나누고, 부모 직업별로 묶어 자식 2갈래를 보여 준다
   function renderCodex() {
     const s = state;
     const done = (t) => G.advIdsOfTier(t).filter((id) => s.mastered[id]).length;
     $('codexBonus').textContent = `${Object.keys(s.mastered).length} / ${G.ADV_IDS.length} · 공격력·골드 +${Math.round((G.masteryMult(s) - 1) * 100)}%`;
-    let html = '<div class="dextabs">' + [2, 3, 4].map((t) =>
+    let html = '<div class="dextabs">' + [2, 3, 4, 5].map((t) =>
       `<button class="dextab ${dexView === t ? 'is-on' : ''}" type="button" data-dextab="${t}">${TIER_NAME[t]}<small>${done(t)}/${G.advIdsOfTier(t).length}</small></button>`).join('') + '</div>';
     const compact = dexView >= 3;
     const parents = dexView === 2 ? Object.keys(G.CLASSES) : G.advIdsOfTier(dexView - 1);
@@ -1169,7 +1204,7 @@
   function showDex(aid) {
     const info = G.NODES[aid], tier = G.classTier(aid), s = state;
     if (!s.mastered[aid]) {
-      const need = G.PROMO_LEVEL[['', 'base', 'adv', 'adv3', 'adv4'][tier]];
+      const need = G.PROMO_LEVEL[TIER_FIELD[tier]];
       openModal('???',
         `<div class="dexd__art" style="filter:brightness(0) opacity(.4)">${A.goblin(aid)}</div>` +
         `<div class="dexd__desc">아직 만나지 못한 직업이에요.<br><b>${ancestorNames(aid).join(' → ')}</b> 순서로 전직한 뒤<br>Lv.${need}에서 ${TIER_NAME[tier]} 전직하면 도감에 기록돼요.</div>`,
@@ -1201,6 +1236,8 @@
   $('classChoice').addEventListener('click', (e) => {
     const b = e.target.closest('button[data-pick]');
     if (b && !b.disabled) askPromote(b.dataset.pick);
+    const a = e.target.closest('button[data-ascend]');
+    if (a && !a.disabled) askAscend();
   });
 
   // ---- 증표 상점 ----
@@ -1773,6 +1810,9 @@
       } else if (e.type === 'promoReady') {
         addLog(`${TIER_NAME[STAGE_TIER[e.stage]]} 전직이 가능해요! '전직' 메뉴를 확인하세요`, 'is-gold', 'cap');
         floatText('전직 가능!', 'float--big', 'center');
+      } else if (e.type === 'transcendReady') {
+        addLog(`초월 ${e.rank}랭크를 할 수 있어요! '전직' 메뉴를 확인하세요`, 'is-gold', 'cap');
+        floatText('초월 가능!', 'float--big', 'center');
       } else if (e.type === 'down') {
         addLog(`쓰러졌다... 스테이지 ${e.to}로 후퇴`, 'is-bad', 'skull');
         shakeScene(5);
@@ -1929,7 +1969,7 @@
     setText('pBest', s.bestStage);
     pb.disabled = gain <= 0;
     setText('prestigeBtn', gain > 0 ? `환생하기 (증표 +${gain})` : '아직 환생할 수 없어요');
-    const perTok = Math.round(G.TOKEN_BONUS * G.resonance(s) * 100), maxTok = Math.round(G.TOKEN_BONUS * (1 + 4 * G.RESONANCE) * 100);
+    const perTok = Math.round(G.TOKEN_BONUS * G.resonance(s) * 100), maxTok = Math.round(G.TOKEN_BONUS * (1 + 5 * G.RESONANCE) * 100);
     const runMin = Math.floor(s.runT / 60);
     const timeNote = gain <= 0 ? '' : info.timeF < 1
       ? `이번 판은 <b>${runMin}분</b> 키웠어요. 증표는 판을 <b>10분</b> 키우면 100%이고 지금은 ${Math.round(info.timeF * 100)}%예요 (${Math.ceil(info.secsLeft / 60)}분 더 키우면 +${fullGain}).`
@@ -1939,7 +1979,7 @@
       : `스테이지 ${G.PRESTIGE_MIN_STAGE}에 도달하면 환생할 수 있어요. 환생하면 왕의 증표를 얻어 영구히 강해지고, 다른 직업으로 다시 시작해 볼 수 있어요.`;
     $('prestigeNote').innerHTML =
       `증표 1개당 공격력·골드 <b>+${perTok}%</b>, 체력도 조금 늘어요.<br>` +
-      `<b>전직할 때마다 증표의 힘이 ${Math.round(G.RESONANCE * 100)}%씩 더 깨어나요.</b> 지금 ${G.classPath(s).length}단계 → 4차 직업이면 증표 1개당 +${maxTok}%까지 올라요.<br>` +
+      `<b>전직할 때마다 증표의 힘이 ${Math.round(G.RESONANCE * 100)}%씩 더 깨어나요.</b> 지금 ${G.classPath(s).length}단계 → 5차 직업이면 증표 1개당 +${maxTok}%까지 올라요.<br>` +
       `증표는 <b>증표 탭</b>에서 영구 강화를 사는 데 쓰고, 4단계의 <b>직업 각성·도감 공명</b>은 전직과 이어진 강화예요.`;
 
     setText('awayNote', `자리를 비워도 최대 ${Math.round(G.offlineCap(s) / 3600)}시간까지 보상을 받아요. 비운 시간은 ${serverNow() === null ? '기기 시계' : '서버 시각'} 기준으로 재고, 창을 닫아도 백그라운드에 두어도 같은 규칙이에요.`);
@@ -1947,7 +1987,7 @@
     // 메뉴 알림 점
     const dots = document.querySelectorAll('.tabnav__btn .dot');
     G.dungeonSync(s, today());
-    const want = [anyBuy && currentTab !== 'upgrade', gearNew.size > 0 && currentTab !== 'gear', G.promoStage(s) !== null && currentTab !== 'class', gain > 0 && currentTab !== 'prestige',
+    const want = [anyBuy && currentTab !== 'upgrade', gearNew.size > 0 && currentTab !== 'gear', (G.promoStage(s) !== null || G.transcendReady(s)) && currentTab !== 'class', gain > 0 && currentTab !== 'prestige',
       G.PERK_KEYS.some((id) => G.canBuyPerk(s, id)) && currentTab !== 'shop', G.adStatus(s, today()).left > 0 && adsMod.available && currentTab !== 'store',
       G.dungeonClaimable(s) > 0 && currentTab !== 'dungeon', (G.unclaimedAchievements(s).length > 0 || G.questClaimable(s) > 0) && currentTab !== 'log'];
     dots.forEach((d, i) => { if (d.hidden === want[i]) d.hidden = !want[i]; });

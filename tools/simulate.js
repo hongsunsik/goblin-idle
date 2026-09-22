@@ -1,6 +1,9 @@
 // 밸런스 시뮬레이터: 강화를 자동으로 사고 전직·환생하는 봇으로 플레이 시간별 성장 곡선을 확인한다.
 // 사용법: node tools/simulate.js [분(기본 30)] [직업경로 예: mage/pyromancer/infernomage/flameemperor (생략하면 4차까지 32가지 전부)]
 //   경로를 짧게(예: mage/pyromancer) 주면 그 단계까지만 전직한 봇이 된다. --summary 를 붙이면 3·4차 효과만 요약한다.
+// 주의: 전직 레벨이 15/28/45/65/90으로 늘어난 뒤로는, 환생 없이 짧은 시간(30분 이하)만 돌리면 대부분 2~3차에 머물러
+//   4·5차 비교가 잘 안 된다. 3차 이상을 비교하려면 분(90 이상)을 크게 주거나, tools/test.js의 증표를 미리 채운
+//   회귀 테스트(격차 검사)처럼 s.tokens·s.perks를 미리 넣고 재는 편이 더 공정하다.
 const G = require('../game.js');
 
 // 장비 드롭도 무작위라 한 번의 결과는 운에 흔들린다. 씨앗이 있는 난수로 여러 번 돌려 평균을 낸다.
@@ -34,7 +37,7 @@ function playRun(s, path, seconds, marks) {
     t += 1;
     spendAll(s);
     const st = G.promoStage(s);
-    if (st) { const id = path[['base', 'adv', 'adv3', 'adv4'].indexOf(st)]; if (id) G.promote(s, id); }   // 경로가 끝난 단계에서는 더 전직하지 않는다
+    if (st) { const id = path[['base', 'adv', 'adv3', 'adv4', 'adv5'].indexOf(st)]; if (id) G.promote(s, id); }   // 경로가 끝난 단계에서는 더 전직하지 않는다
     for (const m of marks) if (m.t === null && s.stage >= m.stage) m.t = t;
   }
   return t;
@@ -106,7 +109,7 @@ const only = process.argv[3] && process.argv[3] !== '--summary' ? process.argv[3
 const selected = only ? [only.split('/')] : pathsTo(4);
 if (!only) SEEDS = [1, 2, 3, 4];   // 32가지를 다 돌릴 때는 씨앗을 줄여 시간을 아낀다
 
-const name = (path) => path.map((id) => (G.CLASSES[id] || G.ADVANCED[id] || G.ADVANCED3[id] || G.ADVANCED4[id]).name).join('/');
+const name = (path) => path.map((id) => (G.CLASSES[id] || G.ADVANCED[id] || G.ADVANCED3[id] || G.ADVANCED4[id] || G.ADVANCED5[id]).name).join('/');
 console.log(`\n== 환생 없이 ${minutes}분 (스테이지 도달 시간) ==`);
 console.log(`(씨앗 ${SEEDS.length}개 평균)`);
 const results = [];

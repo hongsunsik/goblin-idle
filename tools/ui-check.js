@@ -231,7 +231,7 @@ const FAKE_CLOUD = `(() => {
     await ev(`document.querySelector('[data-go="upgrade"]').click()`); await sleep(300);
     check('탭을 떠나면 알림 점이 사라진다', await ev(`document.querySelector('[data-go="gear"] .dot').hidden`));
 
-    console.log('3차·4차 전직');
+    console.log('3~5차 전직·초월');
     // 저장 데이터를 넣고 게임을 다시 여는 도우미
     const reopen = async (state) => {
       await send('Page.navigate', { url: 'file://' + path.join(profile, 'seed.html') }); await sleep(300);
@@ -239,10 +239,11 @@ const FAKE_CLOUD = `(() => {
       await send('Page.navigate', { url: 'file://' + ROOT + '/index.html' }); await sleep(1500);
       await ev(`Game.setRandom(() => 0.999)`);
     };
-    const mk = (level, route) => { const t = G.createState(0); t.level = level; t.stage = 6; t.runBest = t.bestStage = 6; t.autoSell = -1; for (const id of route) { t.level = 99; G.promote(t, id); } t.level = level; t.hp = G.maxHp(t); return t; };
-    await reopen(mk(30, ['mage', 'pyromancer']));
+    const mk = (level, route) => { const t = G.createState(0); t.level = level; t.stage = 6; t.runBest = t.bestStage = 6; t.autoSell = -1; for (const id of route) { t.level = 99999; G.promote(t, id); } t.level = level; t.hp = G.maxHp(t); return t; };
+    const LV3 = G.PROMO_LEVEL.adv3, LV4 = G.PROMO_LEVEL.adv4, LV5 = G.PROMO_LEVEL.adv5;
+    await reopen(mk(LV3, ['mage', 'pyromancer']));
     await ev(`document.querySelector('[data-go="class"]').click()`); await sleep(400);
-    check('레벨 30이면 3차 전직 선택지 2개가 열려 있다', (await ev(`document.querySelectorAll('#classChoice .choice.is-ready').length`)) === 2 && (await ev(`document.getElementById('classChoice').textContent`)).includes('3차 전직'));
+    check('3차 전직 레벨이 되면 선택지 2개가 열려 있다', (await ev(`document.querySelectorAll('#classChoice .choice.is-ready').length`)) === 2 && (await ev(`document.getElementById('classChoice').textContent`)).includes('3차 전직'));
     await ev(`document.querySelector('[data-go="upgrade"]').click()`); await sleep(300);   // 알림 점은 화면이 갱신된 뒤에 뜬다
     check('전직 탭 알림 점이 뜬다 (다른 탭에 있을 때)', await ev(`!document.querySelector('[data-go="class"] .dot').hidden`));
     await ev(`document.querySelector('[data-go="class"]').click()`); await sleep(300);
@@ -250,25 +251,40 @@ const FAKE_CLOUD = `(() => {
     check('전직 확인 창에 직업 이름이 보인다', (await ev(`document.getElementById('modalTitle').textContent`)).includes('불사조술사'));
     await ev(`document.querySelector('#modalActions .btn--gold').click()`); await sleep(500);
     check('전직하면 현재 직업과 경로가 바뀐다', (await ev(`document.querySelector('.classcard__name').textContent`)) === '불사조술사' && (await ev(`document.querySelector('.classcard__path').textContent`)).includes('화염술사 → 불사조술사'));
-    check('다음은 4차(Lv.40)를 기다린다 (지금은 잠김)', (await ev(`document.getElementById('classChoice').textContent`)).includes('4차 전직 (Lv.40)') && (await ev(`document.querySelectorAll('#classChoice .choice.is-locked').length`)) === 2);
-    check('도감 탭이 3개(2차·3차·4차)이고 3차 1/16이 기록돼 있다', (await ev(`document.querySelectorAll('.dextab').length`)) === 3 && (await ev(`document.querySelector('[data-dextab="3"]').textContent`)).includes('1/16'));
+    check('다음은 4차(Lv.' + LV4 + ')를 기다린다 (지금은 잠김)', (await ev(`document.getElementById('classChoice').textContent`)).includes(`4차 전직 (Lv.${LV4})`) && (await ev(`document.querySelectorAll('#classChoice .choice.is-locked').length`)) === 2);
+    check('도감 탭이 4개(2·3·4·5차)이고 3차 1/16이 기록돼 있다', (await ev(`document.querySelectorAll('.dextab').length`)) === 4 && (await ev(`document.querySelector('[data-dextab="3"]').textContent`)).includes('1/16'));
     await ev(`document.querySelector('[data-dextab="3"]').click()`); await sleep(300);
     check('3차 도감에는 카드 16개가 나오고 전직한 직업만 밝혀진다', (await ev(`document.querySelectorAll('#codex .dexcard').length`)) === 16 && (await ev(`document.querySelectorAll('#codex .dexcard.is-on').length`)) === 1);
     await ev(`document.querySelector('[data-dextab="4"]').click()`); await sleep(300);
     check('4차 도감에는 카드 32개가 나온다', (await ev(`document.querySelectorAll('#codex .dexcard').length`)) === 32);
     await ev(`document.querySelector('.dexcard.is-off').click()`); await sleep(300);
     const hint = await ev(`document.getElementById('modalBody').textContent`);
-    check('미달성 4차 카드는 어떤 순서로 전직해야 하는지 힌트를 준다', hint.includes('→') && hint.includes('Lv.40'), hint);
+    check('미달성 4차 카드는 어떤 순서로 전직해야 하는지 힌트를 준다', hint.includes('→') && hint.includes(`Lv.${LV4}`), hint);
     await shot('dex4');
     await ev(`document.querySelector('#modalActions .btn').click()`); await sleep(200);
-    await reopen(mk(40, ['mage', 'pyromancer', 'phoenixmage']));
+    await ev(`document.querySelector('[data-dextab="5"]').click()`); await sleep(300);
+    check('5차 도감에는 카드 64개가 나온다', (await ev(`document.querySelectorAll('#codex .dexcard').length`)) === 64);
+    await reopen(mk(LV4, ['mage', 'pyromancer', 'phoenixmage']));
     await ev(`document.querySelector('[data-go="class"]').click()`); await sleep(400);
-    check('레벨 40이면 4차 전직 선택지가 열린다', (await ev(`document.getElementById('classChoice').textContent`)).includes('4차 전직') && (await ev(`document.querySelectorAll('#classChoice .choice.is-ready').length`)) === 2);
+    check('4차 전직 레벨이 되면 선택지가 열린다', (await ev(`document.getElementById('classChoice').textContent`)).includes('4차 전직') && (await ev(`document.querySelectorAll('#classChoice .choice.is-ready').length`)) === 2);
     await shot('tier4-choice');
     await ev(`document.querySelector('[data-pick="phoenixlord"]').click()`); await sleep(300);
     await ev(`document.querySelector('#modalActions .btn--gold').click()`); await sleep(500);
-    check('4차 전직 뒤에는 더 이상 전직이 없다는 안내가 나온다', (await ev(`document.getElementById('classChoice').textContent`)).includes('모든 전직을 마쳤어요'));
+    check('4차 전직 뒤에는 5차(Lv.' + LV5 + ')를 기다린다', (await ev(`document.getElementById('classChoice').textContent`)).includes(`5차 전직 (Lv.${LV5})`));
     check('전투 화면의 이름표도 4차 직업으로 바뀐다', (await ev(`document.getElementById('heroTitle').textContent`)) === '불사조의 주인');
+    await reopen(mk(LV5, ['mage', 'pyromancer', 'phoenixmage', 'phoenixlord']));
+    await ev(`document.querySelector('[data-go="class"]').click()`); await sleep(400);
+    check('5차 전직 레벨이 되면 선택지가 열린다', (await ev(`document.getElementById('classChoice').textContent`)).includes('5차 전직') && (await ev(`document.querySelectorAll('#classChoice .choice.is-ready').length`)) === 2);
+    await ev(`document.querySelector('[data-pick="rebirthlord"]').click()`); await sleep(300);
+    await ev(`document.querySelector('#modalActions .btn--gold').click()`); await sleep(500);
+    check('5차 전직 뒤에는 갈래 없이 초월 UI가 뜬다', (await ev(`document.getElementById('classChoice').textContent`)).includes('초월'));
+    check('전투 화면의 이름표도 5차 직업으로 바뀐다', (await ev(`document.getElementById('heroTitle').textContent`)) === '재생의 군주');
+    await reopen(mk(G.TRANSCEND_LEVEL[0], ['mage', 'pyromancer', 'phoenixmage', 'phoenixlord', 'rebirthlord']));
+    await ev(`document.querySelector('[data-go="class"]').click()`); await sleep(400);
+    check('초월 1랭크 레벨이 되면 초월할 수 있다', (await ev(`document.querySelectorAll('#classChoice button[data-ascend]:not(:disabled)').length`)) === 1);
+    await ev(`document.querySelector('button[data-ascend]').click()`); await sleep(300);
+    await ev(`document.querySelector('#modalActions .btn--gold').click()`); await sleep(500);
+    check('초월하면 이름 옆에 별이 붙고 다음 초월(2랭크)을 기다린다', (await ev(`document.querySelector('.classcard__name').textContent`)).includes('★') && (await ev(`document.getElementById('classChoice').textContent`)).includes('초월 2랭크'));
     await reopen(mk(22, ['mage', 'pyromancer']));   // 이후 점검을 위해 원래 상태로
 
     console.log('계정·클라우드 저장');

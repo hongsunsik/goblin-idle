@@ -29,8 +29,8 @@
     greed:     { label: '약탈',     icon: 'coin',    cd: 24, base: 0.50, dur: 8 },              // 골드 획득 +위력
     bounty:    { label: '전리품',   icon: 'pouch',   cd: 26, base: 6.0 },                       // 즉시 골드: 처치 골드 × 위력
   };
-  // 직업 단계(1~4차)가 높을수록 같은 종류의 스킬이 강하다
-  const TIER_POWER = { 1: 1, 2: 1.25, 3: 1.5, 4: 1.8 };
+  // 직업 단계(1~5차)가 높을수록 같은 종류의 스킬이 강하다
+  const TIER_POWER = { 1: 1, 2: 1.25, 3: 1.5, 4: 1.8, 5: 2.1 };
 
   // ---- 직업별 스킬 [이름, 효과 종류, (선택) 연출 종류] ----
   // 연출 종류는 지속 피해(dot)의 모양: burn 불, poison 독, void 공허, sun 태양
@@ -54,6 +54,23 @@
     lichking: ['언데드 군단', 'summon'], soulbinder: ['영혼 방벽', 'barrier'], grimreaper: ['수확의 낫', 'execute'], boneemperor: ['뼈 군대', 'summon'],
     voidwalker: ['공허 침식', 'dot', 'void'], phantom: ['환영 분신', 'haste'], bloodblade: ['흡혈의 칼날', 'lifesteal'], ninjamaster: ['분신술', 'multi'],
     seaking: ['해일', 'strike'], ghostcaptain: ['유령선 습격', 'summon'], treasureking: ['황금 비', 'bounty'], raiderlord: ['약탈 강행', 'frenzy'],
+    // 5차
+    archangel: ['천상의 축복', 'guard'], redeemer: ['최후의 심판', 'execute'], sunmonarch: ['태양의 칙령', 'might'], heavenlord: ['천지 지배', 'frenzy'],
+    condemner: ['단죄의 낙인', 'stun'], judgment: ['심판 강림', 'bossbane'], grandduke: ['성전 돌격', 'haste'], immortalknight: ['불멸의 의지', 'barrier'],
+    earthconqueror: ['정복의 함성', 'bounty'], tyrant: ['폭군의 철퇴', 'strike'], legionfather: ['군단 소환', 'summon'], allarmyking: ['만군 집결', 'summon'],
+    apocalypse: ['종말 강림', 'bossbane'], chaoslord: ['혼돈의 힘', 'frenzy'], colossus: ['대지 강타', 'strike'], mountainlord: ['산사태', 'multi'],
+    farsight: ['천리안 조준', 'execute'], judgearrow: ['심판의 화살', 'bossbane'], skyhawk: ['급강하', 'haste'], stormsniper: ['폭풍 저격', 'multi'],
+    wallbreaker: ['성벽 관통', 'strike'], siegemaster: ['공성 사격', 'multi'], dragonbane: ['용살', 'bossbane'], legendhunter: ['전설의 일격', 'execute'],
+    thunderavatar: ['벼락 강림', 'multi'], galeforce: ['질풍 연사', 'haste'], windarchsage: ['바람의 축복', 'heal'], stormjudge: ['폭풍 심판', 'multi'],
+    primalwolf: ['늑대 무리 소환', 'summon'], packlord: ['무리의 포효', 'frenzy'], ancientspirit: ['숲의 가호', 'barrier'], naturejudge: ['자연의 심판', 'dot', 'poison'],
+    firegod: ['화염 강림', 'strike'], infernolord: ['지옥불 폭발', 'dot', 'burn'], doomstar: ['운석 낙하', 'multi'], celestialbreaker: ['천체 파괴', 'strike'],
+    eternalflame: ['불사의 불꽃', 'heal'], rebirthlord: ['재생', 'lifesteal'], sungodpriest: ['태양의 심판', 'dot', 'sun'], dawnsaint: ['새벽의 축복', 'heal'],
+    deathgrandduke: ['죽음의 선고', 'execute'], eternalking: ['영원한 군세', 'summon'], soullord: ['영혼 지배', 'lifesteal'], thousandsouls: ['천 영혼의 함성', 'summon'],
+    endscythe: ['종말의 낫질', 'execute'], judgereaper: ['사신의 심판', 'bossbane'], skeletonking: ['백골 군단', 'summon'], tomblord: ['무덤의 저주', 'dot', 'void'],
+    voidlord: ['공허 지배', 'dot', 'void'], dimensionslayer: ['차원 베기', 'multi'], thousandphantom: ['천 개의 환영', 'haste'], phantomlord: ['환영 지배', 'stun'],
+    bloodlord: ['피의 학살', 'lifesteal'], slaughterer: ['멈추지 않는 학살', 'multi'], shadowgrandmaster: ['그림자 지배', 'multi'], tenthousandninja: ['만겁 분신술', 'multi'],
+    abysslord: ['심해 소환', 'summon'], stormseaking: ['폭풍우 지배', 'frenzy'], cursedfleetlord: ['저주받은 함대', 'summon'], deathvoyager: ['죽음의 항해', 'bounty'],
+    goldenlord: ['황금비', 'bounty'], infinitehoard: ['무한한 보고', 'bounty'], raidavatar: ['약탈의 화신', 'greed'], doomraider: ['파멸의 약탈', 'frenzy'],
   };
 
   // 스킬 하나의 실제 수치. tier는 그 직업이 몇 차인지(1~4).

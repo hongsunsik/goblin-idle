@@ -95,7 +95,7 @@ test('업적 id는 서로 다르고 목표가 양수다', () => {
 section('직업 도감');
 test('2차 전직하면 도감에 기록이 생기고 처치 수와 최고 스테이지가 오른다', () => {
   const s = G.createState(0);
-  s.level = 20; G.promote(s, 'mage'); G.promote(s, 'pyromancer');
+  s.level = G.PROMO_LEVEL.adv; G.promote(s, 'mage'); G.promote(s, 'pyromancer');
   assert.strictEqual(G.dexRecord(s, 'pyromancer').runs, 1);
   s.stage = 30; s.monsterHp = 1; G.clickAttack(s);   // 몬스터 1마리 처치 (뒤 몬스터는 체력이 커서 남은 피해가 이어지지 않는다)
   assert.strictEqual(G.dexRecord(s, 'pyromancer').kills, 1);
@@ -141,46 +141,48 @@ test('도감 기록의 이상한 값은 범위 안으로 보정하고 없는 직
 
 section('3차·4차 전직');
 // 봇처럼 필요한 레벨까지 올려서 지정한 경로를 끝까지 전직시킨다
-const walkPath = (s, ids) => { for (const id of ids) { s.level = Math.max(s.level, G.PROMO_LEVEL[G.promoStage(s) || 'adv4']); if (!G.promote(s, id)) return false; } return true; };
+const walkPath = (s, ids) => { for (const id of ids) { s.level = Math.max(s.level, G.PROMO_LEVEL[G.promoStage(s) || 'adv5']); if (!G.promote(s, id)) return false; } return true; };
 
-test('직업 트리가 온전하다 (1~3차는 갈래 2개, 4차는 끝, 모든 노드에 부모)', () => {
+test('직업 트리가 온전하다 (1~4차는 갈래 2개, 5차는 끝, 모든 노드에 부모)', () => {
   assert.strictEqual(Object.keys(G.ADVANCED3).length, 16);
   assert.strictEqual(Object.keys(G.ADVANCED4).length, 32);
+  assert.strictEqual(Object.keys(G.ADVANCED5).length, 64);
   for (const id of Object.keys(G.CLASSES)) assert.strictEqual(G.childrenOf(id).length, 2, id);
-  for (const id of [...Object.keys(G.ADVANCED), ...Object.keys(G.ADVANCED3)]) assert.strictEqual(G.childrenOf(id).length, 2, id);
-  for (const id of Object.keys(G.ADVANCED4)) assert.strictEqual(G.childrenOf(id).length, 0, id);
+  for (const id of [...Object.keys(G.ADVANCED), ...Object.keys(G.ADVANCED3), ...Object.keys(G.ADVANCED4)]) assert.strictEqual(G.childrenOf(id).length, 2, id);
+  for (const id of Object.keys(G.ADVANCED5)) assert.strictEqual(G.childrenOf(id).length, 0, id);
   for (const id of G.ADV_IDS) { assert.ok(G.classTier(G.parentOf(id)) === G.classTier(id) - 1, id); }
-  const names = G.ADV_IDS.map((id) => G.classTier(id) === 2 ? G.ADVANCED[id].name : G.classTier(id) === 3 ? G.ADVANCED3[id].name : G.ADVANCED4[id].name);
+  const names = G.ADV_IDS.map((id) => G.NODES[id].name);
   assert.strictEqual(new Set(names).size, names.length, '직업 이름이 겹친다');
 });
 
-test('모든 3·4차 직업에 설명과 능력치 배율이 있다', () => {
-  for (const id of [...Object.keys(G.ADVANCED3), ...Object.keys(G.ADVANCED4)]) {
-    const n = G.ADVANCED3[id] || G.ADVANCED4[id];
+test('모든 3·4·5차 직업에 설명과 능력치 배율이 있다', () => {
+  for (const id of [...Object.keys(G.ADVANCED3), ...Object.keys(G.ADVANCED4), ...Object.keys(G.ADVANCED5)]) {
+    const n = G.NODES[id];
     assert.ok(n.name && n.desc && n.desc.length > 8, id);
     assert.ok(Object.keys(n.mult).length >= 1 && Object.values(n.mult).every((v) => v > 0 && v <= 2.5), id + ' ' + JSON.stringify(n.mult));
   }
 });
 
-test('레벨 30·40이 되면 3차·4차 전직이 열리고 알림 사건이 나온다', () => {
+test('레벨이 차면 3차·4차 전직이 열리고 알림 사건이 나온다', () => {
   const s = G.createState(0);
   walkPath(s, ['warrior', 'knight']);
-  s.level = 29; assert.strictEqual(G.promoStage(s), null);
-  s.level = 30; assert.strictEqual(G.promoStage(s), 'adv3');
+  const need = G.PROMO_LEVEL.adv3;
+  s.level = need - 1; assert.strictEqual(G.promoStage(s), null);
+  s.level = need; assert.strictEqual(G.promoStage(s), 'adv3');
   assert.deepStrictEqual(G.promoOptions(s).sort(), ['crusader', 'paladin']);
-  s.level = 29; s.exp = G.expNeeded(s) - 1; s.monsterHp = 1; s.hp = 1e9;
-  const ev = G.clickAttack(s).events;   // 몬스터를 잡아 레벨 30이 되게 한다
+  s.level = need - 1; s.exp = G.expNeeded(s) - 1; s.monsterHp = 1; s.hp = 1e9;
+  const ev = G.clickAttack(s).events;   // 몬스터를 잡아 다음 전직 레벨이 되게 한다
   assert.ok(ev.some((e) => e.type === 'promoReady' && e.stage === 'adv3'), JSON.stringify(ev.map((e) => e.type)));
 });
 
-test('4차까지 순서대로 전직하고, 자식이 아닌 직업이나 건너뛰기는 거절한다', () => {
+test('5차까지 순서대로 전직하고, 자식이 아닌 직업이나 건너뛰기는 거절한다', () => {
   const s = G.createState(0);
-  assert.ok(walkPath(s, ['warrior', 'knight', 'paladin', 'seraph']));
-  assert.deepStrictEqual(G.classPath(s), ['warrior', 'knight', 'paladin', 'seraph']);
-  assert.strictEqual(G.lookId(s), 'seraph');
-  assert.strictEqual(G.classTitle(s), '세라핌 기사');
+  assert.ok(walkPath(s, ['warrior', 'knight', 'paladin', 'seraph', 'archangel']));
+  assert.deepStrictEqual(G.classPath(s), ['warrior', 'knight', 'paladin', 'seraph', 'archangel']);
+  assert.strictEqual(G.lookId(s), 'archangel');
+  assert.strictEqual(G.classTitle(s), '대천사');
   assert.strictEqual(G.promoStage(s), null);
-  const t = G.createState(0); t.level = 30;
+  const t = G.createState(0); t.level = 50;
   G.promote(t, 'warrior'); G.promote(t, 'knight');
   assert.strictEqual(G.promote(t, 'lich'), false, '다른 갈래');
   assert.strictEqual(G.promote(t, 'seraph'), false, '3차를 건너뛰고 4차');
@@ -1288,11 +1290,11 @@ section('스킬·공격 모션');
 const skillState = (route) => { const t = G.createState(0); walkPath(t, route); t.stage = 1; t.monsterHp = t.monsterMax = 1e15; t.hp = G.maxHp(t); return t; };
 const castsOf = (t, seconds, id) => { let n = 0; for (let i = 0; i < seconds * 10; i++) { t.monsterHp = t.monsterMax = 1e15; for (const e of G.tick(t, 0.1)) if (e.type === 'skill' && (!id || e.id === id)) n += 1; } return n; };
 
-test('60개 직업 모두 스킬이 있고, 이름이 겹치지 않으며, 효과 종류가 정의돼 있다', () => {
+test('124개 직업 모두 스킬이 있고, 이름이 겹치지 않으며, 효과 종류가 정의돼 있다', () => {
   const ids = [...Object.keys(G.CLASSES), ...G.ADV_IDS];
-  assert.strictEqual(ids.length, 60);
+  assert.strictEqual(ids.length, 124);
   const names = ids.map((id) => { assert.ok(G.SKILL_NAMES[id], id); return G.SKILL_NAMES[id][0]; });
-  assert.strictEqual(new Set(names).size, 60, '스킬 이름이 겹친다');
+  assert.strictEqual(new Set(names).size, 124, '스킬 이름이 겹친다');
   for (const id of ids) assert.ok(G.SKILL_KINDS[G.SKILL_NAMES[id][1]], `${id}: 알 수 없는 효과 종류`);
   assert.ok(Object.keys(G.SKILL_NAMES).every((id) => ids.includes(id)), '직업이 아닌 이름의 스킬이 있다');
 });
@@ -1546,7 +1548,7 @@ test('직업별 공격 모션: 도적은 표창, 마법사는 마법구, 기사�
   assert.strictEqual(style(['mage', 'necromancer']), 'dark');
 });
 
-test('60개 직업 모두 공격 모션이 정해져 있고, 3·4차는 정해 두지 않으면 윗단계를 따른다', () => {
+test('124개 직업 모두 공격 모션이 정해져 있고, 3·4·5차는 정해 두지 않으면 윗단계를 따른다', () => {
   const known = new Set(['slash', 'axe', 'hammer', 'holy', 'dagger', 'arrow', 'bolt', 'bullet', 'orb', 'fire', 'dark', 'shuriken', 'coin']);
   for (const id of [...Object.keys(G.CLASSES), ...G.ADV_IDS]) assert.ok(known.has(G.styleOfClass(id)), `${id}: ${G.styleOfClass(id)}`);
   assert.strictEqual(G.styleOfClass('warlord'), 'axe', '전쟁군주는 광전사(도끼)를 따른다');
@@ -2047,7 +2049,7 @@ function bot(s, path, seconds, order) {
     G.simulate(s, 1);
     for (;;) { let b = null, bc = Infinity; for (const k of order) if (G.canBuy(s, k) && G.upgradeCost(s, k) < bc) { b = k; bc = G.upgradeCost(s, k); } if (!b) break; G.buy(s, b); }
     const st = G.promoStage(s);
-    if (st) { const id = path[['base', 'adv', 'adv3', 'adv4'].indexOf(st)]; if (id) G.promote(s, id); }
+    if (st) { const id = path[['base', 'adv', 'adv3', 'adv4', 'adv5'].indexOf(st)]; if (id) G.promote(s, id); }
   }
 }
 const MAGE = ['mage', 'pyromancer', 'infernomage', 'flameemperor'];
@@ -2080,14 +2082,14 @@ test('증표가 많아도 스테이지가 90 근처에서 멈추지 않는다 (�
   G.setRandom();
   assert.ok(s.runBest >= 98, `스테이지 ${s.runBest}`);
 });
-test('32가지 4차 직업이 증표 30개 상태에서 15분 뒤 도달하는 스테이지 격차가 9 이하다 (피해 상한을 넣은 직후 예전 직업표는 15)', () => {
+test('32가지 4차 직업이 증표 70개 상태에서 15분 뒤 도달하는 스테이지 격차가 9 이하다 (4차 전직 레벨이 65로 늘어난 뒤로는 이 정도 투자가 있어야 15분 안에 전부 4차에 닿는다)', () => {
   const paths = [];
   const walk = (p) => { if (p.length === 4) { paths.push(p); return; } for (const c of (p.length === 0 ? Object.keys(G.CLASSES) : G.childrenOf(p[p.length - 1]))) walk(p.concat(c)); };
   walk([]);
   const res = paths.map((p) => {
     G.setRandom(seeded(2));
-    const s = G.createState(0); s.tokens = 30; s.prestiges = 5;
-    for (const id of ['might', 'greed', 'vitality']) s.perks[id] = 6;
+    const s = G.createState(0); s.tokens = 70; s.prestiges = 6;
+    for (const id of ['might', 'greed', 'vitality']) s.perks[id] = 8;
     s.hp = G.maxHp(s);
     bot(s, p, 15 * 60);
     return s.runBest;
@@ -2095,6 +2097,26 @@ test('32가지 4차 직업이 증표 30개 상태에서 15분 뒤 도달하는 �
   G.setRandom();
   const spread = Math.max(...res) - Math.min(...res);
   assert.ok(spread <= 9, `격차 ${spread} (${Math.min(...res)}~${Math.max(...res)})`);
+});
+test('64가지 5차 직업이 증표 2000개 상태에서 25분 뒤 도달하는 스테이지 격차가 15 이하다', () => {
+  const paths = [];
+  const walk = (p) => { if (p.length === 5) { paths.push(p); return; } for (const c of (p.length === 0 ? Object.keys(G.CLASSES) : G.childrenOf(p[p.length - 1]))) walk(p.concat(c)); };
+  walk([]);
+  assert.strictEqual(paths.length, 64);
+  const res = paths.map((p) => {
+    G.setRandom(seeded(2));
+    const s = G.createState(0); s.tokens = 2000; s.prestiges = 25;
+    for (const id of ['might', 'greed', 'vitality', 'kingly']) s.perks[id] = G.PERKS[id].max;
+    s.hp = G.maxHp(s);
+    bot(s, p, 25 * 60);
+    const reached5 = G.classPath(s).length === 5;
+    G.setRandom();
+    return { stage: s.runBest, reached5 };
+  });
+  assert.ok(res.every((r) => r.reached5), '이 정도 투자로는 25분 안에 모든 경로가 5차에 닿아야 한다');
+  const stages = res.map((r) => r.stage);
+  const spread = Math.max(...stages) - Math.min(...stages);
+  assert.ok(spread <= 15, `격차 ${spread} (${Math.min(...stages)}~${Math.max(...stages)})`);
 });
 
 

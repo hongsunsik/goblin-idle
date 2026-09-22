@@ -1,6 +1,6 @@
 // 고블린 키우기 - 게임 로직 (DOM과 무관한 순수 함수 모음)
 (function (root) {
-  const { ADVANCED3, ADVANCED4 } = typeof module !== 'undefined' && module.exports ? require('./classes.js') : root.GoblinClasses;
+  const { ADVANCED3, ADVANCED4, ADVANCED5 } = typeof module !== 'undefined' && module.exports ? require('./classes.js') : root.GoblinClasses;
   const Sk = typeof module !== 'undefined' && module.exports ? require('./skills.js') : root.GoblinSkills;
   const Social = typeof module !== 'undefined' && module.exports ? require('./social.js') : root.GoblinSocial;
   const St = typeof module !== 'undefined' && module.exports ? require('./store.js') : root.GoblinStore;
@@ -39,12 +39,16 @@
   const UPGRADE_KEYS = Object.keys(UPGRADES);
 
   // ---- 직업 ----
-  // 1차 전직은 Lv.10, 2차 Lv.20, 3차 Lv.30, 4차 Lv.40부터 가능. 환생하면 직업이 초기화된다.
-  // 2차 직업마다 3차 2갈래, 3차마다 4차 2갈래 (3·4차 데이터는 classes.js)
+  // 1차 전직은 Lv.15, 2차 Lv.28, 3차 Lv.45, 4차 Lv.65, 5차 Lv.90부터 가능. 환생하면 직업이 초기화된다.
+  // 5차 이후로는 갈래가 더 없고, 5차 직업을 그대로 '초월'만 한다 (TRANSCEND_LEVEL, 갈래 없이 수치만 강해짐).
+  // 2차 직업마다 3차 2갈래, 3차마다 4차 2갈래, 4차마다 5차 2갈래 (3·4·5차 데이터는 classes.js)
   // mult 항목: dmg 공격력, hp 최대 체력, aps 공격 속도, gold 골드, comp 동료 공격, regen 체력 회복, click 직접 때리기
-  const PROMO_LEVEL = { base: 10, adv: 20, adv3: 30, adv4: 40 };
-  const PATH_FIELDS = ['cls', 'adv', 'adv3', 'adv4'];   // 저장하는 직업 경로: 1차~4차
-  const PROMO_STAGES = ['base', 'adv', 'adv3', 'adv4'];  // 위 경로에 대응하는 전직 단계 이름
+  const PROMO_LEVEL = { base: 15, adv: 28, adv3: 45, adv4: 65, adv5: 90 };
+  const PATH_FIELDS = ['cls', 'adv', 'adv3', 'adv4', 'adv5'];   // 저장하는 직업 경로: 1차~5차
+  const PROMO_STAGES = ['base', 'adv', 'adv3', 'adv4', 'adv5'];  // 위 경로에 대응하는 전직 단계 이름
+  // 5차 직업을 얻은 뒤 갈래 없이 랭크만 올리는 '초월'. 각 랭크는 공격력·골드를 곱으로 더 강하게 만든다 (achieveMult와 같은 자리에 곱해짐).
+  const TRANSCEND_LEVEL = [115, 140];   // 1랭크·2랭크에 필요한 레벨
+  const TRANSCEND_BONUS = 0.35;         // 랭크 하나당 공격력·골드 +35%
   const CLASSES = {
     warrior: { name: '전사',   desc: '튼튼한 체력과 빠른 회복. 오래 버티는 싸움이 특기.',
                mult: { hp: 1.5, regen: 1.3 }, adv: ['knight', 'berserker'] },
@@ -75,25 +79,25 @@
   };
 
   // ---- 직업 트리 조회 ----
-  const CLASS_TABLES = { 1: CLASSES, 2: ADVANCED, 3: ADVANCED3, 4: ADVANCED4 };
+  const CLASS_TABLES = { 1: CLASSES, 2: ADVANCED, 3: ADVANCED3, 4: ADVANCED4, 5: ADVANCED5 };
   const NODE = {};      // id → 직업 정의
-  const TIER_OF = {};   // id → 몇 차 직업인지 (1~4)
-  for (const t of [1, 2, 3, 4]) for (const id of Object.keys(CLASS_TABLES[t])) { NODE[id] = CLASS_TABLES[t][id]; TIER_OF[id] = t; }
+  const TIER_OF = {};   // id → 몇 차 직업인지 (1~5)
+  for (const t of [1, 2, 3, 4, 5]) for (const id of Object.keys(CLASS_TABLES[t])) { NODE[id] = CLASS_TABLES[t][id]; TIER_OF[id] = t; }
   const classTier = (id) => TIER_OF[id] || 0;
   const parentOf = (id) => (TIER_OF[id] >= 2 ? NODE[id].parent : null);
   const childrenOf = (id) => {
     const t = TIER_OF[id];
     if (t === 1) return CLASSES[id].adv.slice();
-    if (!t || t >= 4) return [];
+    if (!t || t >= 5) return [];
     return Object.keys(CLASS_TABLES[t + 1]).filter((k) => CLASS_TABLES[t + 1][k].parent === id);
   };
-  const ADV_IDS = Object.keys(NODE).filter((id) => TIER_OF[id] >= 2);   // 도감에 기록되는 직업 (2~4차) 전부
+  const ADV_IDS = Object.keys(NODE).filter((id) => TIER_OF[id] >= 2);   // 도감에 기록되는 직업 (2~5차) 전부
   const advIdsOfTier = (t) => Object.keys(CLASS_TABLES[t]);
 
   // 직업 보너스: 전직을 달성한 직업마다 공격력·골드가 영구히 늘어난다 (환생해도 유지). 차수가 높을수록 하나당 보너스는 작다.
-  const MASTERY_BASE = { 2: 0.05, 3: 0.015, 4: 0.005 };
+  const MASTERY_BASE = { 2: 0.05, 3: 0.015, 4: 0.005, 5: 0.0015 };
   // 도감 등급(동·은·금): 그 직업으로 도달한 최고 스테이지가 기준을 넘을 때마다 올라가고, 등급 하나당 그 직업 보너스가 기본값의 20%씩 늘어난다.
-  const DEX_STAGES = { 2: [20, 35, 50], 3: [30, 45, 60], 4: [40, 55, 70] };
+  const DEX_STAGES = { 2: [20, 35, 50], 3: [30, 45, 60], 4: [40, 55, 70], 5: [55, 70, 85] };
   const DEX_MEDALS = ['동', '은', '금'];
   const MEDAL_BONUS = 0.2;
 
@@ -889,7 +893,9 @@
       adv: null,         // 2차 직업
       adv3: null,        // 3차 직업
       adv4: null,        // 4차 직업
-      mastered: {},      // 2~4차 전직을 달성한 직업 도감 (환생해도 유지)
+      adv5: null,        // 5차 직업 (마지막 갈래. 이후로는 '초월' 랭크만 붙는다)
+      transcend: 0,      // 5차 직업을 초월한 랭크 (0~2). 갈래는 없고 수치만 더 강해진다
+      mastered: {},      // 2~5차 전직을 달성한 직업 도감 (환생해도 유지)
       achieved: {},      // 달성한 업적 (환생해도 유지)
       achClaimed: {},    // 크리스탈 보상을 받은 업적 (환생해도 유지)
       quests: { daily: null, weekly: null, monthly: null },   // 일일·주간·월간 퀘스트 { key 기간 이름표, list [{ id, goal, base }], claimed, bonus } (환생해도 유지)
@@ -988,6 +994,7 @@
   }
   const offlineCap = (s) => OFFLINE_CAP + 3600 * (perkLv(s, 'rest') + specialV(s, 'offline'));
   const kinglyMult = (s) => 1 + 0.05 * perkLv(s, 'kingly');
+  const transcendMult = (s) => 1 + TRANSCEND_BONUS * (s.transcend || 0);   // 5차 직업을 초월한 랭크마다 공격력·골드 배율
   // 1~4차 직업의 배율을 모두 곱한 값 (해당 항목이 없으면 1)
   function statMult(s, key) {
     let m = 1;
@@ -1005,13 +1012,13 @@
   const baseDmg = (s) => 3 + 1.5 * (s.level - 1);
   const maxHp = (s) => (50 + 12 * (s.level - 1)) * (1 + 0.25 * s.upgrades.armor) * mile(s.upgrades.armor) * statMult(s, 'hp') * (1 + 0.1 * perkLv(s, 'vitality')) * gearMult(s, 'hp') * tokenHpMult(s);
   const hitDmg = (s) =>
-    baseDmg(s) * (1 + 0.25 * s.upgrades.weapon) * mile(s.upgrades.weapon) * tokenMult(s) * masteryMult(s) * achieveMult(s) * statMult(s, 'dmg') * (1 + 0.1 * perkLv(s, 'might')) * kinglyMult(s) * gearMult(s, 'dmg') * (1 + buffV(s, 'might') + potionV(s, 'might'));
+    baseDmg(s) * (1 + 0.25 * s.upgrades.weapon) * mile(s.upgrades.weapon) * tokenMult(s) * masteryMult(s) * achieveMult(s) * statMult(s, 'dmg') * (1 + 0.1 * perkLv(s, 'might')) * kinglyMult(s) * transcendMult(s) * gearMult(s, 'dmg') * (1 + buffV(s, 'might') + potionV(s, 'might'));
   const attacksPerSec = (s) => (1 + SPEED_PER_LV * s.upgrades.speed) * statMult(s, 'aps') * gearMult(s, 'aps') * (1 + buffV(s, 'haste') + potionV(s, 'haste'));
   // 직업의 공격 속도 배율은 동료에게도 절반만큼 적용된다 (동료가 전체 피해의 대부분이라, 연사 직업이 내 공격만 빨라져서는 다른 직업보다 한참 약했다)
   const partySpeed = (s) => 1 + 0.5 * (statMult(s, 'aps') - 1);
   const companionDps = (s) => s.upgrades.companion * mile(s.upgrades.companion) * hitDmg(s) * 0.35 * statMult(s, 'comp') * (1 + 0.1 * perkLv(s, 'bond')) * gearMult(s, 'comp') * (1 + specialV(s, 'comp')) * (1 + SPEED_PARTY * s.upgrades.speed) * partySpeed(s);
   const goldMult = (s) =>
-    (1 + 0.15 * s.upgrades.loot) * mile(s.upgrades.loot) * tokenMult(s) * masteryMult(s) * achieveMult(s) * statMult(s, 'gold') * (1 + 0.1 * perkLv(s, 'greed')) * kinglyMult(s) * gearMult(s, 'gold') * (1 + potionV(s, 'gold')) * (1 + specialV(s, 'gold'));
+    (1 + 0.15 * s.upgrades.loot) * mile(s.upgrades.loot) * tokenMult(s) * masteryMult(s) * achieveMult(s) * statMult(s, 'gold') * (1 + 0.1 * perkLv(s, 'greed')) * kinglyMult(s) * transcendMult(s) * gearMult(s, 'gold') * (1 + potionV(s, 'gold')) * (1 + specialV(s, 'gold'));
   const totalDps = (s) => hitDmg(s) * attacksPerSec(s) + companionDps(s);
   const expNeeded = (s) => Math.ceil(15 * Math.pow(1.3, s.level - 1));
 
@@ -1048,12 +1055,12 @@
   }
 
   // 지금 가장 높은 단계의 직업 (없으면 null)
-  const deepest = (s) => s.adv4 || s.adv3 || s.adv || s.cls || null;
+  const deepest = (s) => s.adv5 || s.adv4 || s.adv3 || s.adv || s.cls || null;
   // 지금까지 고른 직업 경로 [1차, 2차, ...]
   const classPath = (s) => PATH_FIELDS.map((f) => s[f]).filter(Boolean);
   // 화면에 그릴 고블린 종류 (가장 높은 단계 직업 > 견습)
   const lookId = (s) => deepest(s) || 'novice';
-  const classTitle = (s) => { const id = deepest(s); return id ? NODE[id].name : '견습 고블린'; };
+  const classTitle = (s) => { const id = deepest(s); return id ? NODE[id].name + '★'.repeat(s.transcend || 0) : '견습 고블린'; };
 
   // ---- 전직 ----
   // 지금 할 수 있는 전직 단계: 'base' | 'adv' | 'adv3' | 'adv4' | null
@@ -1085,6 +1092,14 @@
     s[PATH_FIELDS[i]] = id;
     if (i >= 1) { s.mastered[id] = true; dexEntry(s, id).runs += 1; }
     s.hp = Math.min(maxHp(s), s.hp + Math.max(0, maxHp(s) - oldMax));   // 늘어난 체력만큼 회복
+    return true;
+  }
+
+  // ---- 초월 (5차 이후, 갈래 없이 랭크만 오른다) ----
+  const transcendReady = (s) => !!s.adv5 && s.transcend < TRANSCEND_LEVEL.length && s.level >= TRANSCEND_LEVEL[s.transcend];
+  function ascend(s) {
+    if (!transcendReady(s)) return false;
+    s.transcend += 1;
     return true;
   }
 
@@ -1223,6 +1238,7 @@
       ev.push({ type: 'levelup', level: s.level });
       const st = promoStage(s);
       if (st && s.level === PROMO_LEVEL[st]) ev.push({ type: 'promoReady', stage: st });
+      if (s.adv5 && s.transcend < TRANSCEND_LEVEL.length && s.level === TRANSCEND_LEVEL[s.transcend]) ev.push({ type: 'transcendReady', rank: s.transcend + 1 });
     }
   }
 
@@ -1425,6 +1441,8 @@
     s.adv = null;
     s.adv3 = null;
     s.adv4 = null;
+    s.adv5 = null;
+    s.transcend = 0;
     s.skillCd = {};
     s.buffs = {};
     s.dot = null;
@@ -1475,6 +1493,7 @@
     }
     for (const k of ADV_IDS) if (o.mastered && o.mastered[k] === true) s.mastered[k] = true;
     for (const f of PATH_FIELDS) if (s[f] && f !== 'cls') s.mastered[s[f]] = true;
+    s.transcend = s.adv5 ? clamp(Math.floor(num(o.transcend, 0)), 0, TRANSCEND_LEVEL.length) : 0;   // 5차 직업이 없으면 초월 랭크도 인정하지 않는다
     for (const a of ACHIEVEMENTS) {
       if (o.achieved && o.achieved[a.id] === true) s.achieved[a.id] = true;
       if (s.achieved[a.id] && o.achClaimed && o.achClaimed[a.id] === true) s.achClaimed[a.id] = true;   // 달성하지 않은 업적의 보상은 받은 것으로 칠 수 없다
@@ -1591,7 +1610,7 @@
   }
 
   const api = {
-    UPGRADES, UPGRADE_KEYS, MILESTONE_EVERY, MILESTONE_MULT, mile, CLASSES, ADVANCED, ADVANCED3, ADVANCED4, PROMO_LEVEL, KILLS_PER_STAGE, DOWN_TIME, PRESTIGE_MIN_STAGE, OFFLINE_CAP,
+    UPGRADES, UPGRADE_KEYS, MILESTONE_EVERY, MILESTONE_MULT, mile, CLASSES, ADVANCED, ADVANCED3, ADVANCED4, ADVANCED5, PROMO_LEVEL, KILLS_PER_STAGE, DOWN_TIME, PRESTIGE_MIN_STAGE, OFFLINE_CAP,
     createState, tick, simulate, clickAttack, resolveAway, applyAway, applyOffline, CLOCK_SKEW_SEC,
     upgradeCost, canBuy, buy, planBuy, buyMany,
     prestigeGain, prestigeInfo, PRESTIGE_FULL_SEC, canPrestige, prestige,
@@ -1602,6 +1621,7 @@
     SKILL_KINDS: Sk.KINDS, SKILL_NAMES: Sk.SKILLS, describeSkill: Sk.describeSkill, MELEE_STYLES: Sk.MELEE_STYLES, ATTACK_STYLE: Sk.ATTACK_STYLE,
     skillsOf, attackStyle, styleOfClass, buffV, canCast, skillFor: (id) => Sk.makeSkill(id, TIER_OF[id]),
     NODES: NODE, nextPromo, promoStage, promoOptions, promote, statMult, masteryMult,
+    TRANSCEND_LEVEL, TRANSCEND_BONUS, transcendReady, ascend, transcendMult,
     ACHIEVEMENTS, ACHIEVE_BONUS, achieveMult, checkAchievements, unclaimedAchievements, claimAchievement, claimAllAchievements,
     relicV, relicDef, toggleRelic, resonance, RESONANCE, tokenHpMult,
     PATH_FIELDS, ADV_IDS, advIdsOfTier, classTier, parentOf, childrenOf, classPath, deepest, DEX_STAGES, DEX_MEDALS, MASTERY_BASE, MEDAL_BONUS, dexStages, masteryOf, dexRecord, dexTier,
