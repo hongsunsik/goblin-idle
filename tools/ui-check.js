@@ -746,8 +746,10 @@ const FAKE_CLOUD = `(() => {
     await click('[data-go="dungeon"]'); await sleep(400);
     check('던전 탭에 일일·주간·월간 카드 3개가 보인다', (await ev(`document.querySelectorAll('#dungeonList .dungeon').length`)) === 3);
     check('카드마다 보스 이름과 도전권 표시가 있다', (await txt('#dungeonList')).includes('일일 던전') && (await txt('#dungeonList')).includes('주간 던전') && (await txt('#dungeonList')).includes('월간 던전'));
+    check('카드마다 보스 전용 그림이 보인다', (await ev(`document.querySelectorAll('#dungeonList .prod__tile--boss img, #dungeonList .prod__tile--boss svg').length`)) === 3);
     await click('[data-dchallenge="weekly"]'); await sleep(300);
     check('도전 확인 창에 보스 이름과 미니게임 이름이 보인다', (await txt('#modalTitle')).includes('주간 던전') && (await txt('#modalBody')).includes('타이밍 게이지'));
+    check('도전 확인 창에 보스 그림도 보인다', (await ev(`!!document.querySelector('#modalBody .dungeon__bossart img, #modalBody .dungeon__bossart svg')`)));
     await click('#modalActions .btn--gold'); await sleep(300);
     check('도전하면 그 던전의 미니게임 창이 뜬다 (주간=타이밍 게이지)', !(await ev(`document.getElementById('mgModal').hidden`)) && !!(await ev(`document.getElementById('mgTrack')`)));
     await click('#mgSkip'); await sleep(400);

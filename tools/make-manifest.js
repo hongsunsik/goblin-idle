@@ -20,13 +20,14 @@ const EXPECT = {
   skills: Object.keys(G.SKILL_NAMES),
   vfx: require('../skills.js').VFX_NAMES,
   backgrounds: [0, 1, 2, 3, 4, 5].map((b) => 'biome' + b),
+  bosses: Object.values(G.BOSS_ART),
 };
 // 꼭 있어야 하는 이름 (나머지는 선택: 얼굴 전용 그림, 지역별 몬스터 그림)
 const REQUIRED = {
-  goblins: A.LOOK_IDS, monsters: A.MONSTER_KINDS, icons: A.ICON_NAMES, backgrounds: EXPECT.backgrounds, gear: [], skills: [], vfx: [],
+  goblins: A.LOOK_IDS, monsters: A.MONSTER_KINDS, icons: A.ICON_NAMES, backgrounds: EXPECT.backgrounds, gear: [], skills: [], vfx: [], bosses: [],
 };
 
-const manifest = { v: Date.now(), goblins: {}, monsters: {}, icons: {}, backgrounds: {}, gear: {}, skills: {}, vfx: {} };
+const manifest = { v: Date.now(), goblins: {}, monsters: {}, icons: {}, backgrounds: {}, gear: {}, skills: {}, vfx: {}, bosses: {} };
 let problems = 0;
 for (const cat of Object.keys(EXPECT)) {
   const dir = path.join(ROOT, cat);
@@ -47,6 +48,7 @@ for (const cat of Object.keys(EXPECT)) {
   if (cat === 'skills') console.log(`${''.padEnd(12)} 스킬 아이콘 ${Object.keys(manifest.skills).length}/${Object.keys(G.SKILL_NAMES).length}장 (없으면 기본 아이콘으로 나와요)`);
   if (cat === 'vfx') console.log(`${''.padEnd(12)} 이펙트 ${Object.keys(manifest.vfx).length}/${EXPECT.vfx.length}장 (없으면 CSS 이펙트로 나와요)`);
   if (cat === 'gear') console.log(`${''.padEnd(12)} 장비 그림 ${Object.keys(manifest.gear).length}/${G.GEAR_DESIGNS.length}장 (없으면 기본 아이콘으로 나와요)`);
+  if (cat === 'bosses') console.log(`${''.padEnd(12)} 던전 보스 그림 ${Object.keys(manifest.bosses).length}/${EXPECT.bosses.length}장 (없으면 기본 해골 아이콘으로 나와요)`);
 }
 fs.writeFileSync(path.join(ROOT, 'manifest.js'),
   '// 자동 생성 파일입니다. images/ 폴더의 그림을 바꾼 뒤 `node tools/make-manifest.js` 로 다시 만드세요.\n' +

@@ -33,7 +33,13 @@
       clear: { crystals: 550, tokens: 12, gold: 45, boxOdds: { 5: 55, 6: 45 } },
     },
   };
-  const api = { DUNGEON_PERIODS, DUNGEONS };
+  // 보스 이름표 → 그림 종류(images/bosses/<종류>.webp). 화면 쪽에서 A.bossArt(id)로 그린다.
+  const BOSS_ART = {
+    '고블린 우두머리': 'goblin_chief', '노략질 오크': 'raiding_orc', '동굴 트롤': 'cave_troll', '늪지 히드라': 'swamp_hydra',
+    '서리 거인': 'frost_giant', '용암 군주': 'lava_lord', '심연의 파수꾼': 'abyss_warden', '뇌운의 화신': 'storm_avatar',
+    '천 개의 눈 리치': 'thousand_eye_lich', '태초의 화룡': 'primal_firedragon', '왕좌를 삼킨 그림자': 'throne_shadow', '종말의 문지기': 'doom_gatekeeper',
+  };
+  const api = { DUNGEON_PERIODS, DUNGEONS, BOSS_ART };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.GoblinDungeon = api;
 })(typeof window !== 'undefined' ? window : globalThis);

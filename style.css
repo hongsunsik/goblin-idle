@@ -766,6 +766,10 @@ svg { display: block; }
 .prod__chip { display: inline-block; margin-left: 2px; padding: 0 7px; font-size: 10px; font-weight: 900; color: #063a10; background: linear-gradient(180deg, #c8ffb8, #6fe06a); clip-path: polygon(4px 0, 100% 0, calc(100% - 4px) 100%, 0 100%); }
 .prod__btn { min-width: 76px; display: flex; flex-direction: column; align-items: center; line-height: 1.15; padding: 7px 8px 5px; }
 .prod__btn small { font-size: 9px; font-weight: 800; opacity: 0.75; }
+.prod__tile--boss { padding: 2px; overflow: hidden; }
+.prod__tile--boss img, .prod__tile--boss svg { width: 100%; height: 100%; object-fit: contain; }
+.dungeon__bossart { width: 120px; height: 112px; margin: 0 auto 8px; }
+.dungeon__bossart img, .dungeon__bossart svg { width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 4px 4px rgba(0, 0, 0, 0.4)); }
 .dwaves { display: flex; gap: 4px; margin-top: 5px; }
 .dwave { width: 12px; height: 12px; border-radius: 3px; background: rgba(0, 0, 0, 0.45); border: 1px solid var(--line); }
 .dwave.is-on { background: linear-gradient(180deg, #ffe9a8, #ffc93a); border-color: var(--gold-d); }

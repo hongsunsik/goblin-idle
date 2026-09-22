@@ -472,12 +472,17 @@ test('빈 칸이면 노말도 자동 장착하고, 더 좋은 장비가 나오�
   assert.strictEqual(ev[2].action, 'bag');
 });
 
-test('종류가 다른 액세서리는 자동으로 갈아 끼우지 않는다', () => {
+test('능력 종류가 다른 액세서리는 종합 전투력(초당 피해)으로 비교해 자동으로 갈아 낀다', () => {
   const s = G.createState(0); s.autoSell = -1;
-  s.equip.accessory = mkItem({ id: 1, slot: 'accessory', kind: 'gold', val: 5 });
-  G.receiveItem(s, mkItem({ id: 2, slot: 'accessory', kind: 'aps', val: 50 }), []);
-  assert.strictEqual(s.equip.accessory.id, 1);
-  assert.strictEqual(s.bag.length, 1);
+  s.equip.accessory = mkItem({ id: 1, slot: 'accessory', kind: 'gold', val: 5 });   // 골드는 전투력에 영향이 없다
+  G.receiveItem(s, mkItem({ id: 2, slot: 'accessory', kind: 'aps', val: 50 }), []);   // 공격 속도는 전투력을 크게 올린다
+  assert.strictEqual(s.equip.accessory.id, 2, '전투력이 오르는 쪽으로 갈아 낀다');
+  assert.deepStrictEqual(s.bag.map((x) => x.id), [1], '밀려난 골드 장비는 가방으로 간다');
+  const t = G.createState(0); t.autoSell = -1;
+  t.equip.accessory = mkItem({ id: 3, slot: 'accessory', kind: 'aps', val: 50 });
+  G.receiveItem(t, mkItem({ id: 4, slot: 'accessory', kind: 'gold', val: 500 }), []);   // 골드는 수치가 아무리 높아도 전투력엔 그대로다
+  assert.strictEqual(t.equip.accessory.id, 3, '전투력에 도움이 안 되면 수치가 훨씬 높아도 갈아 끼우지 않는다');
+  assert.deepStrictEqual(t.bag.map((x) => x.id), [4]);
 });
 
 test('자동 장착을 끄면 빈 칸이어도 가방으로 간다', () => {
@@ -2016,11 +2021,38 @@ test('재료가 없거나 칸이 다르면 강화할 수 없고, 골드가 모�
   s.bag = [mkItem({ id: 3, val: 5 })]; s.gold = 0;
   assert.strictEqual(G.enhanceItem(s, 1, 3).reason, 'gold');
 });
-test('최대 강화(20단계)에 도달하면 더 강화할 수 없다', () => {
+test('최대 강화(15단계)에 도달하면 더 강화할 수 없다', () => {
+  assert.strictEqual(G.ENH_MAX, 15);
   const s = G.createState(0); s.gold = 1e12;
   const target = mkItem({ id: 1, val: 10, enh: G.ENH_MAX });
   s.equip.weapon = target; s.bag = [mkItem({ id: 2, val: 5 })];
   assert.strictEqual(G.enhanceItem(s, 1, 2).reason, 'max');
+});
+test('강화 확률: 낮은 단계는 100%, 높은 단계로 갈수록 낮아지고, 실패해도 골드·재료는 그대로 사라진다', () => {
+  assert.strictEqual(G.enhChance(0), 1, '처음 강화는 실패하지 않는다');
+  assert.ok(G.enhChance(G.ENH_MAX - 1) < 1, '마지막 단계 근처는 100% 미만이다');
+  assert.ok(G.enhChance(10) < G.enhChance(0), '단계가 높을수록 확률이 낮아진다');
+  G.setRandom(() => 0.999);   // 항상 큰 값이 나오게 해서 실패를 강제한다
+  const s = G.createState(0); s.gold = 1e9;
+  const target = mkItem({ id: 1, val: 10, enh: 10 });   // enhChance(10) = 0.55 < 1
+  s.equip.weapon = target; s.bag = [mkItem({ id: 2, val: 5 })];
+  const goldBefore = s.gold;
+  const r = G.enhanceItem(s, 1, 2);
+  G.setRandom();
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.success, false, '확률보다 큰 난수가 나오면 실패한다');
+  assert.strictEqual(target.enh, 10, '실패하면 강화 단계가 오르지 않는다');
+  assert.strictEqual(s.gold, goldBefore - r.cost, '실패해도 골드는 그대로 사라진다');
+  assert.deepStrictEqual(s.bag, [], '실패해도 재료는 사라진다');
+});
+test('equipPower는 실제로 그 장비를 껴 봤을 때의 종합 전투력(초당 피해)을 계산하고, 계산 뒤 원래대로 되돌린다', () => {
+  const s = G.createState(0);
+  const apsItem = mkItem({ id: 1, slot: 'accessory', kind: 'aps', val: 50 });
+  const before = G.totalDps(s);
+  const p = G.equipPower(s, apsItem);
+  assert.ok(p > before, '공격 속도 액세서리를 끼면 전투력이 오른다');
+  assert.strictEqual(s.equip.accessory, null, '계산 후에는 원래 상태로 되돌아간다');
+  assert.strictEqual(G.totalDps(s), before, '전투력도 원래 값으로 돌아온다');
 });
 test('강화된 장비는 자연 최대치보다 세더라도 자동 정리·자동 장착에서 손해 보지 않는다', () => {
   const s = G.createState(0);
@@ -2500,6 +2532,18 @@ test('퀘스트 보상 크리스탈이 상한(10억)을 넘지 않는다', () =>
 
 
 section('일일·주간·월간 던전');
+test('모든 던전 보스 이름표에 그림 종류(BOSS_ART)가 있고, 그림 생성 스크립트의 보스 목록과도 같다', () => {
+  const fsx2 = require('fs'), path2 = require('path');
+  const allBosses = new Set();
+  for (const p of G.DUNGEON_PERIODS) for (const name of G.DUNGEONS[p].boss) allBosses.add(name);
+  for (const name of allBosses) assert.ok(G.BOSS_ART[name], `${name}에 그림 종류가 없다`);
+  const ids = Object.values(G.BOSS_ART);
+  assert.strictEqual(new Set(ids).size, ids.length, '그림 종류 이름이 겹친다');
+  const py = fsx2.readFileSync(path2.join(__dirname, 'generate-images.py'), 'utf8');
+  const body = py.slice(py.indexOf('BOSSES = {'), py.indexOf('\n}\n', py.indexOf('BOSSES = {')));
+  const pyIds = [...body.matchAll(/^\s+'([a-z_]+)':/gm)].map((m) => m[1]);
+  assert.deepStrictEqual(pyIds.slice().sort(), ids.slice().sort(), '그림 생성 프롬프트가 BOSS_ART와 다르다');
+});
 test('동기화하면 세 기간 모두 뽑히고, 각 기간의 횟수·파동 수는 dungeon.js 설정과 같다', () => {
   const s = G.createState(0);
   G.dungeonSync(s, '2026-09-22');

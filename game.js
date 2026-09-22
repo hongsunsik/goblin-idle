@@ -555,23 +555,29 @@
   const sellValue = (it) => Math.ceil(monsterGold(it.ilvl) * RARITIES[it.r].gold);
 
   // ---- 장비 강화(재련): 같은 칸의 다른 장비를 재료로 써서 수치를 올린다. 등급·레벨은 그대로, 실제 효과만 세진다. ----
-  const ENH_MAX = 20, ENH_STEP = 0.08;   // 강화 1단계당 +8%, 최대 20단계(+160%)
+  // 최대 15강까지, 낮은 단계는 100% 성공하지만 높은 단계로 갈수록 실패 확률이 생긴다. 실패해도 골드와 재료는 그대로 사라진다(위험 요소).
+  const ENH_MAX = 15, ENH_STEP = 0.08;   // 강화 1단계당 +8%, 최대 15단계(+120%)
+  const ENH_CHANCE = [1, 1, 1, 1, 1, 0.85, 0.85, 0.7, 0.7, 0.55, 0.55, 0.4, 0.3, 0.2, 0.15];   // lv → lv+1 성공 확률 (배열 순서 = 지금 레벨)
+  const enhChance = (lv) => ENH_CHANCE[Math.max(0, Math.min(ENH_CHANCE.length - 1, lv))];
   const enhVal = (it) => it.val * (1 + ENH_STEP * (it.enh || 0));   // 실제로 적용되는 수치 (강화 반영)
-  const enhCost = (it) => Math.ceil(sellValue(it) * (2 + (it.enh || 0) * 0.6));   // 강화할수록 골드가 더 든다
+  const enhCost = (it) => Math.ceil(sellValue(it) * (2 + (it.enh || 0) * 0.8));   // 강화할수록, 실패 위험이 클수록 골드가 더 든다
   const findItem = (s, id) => SLOT_KEYS.map((k) => s.equip[k]).find((x) => x && x.id === id) || s.bag.find((x) => x.id === id) || null;
-  // 결과: { ok, reason? | cost, enh }  reason: 'target' 없는 장비 | 'max' 이미 최대 강화 | 'material' 쓸 수 없는 재료 | 'gold' 골드 부족
+  // 결과: { ok, reason? | cost, chance, success, enh }  reason: 'target' 없는 장비 | 'max' 이미 최대 강화 | 'material' 쓸 수 없는 재료 | 'gold' 골드 부족
   function enhanceItem(s, targetId, materialId) {
     const target = findItem(s, targetId);
     if (!target) return { ok: false, reason: 'target' };
-    if ((target.enh || 0) >= ENH_MAX) return { ok: false, reason: 'max' };
+    const lv = target.enh || 0;
+    if (lv >= ENH_MAX) return { ok: false, reason: 'max' };
     const mi = s.bag.findIndex((x) => x.id === materialId);
     if (mi < 0 || s.bag[mi].id === targetId || s.bag[mi].slot !== target.slot) return { ok: false, reason: 'material' };
     const cost = enhCost(target);
     if (s.gold < cost) return { ok: false, reason: 'gold', cost };
+    const chance = enhChance(lv);
     s.gold -= cost;
     s.bag.splice(mi, 1);
-    target.enh = (target.enh || 0) + 1;
-    return { ok: true, cost, enh: target.enh };
+    const success = rnd() < chance;
+    if (success) target.enh = lv + 1;
+    return { ok: true, cost, chance, success, enh: target.enh };
   }
 
   function rollRarity(boss, s) {
@@ -609,13 +615,23 @@
     if (it.r >= 5) s.stats.uniques += 1;
     if (it.r >= 6) s.stats.myths += 1;
   }
-  // 같은 능력을 올려 주면서 수치가 더 큰 장비이거나, 칸이 비어 있으면 '더 좋은' 장비
-  // 특별 옵션이 있는 장비는 옵션 없는 장비에게 자리를 뺏기지 않고, 옵션 있는 쪽은 수치가 90%만 돼도 자리를 얻는다.
+  // it을 그 칸에 껴 봤을 때의 종합 전투력(초당 피해). 비교가 끝나면 원래 장비로 되돌린다.
+  function equipPower(s, it) {
+    const prev = s.equip[it.slot];
+    s.equip[it.slot] = it;
+    const p = totalDps(s);
+    s.equip[it.slot] = prev;
+    return p;
+  }
+  // 더 좋은 장비인지: 같은 능력(칸+kind)이면 수치로 바로 비교하고, 능력 종류가 다르면(예: 액세서리의 골드 vs 공격 속도)
+  // 수치를 직접 비교할 수 없으니 종합 전투력(totalDps)을 실제로 계산해서 비교한다.
+  // 특별 옵션이 있는 장비는 옵션 없는 장비에게 자리를 뺏기지 않고, 옵션 있는 쪽은 수치(또는 전투력)가 90%만 돼도 자리를 얻는다.
   const isUpgrade = (s, it) => {
     const cur = s.equip[it.slot];
     if (!cur) return true;
-    if (cur.kind !== it.kind || (cur.sp && !it.sp)) return false;
-    return enhVal(it) > enhVal(cur) || (!!it.sp && !cur.sp && enhVal(it) >= enhVal(cur) * 0.9);
+    if (cur.sp && !it.sp) return false;
+    if (cur.kind === it.kind) return enhVal(it) > enhVal(cur) || (!!it.sp && !cur.sp && enhVal(it) >= enhVal(cur) * 0.9);
+    return equipPower(s, it) >= equipPower(s, cur) * (it.sp && !cur.sp ? 0.9 : 1);
   };
 
   // 장비를 가방에 넣는다. 자동 판매 등급 이하이거나 가방이 가득 차면 판다. 결과: 'bag' | 'sold'
@@ -1681,9 +1697,9 @@
     PATH_FIELDS, ADV_IDS, advIdsOfTier, classTier, parentOf, childrenOf, classPath, deepest, DEX_STAGES, DEX_MEDALS, MASTERY_BASE, MEDAL_BONUS, dexStages, masteryOf, dexRecord, dexTier,
     RARITIES, GEAR, SLOT_KEYS, BAG_MAX, bagLimit, DROP_CHANCE, BOSS_DROP_CHANCE, LUCK_PER_LV,
     GEAR_DESIGNS, itemDesign, setRandom, itemName, sellValue, rollItem, dropChance, isUpgrade, receiveItem, equipItem, unequipItem, sellBagItem, sellBagUpTo, sellBagItems, isWeaker, bagWeaker, gearMult,
-    ENH_MAX, ENH_STEP, enhVal, enhCost, enhanceItem, findItem,
+    ENH_MAX, ENH_STEP, enhVal, enhCost, enhChance, enhanceItem, findItem, equipPower,
     claimAttend, QUEST_PERIODS, QUEST_CFG, QUEST_DEFS, periodKeys, periodSecsLeft, questSync, questBoard, questClaimable, claimQuest, claimQuestBonus,
-    DUNGEON_PERIODS: Dg.DUNGEON_PERIODS, DUNGEONS: Dg.DUNGEONS, dungeonSync, dungeonInfo, dungeonClaimable, dungeonBossHp, challengeDungeon,
+    DUNGEON_PERIODS: Dg.DUNGEON_PERIODS, DUNGEONS: Dg.DUNGEONS, BOSS_ART: Dg.BOSS_ART, dungeonSync, dungeonInfo, dungeonClaimable, dungeonBossHp, challengeDungeon,
     moleBonus, gaugeBonus, parryBonus,
     PERKS, PERK_KEYS, HEADSTART_LV, perkLv, perkCost, perkSpent, tokenBalance, perkMissing, perkUnlocked, canBuyPerk, buyPerk, respecPerks, offlineCap,
     fmt, fmtTime,

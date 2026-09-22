@@ -5,7 +5,7 @@
   // images/manifest.js(tools/make-manifest.js가 만든다)에 적힌 파일이 있으면 그 이미지를 쓰고, 없으면 아래의 SVG 그림을 그대로 쓴다.
   // manifest 형식: { v, goblins: { knight: 'knight.png' }, monsters: {...}, icons: {...}, backgrounds: { biome0: '...' } }
   const IMG_DIR = 'images/';
-  const M = Object.assign({ v: 0, goblins: {}, monsters: {}, icons: {}, backgrounds: {}, gear: {}, skills: {}, vfx: {} }, root.ART_MANIFEST || {});
+  const M = Object.assign({ v: 0, goblins: {}, monsters: {}, icons: {}, backgrounds: {}, gear: {}, skills: {}, vfx: {}, bosses: {} }, root.ART_MANIFEST || {});
   const has = (cat, name) => (M[cat] && M[cat][name]) || '';
   // manifest 값은 images/ 기준 경로 (예: 'goblins/knight.png'). ?v= 는 그림을 바꿨을 때 브라우저 캐시를 피하려는 값.
   const src = (file) => IMG_DIR + file + (M.v ? '?v=' + M.v : '');
@@ -279,6 +279,12 @@
     return `<svg class="mon-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 112" aria-hidden="true">
       <ellipse cx="60" cy="104" rx="42" ry="6" fill="rgba(0,0,0,.35)"/>
       ${shaded(inner, { x: -6, y: -6, w: 132, h: 118 })}</svg>`;
+  }
+  // 던전 보스 전용 그림 (images/bosses/<id>.webp). 아직 안 뽑았으면 기본 아이콘으로 대신한다.
+  function bossArt(id) {
+    const f = id && has('bosses', id);
+    if (f) return `<img class="mon-svg mon-img" src="${src(f)}" alt="" draggable="false">`;
+    return icon('skull');
   }
 
   // =====================================================================
@@ -599,7 +605,7 @@
     }
   }
 
-  const api = { applyStatic, goblin, gear, skillIcon, vfx, setParents, monster, icon, sprite: spriteMarkup, LOOK_IDS: Object.keys(LOOKS), MONSTER_KINDS: Object.keys(MONSTER), ICON_NAMES: Object.keys(ICONS) };
+  const api = { applyStatic, goblin, gear, skillIcon, vfx, setParents, monster, bossArt, icon, sprite: spriteMarkup, LOOK_IDS: Object.keys(LOOKS), MONSTER_KINDS: Object.keys(MONSTER), ICON_NAMES: Object.keys(ICONS) };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Art = api;
 })(typeof window !== 'undefined' ? window : globalThis);

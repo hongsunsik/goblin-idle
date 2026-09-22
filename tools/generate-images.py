@@ -3,7 +3,7 @@
 
 사용법 (저장소 루트에서):
   python3 tools/generate-images.py                 # 아직 없는 그림 전부 만들기
-  python3 tools/generate-images.py goblins         # 한 종류만 (goblins | monsters | icons | gear | skills | vfx | backgrounds)
+  python3 tools/generate-images.py goblins         # 한 종류만 (goblins | monsters | bosses | icons | gear | skills | vfx | backgrounds)
   python3 tools/generate-images.py goblins/knight  # 그림 한 장만
   python3 tools/generate-images.py --list          # 만들지 않고 어떤 그림이 몇 장 필요한지와 예상 비용만 보기 (종류도 함께 줄 수 있음)
   python3 tools/generate-images.py skills vfx --workers 1 --max-requests 100   # 유료 작업은 상한을 걸고 한 장씩
@@ -187,6 +187,21 @@ MONSTERS = {
     'imp': 'small red demon imp with yellow horns, bat wings and a pointed tail, mischievous grin',
     'ogre': 'big green ogre holding a wooden club, angry expression with two tusks',
     'dragon': 'small dragon with wings spread, horns, breathing a little fire',
+}
+# 던전 보스 전용 그림 (일반 몬스터보다 크고 위협적으로). dungeon.js BOSS_ART의 값과 이름이 같아야 한다.
+BOSSES = {
+    'goblin_chief': 'a massive muscular goblin chieftain with a spiked bone crown, wielding a huge crude club, war paint, roaring',
+    'raiding_orc': 'a brutal green orc raider in spiked leather armor, wielding a jagged cleaver, tusks bared, battle scars',
+    'cave_troll': 'a hulking gray cave troll with rocky warty skin, hunched posture, wielding a massive stone club, glowing cave crystals nearby',
+    'swamp_hydra': 'a three-headed green swamp hydra with long serpentine necks, dripping venom, murky swamp water around its body',
+    'frost_giant': 'a towering blue-skinned frost giant in icy armor, wielding a massive ice-covered warhammer, frozen breath, snow swirling',
+    'lava_lord': 'a molten rock humanoid lord with glowing lava cracks all over its body, wielding a burning obsidian blade, flames erupting',
+    'abyss_warden': 'a dark abyssal guardian with glowing purple eyes, tentacle-like tendrils, heavy dark armor, deep-sea aura',
+    'storm_avatar': 'a humanoid avatar made of swirling storm clouds and lightning, crackling electricity, glowing eyes, thunderous aura',
+    'thousand_eye_lich': 'an ancient lich in a tattered robe covered in glowing eyes, a crown of skulls, holding a staff radiating dark magic',
+    'primal_firedragon': 'a colossal ancient red dragon with massive wings spread, breathing intense fire, glowing molten scales',
+    'throne_shadow': 'a shadowy king-like figure made of living darkness sitting atop a broken throne, glowing red eyes, wisps of shadow trailing',
+    'doom_gatekeeper': 'a massive armored gatekeeper guardian with a huge glowing rune-covered shield and sword, standing before a cracked dark portal',
 }
 ICONS = {
     'sword': 'steel sword', 'shield': 'blue shield with a gold star', 'boots': 'leather boots with small wings',
@@ -383,6 +398,7 @@ BACKGROUNDS = {
 SPECS = {
     'goblins':     dict(items=GOBLINS,     prompt=lambda d: f'{CHAR}, {GOBLIN}{d}', gen=(768, 896), out=(512, 616), pad=0.05, keyed=True),
     'monsters':    dict(items=MONSTERS,    prompt=lambda d: f'{CHAR}, {d}, facing left', gen=(768, 720), out=(480, 448), pad=0.05, keyed=True),
+    'bosses':      dict(items=BOSSES,      prompt=lambda d: f'{CHAR}, epic dungeon boss monster, {d}, facing left, dramatic powerful pose', gen=(768, 720), out=(480, 448), pad=0.05, keyed=True),
     'icons':       dict(items=ICONS,       prompt=lambda d: f'{ICON}, {d}', gen=(512, 512), out=(128, 128), pad=0.06, keyed=True),
     'gear':        dict(items=GEAR,        prompt=lambda d: f'{ICON}, {d}', gen=(512, 512), out=(128, 128), pad=0.06, keyed=True),
     'skills':      dict(items=SKILLS,      prompt=lambda d: f'{ICON}, {d}', gen=(512, 512), out=(128, 128), pad=0.06, keyed=True),
@@ -501,7 +517,7 @@ def make(kind, name, retry, force, key, reprocess=False):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument('targets', nargs='*', help='goblins | monsters | icons | backgrounds | 종류/이름 (없으면 전부)')
+    ap.add_argument('targets', nargs='*', help='goblins | monsters | bosses | icons | backgrounds | 종류/이름 (없으면 전부)')
     ap.add_argument('--force', action='store_true', help='이미 있는 그림도 다시 만든다')
     ap.add_argument('--retry', type=int, default=0, help='씨앗을 바꿔 다른 결과를 뽑는다 (0, 1, 2 ...)')
     ap.add_argument('--reprocess', action='store_true', help='새로 생성하지 않고 images/_raw/ 원본으로 배경 제거·크기 정리만 다시 한다')

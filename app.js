@@ -1536,11 +1536,15 @@
     const materials = state.bag.filter((x) => x.slot === it.slot && x.id !== it.id);
     if (!materials.length) { openModal('강화할 재료가 없어요', `가방에 같은 칸(<b>${G.GEAR[it.slot].name}</b>)의 다른 장비가 하나 더 있어야 강화할 수 있어요. 재료로 쓴 장비는 사라져요.`, [{ text: '확인' }]); return; }
     const cost = G.enhCost(it);
+    const chance = G.enhChance(it.enh || 0);
+    const chancePct = Math.round(chance * 100);
     enhanceTarget = it.id;
     openModal(`${G.GEAR[it.slot].name} 강화`,
       `<div class="itemd__head"><div class="slot r${it.r}">${gearArt(it)}</div><div><div class="itemd__main">${G.itemName(it)}</div>` +
       `<small>강화 Lv.${it.enh || 0} → <b>Lv.${(it.enh || 0) + 1}</b> (효과 +${Math.round(G.ENH_STEP * 100)}%p)</small></div></div>` +
-      `<div style="margin:10px 0">${COIN} 골드 <b>${G.fmt(cost)}</b> + 재료 장비 1개가 필요해요.<br><small>재료로 쓸 장비를 아래에서 골라 주세요. 재료는 사라져요.</small></div>` +
+      `<div style="margin:10px 0">${COIN} 골드 <b>${G.fmt(cost)}</b> + 재료 장비 1개가 필요해요.<br>` +
+      `<b style="color:${chancePct >= 100 ? 'var(--green)' : chancePct >= 50 ? 'var(--gold)' : 'var(--red)'}">성공 확률 ${chancePct}%</b>` +
+      `${chancePct < 100 ? '<br><small>실패해도 골드와 재료는 그대로 사라져요.</small>' : ''}<br><small>재료로 쓸 장비를 아래에서 골라 주세요.</small></div>` +
       `<div class="bag enh__mats">${materials.map((m) => `<button class="gitem r${m.r}" type="button" data-mat="${m.id}">${gearArt(m)}<div class="gitem__stat">${KIND_SHORT[m.kind]} +${fmtVal(m.val)}%</div><div class="gitem__lv">Lv.${m.ilvl}</div></button>`).join('')}</div>`,
       [{ text: '취소', onClick: () => { enhanceTarget = null; } }]);
   }
@@ -1552,8 +1556,14 @@
     const r = G.enhanceItem(state, targetId, materialId);
     closeModal();
     if (!r.ok) { openModal('강화할 수 없어요', r.reason === 'gold' ? '골드가 부족해요' : '다시 시도해 주세요', [{ text: '확인' }]); return; }
-    addLog(`장비를 강화했다! (Lv.${r.enh})`, 'is-good', 'sword');
     cloudSoon(); writeSave(); render(); renderGear(true);
+    if (r.success) {
+      addLog(`장비 강화 성공! (Lv.${r.enh})`, 'is-good', 'sword');
+      floatText('강화 성공!', 'float--big', 'center');
+    } else {
+      addLog('장비 강화 실패... 골드와 재료를 잃었다', 'is-bad', 'sword');
+      openModal('강화 실패...', '골드와 재료를 모두 잃었어요.<br><small>다음 시도는 지금과 같은 확률이에요.</small>', [{ text: '확인' }]);
+    }
   });
 
   // 장비 하나의 정보 창. 장착 중이면 해제, 가방에 있으면 장착·판매를 고를 수 있다.
@@ -2405,7 +2415,7 @@
       const dots = Array.from({ length: info.waves }, (_, i) => `<i class="dwave ${i < info.bestWaves ? 'is-on' : ''}"></i>`).join('');
       const clearNote = info.bonusClaimed ? `<span class="dclear">${A.icon('chest')}완주 보상 받음</span>` : '';
       const btn = `<button class="btn ${info.left > 0 ? 'btn--gold' : 'btn--gray'} prod__btn" type="button" data-dchallenge="${p}" ${info.left > 0 ? '' : 'disabled'}><span>${info.left > 0 ? '도전' : '오늘 끝'}</span><small>${A.icon('ticket')}${info.left}/${info.attempts}</small></button>`;
-      return `<div class="card prod dungeon"><div class="prod__tile" style="--tone:#7a4aff99">${A.icon('gate')}</div>` +
+      return `<div class="card prod dungeon"><div class="prod__tile prod__tile--boss" style="--tone:#7a4aff99">${A.bossArt(G.BOSS_ART[info.boss])}</div>` +
         `<div><div class="prod__name">${info.name} <span class="prod__chip">${info.boss}</span></div>` +
         `<div class="prod__desc">파동 ${info.waves > 1 ? `${info.bestWaves}/${info.waves} 최고 기록` : (info.cleared ? '처치' : '미처치')} ${clearNote}</div>` +
         `<div class="dwaves">${dots}</div>` +
@@ -2440,7 +2450,9 @@
   function doDungeonChallenge(period) {
     const info = G.dungeonInfo(state, period);
     if (!info || info.left <= 0) return;
-    openModal(`${info.name} 도전`, `<b>${info.boss}</b>${info.waves > 1 ? ` 외 파동 ${info.waves}마리` : ''}에게 도전해요.<br><small>미니게임(${DUNGEON_MINIGAME_NAME[period]})으로 피해 예산을 늘릴 수 있어요. 남은 도전 ${info.left}/${info.attempts}번.</small>`,
+    openModal(`${info.name} 도전`,
+      `<div class="dungeon__bossart">${A.bossArt(G.BOSS_ART[info.boss])}</div>` +
+      `<b>${info.boss}</b>${info.waves > 1 ? ` 외 파동 ${info.waves}마리` : ''}에게 도전해요.<br><small>미니게임(${DUNGEON_MINIGAME_NAME[period]})으로 피해 예산을 늘릴 수 있어요. 남은 도전 ${info.left}/${info.attempts}번.</small>`,
       [{ text: '취소' }, { text: '도전!', cls: 'btn--gold', onClick: () => playDungeonMinigame(period, info) }]);
   }
   document.querySelector('.tab[data-tab="dungeon"]').addEventListener('click', (e) => {
