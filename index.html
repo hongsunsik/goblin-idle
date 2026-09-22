@@ -9,7 +9,7 @@
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
   <title>고블린 키우기</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css">
-  <link rel="stylesheet" href="style.css?v=202609221612">
+  <link rel="stylesheet" href="style.css?v=202609221711">
 </head>
 <body>
   <div class="app">
@@ -202,9 +202,12 @@
           <h3 class="sect"><svg class="ic"><use href="#i-shield"/></svg>장비 상점 <small id="gshopTimer"></small><span class="sect__btns"><button class="link" id="gshopReroll" type="button">새로고침</button></span></h3>
           <div class="gshopnote" id="gshopNote"></div>
           <div id="gearShop"></div>
+          <h3 class="sect"><svg class="ic"><use href="#i-gem"/></svg>칸별 뽑기 <small>원하는 칸을 골라 뽑아요</small></h3>
+          <div id="slotDrawList"></div>
           <h3 class="sect"><svg class="ic"><use href="#i-crown"/></svg>장비 상자 <small>등급 확률 공개</small></h3>
           <div id="boxList"></div>
           <h3 class="sect"><svg class="ic"><use href="#i-star"/></svg>유물 <small id="relicCount">드롭으로 얻을 수 없는 특별 옵션</small></h3>
+          <div id="relicDrawList"></div>
           <div id="relicList"></div>
           <h3 class="sect"><svg class="ic"><use href="#i-pouch"/></svg>편의 · 패키지</h3>
           <div id="utilList"></div>
@@ -295,22 +298,22 @@
     // 웹 앱 설치·안드로이드 앱(TWA)용 서비스 워커. https에서만 등록하고, 등록에 실패해도 게임은 그대로 동작한다.
     if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(function () {});
   </script>
-  <script src="images/manifest.js?v=202609221612"></script>
-  <script src="art.js?v=202609221612"></script>
-  <script src="classes.js?v=202609221612"></script>
-  <script src="skills.js?v=202609221612"></script>
-  <script src="store.js?v=202609221612"></script>
-  <script src="dungeon.js?v=202609221612"></script>
-  <script src="social.js?v=202609221612"></script>
-  <script src="game.js?v=202609221612"></script>
-  <script src="minigame.js?v=202609221612"></script>
-  <script src="sync.js?v=202609221612"></script>
-  <script src="cloud.js?v=202609221612"></script>
-  <script src="cloud-firebase.js?v=202609221612"></script>
-  <script src="firebase-config.js?v=202609221612"></script>
-  <script src="payments.js?v=202609221612"></script>
-  <script src="ads.js?v=202609221612"></script>
-  <script src="payments-config.js?v=202609221612"></script>
-  <script src="app.js?v=202609221612"></script>
+  <script src="images/manifest.js?v=202609221711"></script>
+  <script src="art.js?v=202609221711"></script>
+  <script src="classes.js?v=202609221711"></script>
+  <script src="skills.js?v=202609221711"></script>
+  <script src="store.js?v=202609221711"></script>
+  <script src="dungeon.js?v=202609221711"></script>
+  <script src="social.js?v=202609221711"></script>
+  <script src="game.js?v=202609221711"></script>
+  <script src="minigame.js?v=202609221711"></script>
+  <script src="sync.js?v=202609221711"></script>
+  <script src="cloud.js?v=202609221711"></script>
+  <script src="cloud-firebase.js?v=202609221711"></script>
+  <script src="firebase-config.js?v=202609221711"></script>
+  <script src="payments.js?v=202609221711"></script>
+  <script src="ads.js?v=202609221711"></script>
+  <script src="payments-config.js?v=202609221711"></script>
+  <script src="app.js?v=202609221711"></script>
 </body>
 </html>

@@ -362,13 +362,27 @@ test('없는 강화와 최대치를 넘는 레벨은 걸러낸다', () => {
   assert.deepStrictEqual(G.deserialize(JSON.stringify(o)).perks, { might: G.PERKS.might.max });
 });
 
+test('5단계(초월자의 힘)는 4단계(직업 각성·도감 공명)를 모두 채워야 열리고, 상한이 훨씬 높다', () => {
+  const s = richState(1e6);
+  assert.strictEqual(G.canBuyPerk(s, 'ascend'), false);
+  for (let i = 0; i < 5; i++) { G.buyPerk(s, 'might'); G.buyPerk(s, 'greed'); }
+  for (let i = 0; i < 5; i++) G.buyPerk(s, 'kingly');
+  for (let i = 0; i < 5; i++) { G.buyPerk(s, 'awaken'); G.buyPerk(s, 'codex'); }
+  assert.strictEqual(G.canBuyPerk(s, 'ascend'), true);
+  assert.strictEqual(G.PERKS.ascend.max, 50, '증표를 아무리 벌어도 금방 다 사서 살 게 없어지지 않게 상한이 넉넉해야 한다');
+  const d = G.hitDmg(s), g = G.goldMult(s);
+  for (let i = 0; i < 10; i++) G.buyPerk(s, 'ascend');
+  assert.ok(Math.abs(G.hitDmg(s) / d - 1.2) < 1e-9, '10레벨이면 공격력 +20%');
+  assert.ok(Math.abs(G.goldMult(s) / g - 1.2) < 1e-9, '10레벨이면 골드 +20%');
+});
+
 section('장비');
 // 결과가 매번 같도록 씨앗이 있는 난수를 쓴다
 function seeded(seed) {
   let a = seed >>> 0;
   return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
 }
-const mkItem = (o) => Object.assign({ id: 1, slot: 'weapon', kind: 'dmg', r: 0, ilvl: 1, val: 10, n: 0 }, o);
+const mkItem = (o) => Object.assign({ id: 1, slot: 'weapon', kind: 'dmg', r: 0, ilvl: 1, val: 10, n: 0, enh: 0 }, o);
 
 test('등급이 높을수록 나올 확률이 낮다 (일반 몬스터, 20만 번)', () => {
   G.setRandom(seeded(1));
@@ -1143,6 +1157,31 @@ test('고급 장비 상자의 등급 확률이 공개한 표(60/30/9/1)와 맞�
   for (let i = 0; i < 10000; i++) { const t = cash(100); t.bestStage = 20; for (const it of G.buyProduct(t, 'box_fine').items) { count[it.r] += 1; total += 1; } }
   assert.strictEqual(count[0], 0);
   assert.ok(Math.abs(count[1] / total - 0.6) < 0.015 && Math.abs(count[2] / total - 0.3) < 0.015 && Math.abs(count[3] / total - 0.09) < 0.01 && Math.abs(count[4] / total - 0.01) < 0.005, count.map((c) => (c / total).toFixed(3)).join(' '));
+  G.setRandom();
+});
+
+test('칸별 뽑기: 원하는 칸(무기·방어구·액세서리)이 확정으로 나온다', () => {
+  G.setRandom(seeded(34));
+  for (const id of ['draw_weapon', 'draw_armor', 'draw_accessory']) {
+    const slot = id.split('_')[1];
+    for (let i = 0; i < 30; i++) { const t = cash(1000); t.bestStage = 20; const r = G.buyProduct(t, id); assert.strictEqual(r.items[0].slot, slot, id); }
+  }
+  G.setRandom();
+});
+
+test('유물 뽑기: 아직 없는 유물 중 하나를 무작위로 주고, 다 가지고 있으면 살 수 없다', () => {
+  G.setRandom(seeded(35));
+  const t = cash(1e6);
+  const seen = new Set();
+  for (let i = 0; i < G.STORE.RELICS.length; i++) {
+    const r = G.buyProduct(t, 'draw_relic');
+    assert.strictEqual(r.ok, true);
+    assert.ok(!seen.has(r.picked.id), '이미 가진 유물은 다시 나오지 않는다');
+    seen.add(r.picked.id);
+    assert.ok(t.relics[r.picked.id]);
+  }
+  assert.strictEqual(seen.size, G.STORE.RELICS.length, '전부 뽑으면 모든 유물을 갖게 된다');
+  assert.strictEqual(G.buyProduct(t, 'draw_relic').reason, 'owned', '더 뽑을 유물이 없으면 살 수 없다');
   G.setRandom();
 });
 
@@ -1952,6 +1991,55 @@ test('상점 값이 없는 예전 저장도 불러오고, 환생해도 진열 �
   assert.deepStrictEqual(G.deserialize(JSON.stringify(o)).shop, { win: 0, reroll: 0, lvl: 0, bought: [] });
   const t = shopUser(500, 3000); G.buyShopItem(t, 2); t.runBest = 12; G.prestige(t);
   assert.deepStrictEqual(t.shop.bought, [2]);
+});
+
+section('장비 강화(재련)');
+test('같은 칸의 다른 장비를 재료로 써서 강화하면 골드가 들고 재료가 사라지며 수치가 오른다', () => {
+  const s = G.createState(0); s.gold = 1e9;
+  const target = mkItem({ id: 1, val: 10 });
+  const material = mkItem({ id: 2, val: 5 });
+  s.equip.weapon = target; s.bag = [material];
+  const before = G.gearMult(s, 'dmg');
+  const r = G.enhanceItem(s, 1, 2);
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(target.enh, 1);
+  assert.deepStrictEqual(s.bag, [], '재료로 쓴 장비는 가방에서 사라진다');
+  assert.ok(G.gearMult(s, 'dmg') > before, '강화하면 실제 능력치가 오른다');
+});
+test('재료가 없거나 칸이 다르면 강화할 수 없고, 골드가 모자라도 안 된다', () => {
+  const s = G.createState(0); s.gold = 1e9;
+  const target = mkItem({ id: 1, val: 10 });
+  s.equip.weapon = target;
+  assert.strictEqual(G.enhanceItem(s, 1, 999).reason, 'material', '재료가 없다');
+  s.bag = [mkItem({ id: 2, slot: 'armor', kind: 'hp', val: 5 })];
+  assert.strictEqual(G.enhanceItem(s, 1, 2).reason, 'material', '다른 칸의 장비는 재료로 쓸 수 없다');
+  s.bag = [mkItem({ id: 3, val: 5 })]; s.gold = 0;
+  assert.strictEqual(G.enhanceItem(s, 1, 3).reason, 'gold');
+});
+test('최대 강화(20단계)에 도달하면 더 강화할 수 없다', () => {
+  const s = G.createState(0); s.gold = 1e12;
+  const target = mkItem({ id: 1, val: 10, enh: G.ENH_MAX });
+  s.equip.weapon = target; s.bag = [mkItem({ id: 2, val: 5 })];
+  assert.strictEqual(G.enhanceItem(s, 1, 2).reason, 'max');
+});
+test('강화된 장비는 자연 최대치보다 세더라도 자동 정리·자동 장착에서 손해 보지 않는다', () => {
+  const s = G.createState(0);
+  const weak = mkItem({ id: 1, val: 5, enh: 10 });   // 강화로 실제 수치는 5 × 1.8 = 9
+  const strongDrop = mkItem({ id: 2, val: 8 });       // 강화 안 된 새 드롭
+  s.equip.weapon = weak;
+  assert.strictEqual(G.isUpgrade(s, strongDrop), false, '강화된 장비가 더 세면 새 드롭이 밀어내지 못한다');
+  assert.strictEqual(G.isWeaker(s, strongDrop), true, '그 새 드롭은 정리 대상이다');
+});
+test('강화 정보는 저장·복원되고, 범위를 넘는 값은 걸러진다', () => {
+  const s = G.createState(0); s.gold = 1e9;
+  s.equip.weapon = mkItem({ id: 1, val: 10 });
+  s.bag = [mkItem({ id: 2, val: 5 })];
+  G.enhanceItem(s, 1, 2);
+  const back = G.deserialize(G.serialize(s, 1));
+  assert.strictEqual(back.equip.weapon.enh, 1);
+  const o = JSON.parse(G.serialize(s, 1));
+  o.equip.weapon.enh = 999;
+  assert.strictEqual(G.deserialize(JSON.stringify(o)).equip.weapon.enh, G.ENH_MAX);
 });
 
 section('환생 보상과 전직·증표');

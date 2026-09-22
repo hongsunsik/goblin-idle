@@ -33,6 +33,15 @@
     { id: 'box_legend', name: '전설 장비 상자', price: 900, count: 1, odds: { 4: 90, 5: 9, 6: 1 },        desc: '전설 이상 장비 1개 (유니크 9%, 신화 1%)' },
   ];
 
+  // ---- 칸별 뽑기: 어떤 칸이 나올지 직접 고를 수 있다 (등급은 무작위, 위 상자와 같은 확률표). ----
+  const SLOT_DRAWS = [
+    { id: 'draw_weapon',    slot: 'weapon',    name: '무기 뽑기',     icon: 'sword',  price: 150, odds: { 1: 55, 2: 30, 3: 12, 4: 3 }, desc: '무기 1개 (고급 이상 보장)' },
+    { id: 'draw_armor',     slot: 'armor',     name: '방어구 뽑기',   icon: 'shield', price: 150, odds: { 1: 55, 2: 30, 3: 12, 4: 3 }, desc: '방어구 1개 (고급 이상 보장)' },
+    { id: 'draw_accessory', slot: 'accessory', name: '액세서리 뽑기', icon: 'gem',    price: 150, odds: { 1: 55, 2: 30, 3: 12, 4: 3 }, desc: '액세서리 1개 (고급 이상 보장)' },
+  ];
+  // ---- 유물 뽑기: 아직 없는 유물 중 하나를 무작위로 준다 (골라 살 때보다 싸다). 모두 가지고 있으면 살 수 없다. ----
+  const RELIC_DRAW = { id: 'draw_relic', name: '유물 뽑기', icon: 'star', price: 400, desc: '아직 없는 유물 하나를 무작위로 얻어요' };
+
   // ---- 편의 ----
   const BAG_STEP = 6, BAG_EXTRA_MAX = 18;   // 가방 확장: 6칸씩, 최대 +18칸
   const UTILITIES = [
@@ -93,7 +102,7 @@
   const byId = (list, id) => list.find((x) => x.id === id) || null;
   const POTION_IDS = POTIONS.map((p) => p.id);
 
-  const api = { CRYSTAL_PACKS, POTIONS, BOXES, UTILITIES, STARTER, POTION_CAP, POTION_IDS, BAG_STEP, BAG_EXTRA_MAX, AD_DAILY_LIMIT, AD_CRYSTALS, AD_SECONDS, RELICS, RELIC_SLOTS, ATTEND_REWARDS, SPECIALS, GEAR_SHOP, specialOf, byId };
+  const api = { CRYSTAL_PACKS, POTIONS, BOXES, SLOT_DRAWS, RELIC_DRAW, UTILITIES, STARTER, POTION_CAP, POTION_IDS, BAG_STEP, BAG_EXTRA_MAX, AD_DAILY_LIMIT, AD_CRYSTALS, AD_SECONDS, RELICS, RELIC_SLOTS, ATTEND_REWARDS, SPECIALS, GEAR_SHOP, specialOf, byId };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.GoblinStore = api;
 })(typeof window !== 'undefined' ? window : globalThis);

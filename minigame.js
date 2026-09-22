@@ -8,6 +8,23 @@
     return `<button class="btn btn--gray mg__skip" id="mgSkip" type="button">건너뛰기</button>`;
   }
 
+  // 화면 어딘가(el 기준 상대 위치 cx%,cy%)에서 작은 파티클이 사방으로 흩어지는 연출. 그림 없이 CSS만으로 낸다.
+  function burst(host, cx, cy, color, n) {
+    for (let i = 0; i < (n || 8); i++) {
+      const p = document.createElement('i');
+      p.className = 'mg__spark';
+      const ang = (Math.PI * 2 * i) / (n || 8) + Math.random() * 0.5;
+      const dist = 26 + Math.random() * 18;
+      p.style.left = cx + '%'; p.style.top = cy + '%'; p.style.background = color;
+      host.appendChild(p);
+      const anim = p.animate([
+        { transform: 'translate(-50%,-50%) scale(1)', opacity: 1 },
+        { transform: `translate(${Math.cos(ang) * dist - 50}%,${Math.sin(ang) * dist - 50}%) scale(0)`, opacity: 0 },
+      ], { duration: 420 + Math.random() * 160, easing: 'ease-out' });
+      anim.onfinish = () => p.remove();
+    }
+  }
+
   // ---- 일일: 두더지 잡기 ----
   function playMole(container, done) {
     const HOLES = 6, DURATION = 10000, SPAWN_MS = 650, UP_MS = 750;
@@ -100,6 +117,7 @@
       tick();
       roundTimer = setTimeout(() => onTap(true), ROUND_MS);
     }
+    const track = container.querySelector('#mgTrack');
     function onTap(auto) {
       if (resolved) return;
       resolved = true;
@@ -107,7 +125,10 @@
       const r = auto ? 'miss' : judge(posOf(performance.now() - roundStart));
       results.push(r);
       cursor.classList.add('mg__cursor--' + r);
-      setTimeout(() => { cursor.classList.remove('mg__cursor--crit', 'mg__cursor--hit', 'mg__cursor--miss'); nextRound(); }, 260);
+      if (r === 'crit') { burst(track, parseFloat(cursor.style.left), 50, '#6fe06a', 10); container.classList.add('mg__flash-good'); }
+      else if (r === 'hit') { burst(track, parseFloat(cursor.style.left), 50, '#ffd479', 5); }
+      else { container.classList.add('mg__flash-bad'); }
+      setTimeout(() => { cursor.classList.remove('mg__cursor--crit', 'mg__cursor--hit', 'mg__cursor--miss'); container.classList.remove('mg__flash-good', 'mg__flash-bad'); nextRound(); }, 260);
     }
     container.querySelector('#mgTap').addEventListener('click', () => onTap(false));
     function finish(skipped) {
@@ -142,15 +163,19 @@
       bolt.animate([{ left: '4%' }, { left: '82%' }], { duration: TRAVEL_MS, easing: 'linear', fill: 'forwards' });
       roundTimer = setTimeout(() => resolve(false), TRAVEL_MS + 150);
     }
+    const lane = container.querySelector('#mgLane');
     function resolve(success) {
       if (resolved) return;
       resolved = true;
       clearTimeout(roundTimer);
       combo = success ? combo + 1 : 0;
       comboEl.textContent = combo;
+      comboEl.classList.toggle('mg__combo--hot', combo >= 3);
       results.push(success);
       bolt.classList.add(success ? 'is-parried' : 'is-missed');
-      setTimeout(() => { bolt.classList.remove('is-parried', 'is-missed'); nextRound(); }, 260);
+      if (success) { burst(lane, 82, 50, '#6fe0c0', 10); container.classList.add('mg__flash-good'); }
+      else { lane.classList.add('mg__shake'); container.classList.add('mg__flash-bad'); }
+      setTimeout(() => { bolt.classList.remove('is-parried', 'is-missed'); lane.classList.remove('mg__shake'); container.classList.remove('mg__flash-good', 'mg__flash-bad'); nextRound(); }, 260);
     }
     container.querySelector('#mgTap').addEventListener('click', () => {
       if (resolved) return;

@@ -599,6 +599,40 @@ const FAKE_CLOUD = `(() => {
     check('증표 탭에 4단계(직업 강화)가 있고 직업 각성·도감 공명이 보인다', (await txt('#perks')).includes('4단계') && (await ev(`!!document.querySelector('.perk[data-id="awaken"]') && !!document.querySelector('.perk[data-id="codex"]')`)));
     check('직업 각성은 왕의 위엄이 필요해서 잠겨 있다', await ev(`document.querySelector('.perk[data-id="awaken"]').classList.contains('is-locked')`));
 
+    console.log('칸별 뽑기·유물 뽑기·장비 강화·증표 5단계');
+    const richState = () => {
+      const st = G.createState(0); st.crystals = 5000; st.bestStage = 30; st.tokens = 1e6;
+      for (const id of ['might', 'greed', 'vitality', 'kingly', 'awaken', 'codex']) st.perks[id] = G.PERKS[id].max;
+      return st;
+    };
+    await reopen(richState());
+    await click('[data-go="store"]'); await sleep(400);
+    check('칸별 뽑기 3종(무기·방어구·액세서리)이 보인다', (await txt('#slotDrawList')).includes('무기 뽑기') && (await txt('#slotDrawList')).includes('방어구 뽑기') && (await txt('#slotDrawList')).includes('액세서리 뽑기'));
+    await click('#slotDrawList [data-buy="draw_weapon"]'); await sleep(250);
+    await click('#modalActions .btn--gold'); await sleep(350);
+    check('무기 뽑기를 사면 무기 1개가 나온다', (await ev(`document.querySelectorAll('#modalBody .got').length`)) === 1 && (await txt('#modalBody')).includes('무기'));
+    await click('#modalActions .btn'); await sleep(200);
+    await click('#slotDrawList [data-buy="draw_weapon"]'); await sleep(250);   // 강화 재료용으로 하나 더 뽑는다
+    await click('#modalActions .btn--gold'); await sleep(350);
+    await click('#modalActions .btn'); await sleep(200);
+    check('유물 뽑기가 보인다', (await txt('#relicDrawList')).includes('유물 뽑기'));
+    await click('#relicDrawList [data-buy="draw_relic"]'); await sleep(250);
+    await click('#modalActions .btn--gold'); await sleep(350);
+    check('유물 뽑기를 사면 유물 하나를 얻고 바로 낀다', (await txt('#modalBody')).includes('바로 장착했어요'));
+    await click('#modalActions .btn'); await sleep(200);
+
+    await click('[data-go="gear"]'); await sleep(400);
+    check('무기 칸에 장착됐고 가방에 강화 재료용 무기가 하나 더 있다', (await ev(`!!document.querySelector('#slots [data-slot="weapon"]')`)) && (await ev(`document.querySelectorAll('#bag .gitem').length`)) >= 1);
+    await click('#slots [data-slot="weapon"]'); await sleep(250);
+    await click('#modalActions .btn--gold'); await sleep(300);
+    check('강화 재료 고르는 창이 열린다', (await ev(`document.querySelectorAll('#modalBody [data-mat]').length`)) >= 1);
+    await click('#modalBody [data-mat]'); await sleep(400);
+    check('강화하면 장착한 무기에 강화 표시(⚒)가 붙는다', (await txt('#slots')).includes('⚒'));
+    await shot('enhance');
+
+    await click('[data-go="shop"]'); await sleep(400);
+    check('4단계(직업 각성·도감 공명)를 모두 채우면 5단계(초월자의 힘)가 열린다', (await txt('#perks')).includes('5단계') && (await ev(`!!document.querySelector('.perk[data-id="ascend"]') && !document.querySelector('.perk[data-id="ascend"]').classList.contains('is-locked')`)));
+
     console.log('자리를 비운 시간 (서버 시각 기준)');
     // 서버 시각을 흉내 낸다: 서버 시각 = 진짜 지금 + __srvShift. 기기 시계(Date.now)는 아래에서 일부러 튀게 한다.
     const injId = (await send('Page.addScriptToEvaluateOnNewDocument', { source: `window.__realNow = Date.now.bind(Date); window.__srvShift = 0; window.fetch = async () => new Response(null, { headers: { Date: new Date(window.__realNow() + window.__srvShift).toUTCString() } });` })).result.identifier;

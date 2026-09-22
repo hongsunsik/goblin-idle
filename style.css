@@ -424,6 +424,13 @@ svg { display: block; }
 .mg__bolt .ic { width: 34px; height: 34px; }
 .mg__bolt.is-parried .ic { filter: drop-shadow(0 0 10px var(--green)); }
 .mg__bolt.is-missed .ic { filter: grayscale(1) opacity(0.4); }
+.mg__combo--hot { color: var(--gold); text-shadow: 0 0 8px rgba(255, 212, 121, 0.8); }
+.mg__spark { position: absolute; width: 6px; height: 6px; border-radius: 50%; pointer-events: none; box-shadow: 0 0 6px 1px currentColor; }
+@keyframes mgShake { 20% { transform: translateX(-6px); } 40% { transform: translateX(5px); } 60% { transform: translateX(-4px); } 80% { transform: translateX(3px); } }
+.mg__shake { animation: mgShake 0.26s ease-in-out; }
+.mg__stage { transition: box-shadow 0.15s; border-radius: 10px; }
+.mg__stage.mg__flash-good { box-shadow: 0 0 0 3px rgba(111, 224, 106, 0.7) inset; }
+.mg__stage.mg__flash-bad { box-shadow: 0 0 0 3px rgba(255, 90, 90, 0.7) inset; }
 
 @media (max-width: 380px) {
   .statbar { gap: 3px; padding: 4px; }
@@ -469,6 +476,8 @@ svg { display: block; }
 .perk__pips { display: flex; gap: 2px; margin-top: 6px; max-width: 150px; }
 .perk__pips i { flex: 1; height: 5px; background: rgba(0, 0, 0, 0.45); border: 1px solid rgba(255, 255, 255, 0.15); }
 .perk__pips i.on { background: linear-gradient(90deg, #ffd479, #ffb020); border-color: var(--gold-d); }
+.perk__bar { flex: 1; height: 7px; border-radius: 4px; background: rgba(0, 0, 0, 0.45); border: 1px solid rgba(255, 255, 255, 0.15); overflow: hidden; }
+.perk__bar i { display: block; height: 100%; background: linear-gradient(90deg, #ffd479, #ffb020); }
 .perk__need { display: flex; align-items: center; gap: 4px; margin-top: 5px; font-size: 10.5px; font-weight: 800; color: #ff9a8a; }
 .perk__need .ic { width: 13px; height: 13px; filter: none; }
 .perk__btn { min-width: 74px; display: flex; flex-direction: column; align-items: center; line-height: 1.15; padding: 7px 8px 5px; }
@@ -524,7 +533,7 @@ svg { display: block; }
   border: 2px solid var(--rc, rgba(102, 224, 255, 0.3)); transition: transform 0.12s;
 }
 .slot:active, .gitem:active { transform: scale(0.96); }
-.slot { padding: 8px 4px 7px; min-height: 118px; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.slot { position: relative; padding: 8px 4px 7px; min-height: 118px; display: flex; flex-direction: column; align-items: center; gap: 2px; }
 .slot.is-empty { --rc: rgba(102, 224, 255, 0.3); background: rgba(10, 30, 70, 0.4); border-style: dashed; cursor: default; }
 .slot__cap { font-size: 10px; font-weight: 800; color: var(--muted); }
 .slot .ic { width: 38px; height: 38px; }
@@ -537,6 +546,7 @@ svg { display: block; }
 .gearopts input[type=checkbox] { width: 18px; height: 18px; accent-color: #ffc84a; }
 .gearopts select { margin-left: 4px; padding: 5px 6px; font: inherit; font-size: 12px; color: var(--ink); background: #0a1a3e; border: 1px solid var(--line); }
 .bag { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.enh__mats { margin-top: 8px; max-height: 220px; overflow-y: auto; }
 .gitem { position: relative; padding: 6px 2px 5px; min-height: 76px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; }
 .gitem .ic { width: 30px; height: 30px; }
 .gitem__stat { font-size: 11px; font-weight: 900; color: var(--rc); }
@@ -811,6 +821,8 @@ svg { display: block; }
 .gshop .prod__desc .cmp-plus, .gshop .prod__desc .cmp-minus { margin-left: 4px; font-weight: 800; }
 .slot__sp { margin-top: 1px; font-size: 9.5px; font-weight: 800; color: var(--gold); line-height: 1.25; }
 .gitem__sp { position: absolute; right: 3px; top: 1px; font-style: normal; font-size: 12px; color: #ffe27a; text-shadow: 0 0 4px #000, 0 0 6px #ffc93a; }
+.gitem__enh { position: absolute; left: 3px; top: 1px; font-style: normal; font-size: 9.5px; font-weight: 800; color: #6fe0c0; text-shadow: 0 0 4px #000; }
+.slot__enh { position: absolute; left: 6px; top: 4px; font-style: normal; font-size: 10px; font-weight: 800; color: #6fe0c0; text-shadow: 0 0 4px #000; }
 .itemd__sp { margin-top: 2px; font-size: 12.5px; font-weight: 900; color: var(--gold); }
 #gshopReroll .ic { width: 14px; height: 14px; vertical-align: -2px; filter: none; }
 

@@ -129,6 +129,9 @@
                    per: '직업 능력의 장점 효과 +10% 강화', now: (lv) => `직업 능력의 장점 효과 +${lv * 10}% 강화` };
   PERKS.codex = { name: '도감 공명', icon: 'book', tier: 4, max: 5, base: 4, req: [['kingly', 1]],
                   per: '직업 도감 보너스 +20%', now: (lv) => `직업 도감 보너스 +${lv * 20}%` };
+  // 5단계: 4단계를 모두 채운 뒤에 열리는 끝없는 강화. 증표를 아무리 벌어도 살 게 없어지지 않도록, 레벨 상한을 훨씬 높게 잡았다.
+  PERKS.ascend = { name: '초월자의 힘', icon: 'burst', tier: 5, max: 50, base: 10, req: [['awaken', 5], ['codex', 5]],
+                   per: '공격력·골드 +2%', now: (lv) => `공격력·골드 +${lv * 2}%` };
   const PERK_KEYS = Object.keys(PERKS);
   const HEADSTART_LV = 3;
 
@@ -551,6 +554,26 @@
   const maxItemVal = (slot, kind, r, ilvl) => round1(GEAR[slot].kinds[kind].base[r] * (1 + ilvl / GEAR_SCALE_STAGE) * 1.15) + 0.1;
   const sellValue = (it) => Math.ceil(monsterGold(it.ilvl) * RARITIES[it.r].gold);
 
+  // ---- 장비 강화(재련): 같은 칸의 다른 장비를 재료로 써서 수치를 올린다. 등급·레벨은 그대로, 실제 효과만 세진다. ----
+  const ENH_MAX = 20, ENH_STEP = 0.08;   // 강화 1단계당 +8%, 최대 20단계(+160%)
+  const enhVal = (it) => it.val * (1 + ENH_STEP * (it.enh || 0));   // 실제로 적용되는 수치 (강화 반영)
+  const enhCost = (it) => Math.ceil(sellValue(it) * (2 + (it.enh || 0) * 0.6));   // 강화할수록 골드가 더 든다
+  const findItem = (s, id) => SLOT_KEYS.map((k) => s.equip[k]).find((x) => x && x.id === id) || s.bag.find((x) => x.id === id) || null;
+  // 결과: { ok, reason? | cost, enh }  reason: 'target' 없는 장비 | 'max' 이미 최대 강화 | 'material' 쓸 수 없는 재료 | 'gold' 골드 부족
+  function enhanceItem(s, targetId, materialId) {
+    const target = findItem(s, targetId);
+    if (!target) return { ok: false, reason: 'target' };
+    if ((target.enh || 0) >= ENH_MAX) return { ok: false, reason: 'max' };
+    const mi = s.bag.findIndex((x) => x.id === materialId);
+    if (mi < 0 || s.bag[mi].id === targetId || s.bag[mi].slot !== target.slot) return { ok: false, reason: 'material' };
+    const cost = enhCost(target);
+    if (s.gold < cost) return { ok: false, reason: 'gold', cost };
+    s.gold -= cost;
+    s.bag.splice(mi, 1);
+    target.enh = (target.enh || 0) + 1;
+    return { ok: true, cost, enh: target.enh };
+  }
+
   function rollRarity(boss, s) {
     const key = boss ? 'bossW' : 'w';
     const rare = s ? 1 + specialV(s, 'rare') : 1;   // 유물 '네잎클로버': 희귀 이상의 가중치가 커진다
@@ -565,16 +588,16 @@
     return RARITIES.length - 1;
   }
 
-  // stage에서 얻는 장비 하나를 굴린다
-  function rollItem(s, stage, boss, forceRarity) {
+  // stage에서 얻는 장비 하나를 굴린다. forceSlot을 주면 칸(무기·방어구·액세서리)을 고정한다 (뽑기 상점용)
+  function rollItem(s, stage, boss, forceRarity, forceSlot) {
     const r = forceRarity !== undefined ? forceRarity : rollRarity(boss, s);
-    const slot = SLOT_KEYS[Math.floor(rnd() * SLOT_KEYS.length)];
+    const slot = forceSlot || SLOT_KEYS[Math.floor(rnd() * SLOT_KEYS.length)];
     const kinds = Object.keys(GEAR[slot].kinds);
     const kind = kinds[Math.floor(rnd() * kinds.length)];
     const def = GEAR[slot].kinds[kind];
     const val = round1(def.base[r] * (1 + stage / GEAR_SCALE_STAGE) * (0.85 + rnd() * 0.3));   // ±15% 무작위
     s.itemSeq += 1;
-    return { id: s.itemSeq, slot, kind, r, ilvl: stage, val, n: Math.floor(rnd() * def.nouns.length) };
+    return { id: s.itemSeq, slot, kind, r, ilvl: stage, val, n: Math.floor(rnd() * def.nouns.length), enh: 0 };
   }
 
   const dropChance = (s, boss) => ((boss ? BOSS_DROP_CHANCE : DROP_CHANCE) + LUCK_PER_LV * perkLv(s, 'luck') + specialV(s, 'luck')) * (1 + potionV(s, 'luck'));
@@ -592,7 +615,7 @@
     const cur = s.equip[it.slot];
     if (!cur) return true;
     if (cur.kind !== it.kind || (cur.sp && !it.sp)) return false;
-    return it.val > cur.val || (!!it.sp && !cur.sp && it.val >= cur.val * 0.9);
+    return enhVal(it) > enhVal(cur) || (!!it.sp && !cur.sp && enhVal(it) >= enhVal(cur) * 0.9);
   };
 
   // 장비를 가방에 넣는다. 자동 판매 등급 이하이거나 가방이 가득 차면 판다. 결과: 'bag' | 'sold'
@@ -680,12 +703,12 @@
     return { n, gold };
   }
   // 지금 낀 장비(같은 칸·같은 능력)보다 수치가 같거나 낮아서 쓸모없어진 가방 장비. 다른 능력의 장비는 비교할 수 없어서 포함하지 않는다.
-  const isWeaker = (s, it) => { const cur = s.equip[it.slot]; return !it.sp && !!cur && cur.kind === it.kind && it.val <= cur.val; };   // 특별 옵션 장비는 정리 대상이 아니다
+  const isWeaker = (s, it) => { const cur = s.equip[it.slot]; return !it.sp && !!cur && cur.kind === it.kind && enhVal(it) <= enhVal(cur); };   // 특별 옵션 장비는 정리 대상이 아니다
   const bagWeaker = (s) => s.bag.filter((it) => isWeaker(s, it));
-  // 장착한 장비가 kind 능력에 주는 배율 (1 = 효과 없음)
+  // 장착한 장비가 kind 능력에 주는 배율 (1 = 효과 없음, 강화 반영)
   const gearMult = (s, kind) => {
     let v = 0;
-    for (const slot of SLOT_KEYS) { const it = s.equip[slot]; if (it && it.kind === kind) v += it.val; }
+    for (const slot of SLOT_KEYS) { const it = s.equip[slot]; if (it && it.kind === kind) v += enhVal(it); }
     return 1 + v / 100;
   };
 
@@ -756,32 +779,44 @@
 
   // 크리스탈로 상품을 산다. 결과: { ok, reason?, product, items? }
   //   reason: 'unknown' 없는 상품 | 'crystals' 크리스탈 부족 | 'bag' 가방 공간 부족 | 'max' 더 못 삼 | 'owned' 이미 산 1회 상품
+  const unownedRelics = (s) => St.RELICS.filter((r) => !s.relics[r.id]);
   function buyProduct(s, id) {
     const box = St.byId(St.BOXES, id), util = St.byId(St.UTILITIES, id);
     const starter = id === St.STARTER.id ? St.STARTER : null;
     const relic = St.byId(St.RELICS, id);
-    const product = box || util || starter || relic;
+    const slotDraw = St.byId(St.SLOT_DRAWS, id);
+    const relicDraw = id === St.RELIC_DRAW.id ? St.RELIC_DRAW : null;
+    const product = box || util || starter || relic || slotDraw || relicDraw;
     if (!product) return { ok: false, reason: 'unknown' };
     if (s.crystals < product.price) return { ok: false, reason: 'crystals', product };
-    const needSpace = box ? box.count : starter ? starter.items.count : 0;
+    const needSpace = box ? box.count : starter ? starter.items.count : slotDraw ? 1 : 0;
     if (needSpace && s.bag.length + needSpace > bagLimit(s)) return { ok: false, reason: 'bag', product };
     if (util && s.bagExtra >= St.BAG_EXTRA_MAX) return { ok: false, reason: 'max', product };
     if (starter && s.bought.starter) return { ok: false, reason: 'owned', product };
     if (relic && s.relics[id]) return { ok: false, reason: 'owned', product };
+    if (relicDraw && unownedRelics(s).length === 0) return { ok: false, reason: 'owned', product };
 
     s.crystals -= product.price;
     s.stats.spent += product.price;
-    if (box) s.stats.boxes += 1;
+    if (box || slotDraw) s.stats.boxes += 1;
     const items = [];
+    let picked = null;
     if (relic) { s.relics[id] = true; if (s.relicEq.length < St.RELIC_SLOTS) s.relicEq.push(id); }   // 빈 칸이 있으면 바로 낀다
+    else if (relicDraw) {
+      const pool = unownedRelics(s);
+      picked = pool[Math.floor(rnd() * pool.length)];
+      s.relics[picked.id] = true;
+      if (s.relicEq.length < St.RELIC_SLOTS) s.relicEq.push(picked.id);
+    }
     else if (box) for (let i = 0; i < box.count; i++) { const it = rollItem(s, shopItemLevel(s), false, rollFromOdds(box.odds)); giveItem(s, it); items.push(it); }
+    else if (slotDraw) { const it = rollItem(s, shopItemLevel(s), false, rollFromOdds(slotDraw.odds), slotDraw.slot); giveItem(s, it); items.push(it); }
     else if (util) s.bagExtra += St.BAG_STEP;
     else if (starter) {
       const it = rollItem(s, shopItemLevel(s), false, starter.items.rarity); giveItem(s, it); items.push(it);
       for (const pid of starter.potions) { const p = St.byId(St.POTIONS, pid); s.potions[pid] = Math.min(St.POTION_CAP, (s.potions[pid] || 0) + p.dur); }
       s.bought.starter = true;
     }
-    return { ok: true, product, items };
+    return { ok: true, product, items, picked };
   }
 
   // ---- 광고 보상: 광고를 끝까지 보면 크리스탈 10개와 물약 1개, 하루 3번까지 ----
@@ -995,6 +1030,7 @@
   const offlineCap = (s) => OFFLINE_CAP + 3600 * (perkLv(s, 'rest') + specialV(s, 'offline'));
   const kinglyMult = (s) => 1 + 0.05 * perkLv(s, 'kingly');
   const transcendMult = (s) => 1 + TRANSCEND_BONUS * (s.transcend || 0);   // 5차 직업을 초월한 랭크마다 공격력·골드 배율
+  const ascendMult = (s) => 1 + 0.02 * perkLv(s, 'ascend');   // 증표 상점 5단계: 끝없이 살 수 있는 강화
   // 1~4차 직업의 배율을 모두 곱한 값 (해당 항목이 없으면 1)
   function statMult(s, key) {
     let m = 1;
@@ -1012,13 +1048,13 @@
   const baseDmg = (s) => 3 + 1.5 * (s.level - 1);
   const maxHp = (s) => (50 + 12 * (s.level - 1)) * (1 + 0.25 * s.upgrades.armor) * mile(s.upgrades.armor) * statMult(s, 'hp') * (1 + 0.1 * perkLv(s, 'vitality')) * gearMult(s, 'hp') * tokenHpMult(s);
   const hitDmg = (s) =>
-    baseDmg(s) * (1 + 0.25 * s.upgrades.weapon) * mile(s.upgrades.weapon) * tokenMult(s) * masteryMult(s) * achieveMult(s) * statMult(s, 'dmg') * (1 + 0.1 * perkLv(s, 'might')) * kinglyMult(s) * transcendMult(s) * gearMult(s, 'dmg') * (1 + buffV(s, 'might') + potionV(s, 'might'));
+    baseDmg(s) * (1 + 0.25 * s.upgrades.weapon) * mile(s.upgrades.weapon) * tokenMult(s) * masteryMult(s) * achieveMult(s) * statMult(s, 'dmg') * (1 + 0.1 * perkLv(s, 'might')) * kinglyMult(s) * transcendMult(s) * ascendMult(s) * gearMult(s, 'dmg') * (1 + buffV(s, 'might') + potionV(s, 'might'));
   const attacksPerSec = (s) => (1 + SPEED_PER_LV * s.upgrades.speed) * statMult(s, 'aps') * gearMult(s, 'aps') * (1 + buffV(s, 'haste') + potionV(s, 'haste'));
   // 직업의 공격 속도 배율은 동료에게도 절반만큼 적용된다 (동료가 전체 피해의 대부분이라, 연사 직업이 내 공격만 빨라져서는 다른 직업보다 한참 약했다)
   const partySpeed = (s) => 1 + 0.5 * (statMult(s, 'aps') - 1);
   const companionDps = (s) => s.upgrades.companion * mile(s.upgrades.companion) * hitDmg(s) * 0.35 * statMult(s, 'comp') * (1 + 0.1 * perkLv(s, 'bond')) * gearMult(s, 'comp') * (1 + specialV(s, 'comp')) * (1 + SPEED_PARTY * s.upgrades.speed) * partySpeed(s);
   const goldMult = (s) =>
-    (1 + 0.15 * s.upgrades.loot) * mile(s.upgrades.loot) * tokenMult(s) * masteryMult(s) * achieveMult(s) * statMult(s, 'gold') * (1 + 0.1 * perkLv(s, 'greed')) * kinglyMult(s) * transcendMult(s) * gearMult(s, 'gold') * (1 + potionV(s, 'gold')) * (1 + specialV(s, 'gold'));
+    (1 + 0.15 * s.upgrades.loot) * mile(s.upgrades.loot) * tokenMult(s) * masteryMult(s) * achieveMult(s) * statMult(s, 'gold') * (1 + 0.1 * perkLv(s, 'greed')) * kinglyMult(s) * transcendMult(s) * ascendMult(s) * gearMult(s, 'gold') * (1 + potionV(s, 'gold')) * (1 + specialV(s, 'gold'));
   const totalDps = (s) => hitDmg(s) * attacksPerSec(s) + companionDps(s);
   const expNeeded = (s) => Math.ceil(15 * Math.pow(1.3, s.level - 1));
 
@@ -1549,7 +1585,8 @@
       if (r < 0 || r >= RARITIES.length) return null;
       const ilvl = clamp(Math.floor(num(x.ilvl, 1)), 1, 999);
       const it = { id: clamp(Math.floor(num(x.id, 0)), 1, 1e12), slot: x.slot, kind: x.kind, r, ilvl,
-                   val: clamp(num(x.val, 0), 0, maxItemVal(x.slot, x.kind, r, ilvl)), n: clamp(Math.floor(num(x.n, 0)), 0, 99) };
+                   val: clamp(num(x.val, 0), 0, maxItemVal(x.slot, x.kind, r, ilvl)), n: clamp(Math.floor(num(x.n, 0)), 0, 99),
+                   enh: clamp(Math.floor(num(x.enh, 0)), 0, ENH_MAX) };
       const spDef = r >= 3 && x.sp && typeof x.sp === 'object' ? St.specialOf(x.sp.k) : null;   // 특별 옵션은 영웅 이상에만, 정해진 종류와 범위 안에서만
       if (spDef) it.sp = { k: spDef.k, v: clamp(num(x.sp.v, 0), 0, spDef.legend[1]) };
       return it;
@@ -1617,16 +1654,17 @@
     serialize, deserialize,
     TOKEN_BONUS, maxHp, hitDmg, attacksPerSec, companionDps, totalDps, goldMult, expNeeded, tokenMult,
     monsterAtk, monsterGold, monsterInfo, biomeOf, roundOf, BIOME_LEN, NORMAL_SLOTS, isBossStage, lookId, classTitle,
-    STORE: St, potionV, dayKey, creditCrystals, buyProduct, shopSync, shopStock, buyShopItem, rerollShop, specialV, adToday, adStatus, claimAd, shopItemLevel,
+    STORE: St, potionV, dayKey, creditCrystals, buyProduct, shopSync, shopStock, buyShopItem, rerollShop, specialV, adToday, adStatus, claimAd, shopItemLevel, unownedRelics,
     SKILL_KINDS: Sk.KINDS, SKILL_NAMES: Sk.SKILLS, describeSkill: Sk.describeSkill, MELEE_STYLES: Sk.MELEE_STYLES, ATTACK_STYLE: Sk.ATTACK_STYLE,
     skillsOf, attackStyle, styleOfClass, buffV, canCast, skillFor: (id) => Sk.makeSkill(id, TIER_OF[id]),
     NODES: NODE, nextPromo, promoStage, promoOptions, promote, statMult, masteryMult,
-    TRANSCEND_LEVEL, TRANSCEND_BONUS, transcendReady, ascend, transcendMult,
+    TRANSCEND_LEVEL, TRANSCEND_BONUS, transcendReady, ascend, transcendMult, ascendMult,
     ACHIEVEMENTS, ACHIEVE_BONUS, achieveMult, checkAchievements, unclaimedAchievements, claimAchievement, claimAllAchievements,
     relicV, relicDef, toggleRelic, resonance, RESONANCE, tokenHpMult,
     PATH_FIELDS, ADV_IDS, advIdsOfTier, classTier, parentOf, childrenOf, classPath, deepest, DEX_STAGES, DEX_MEDALS, MASTERY_BASE, MEDAL_BONUS, dexStages, masteryOf, dexRecord, dexTier,
     RARITIES, GEAR, SLOT_KEYS, BAG_MAX, bagLimit, DROP_CHANCE, BOSS_DROP_CHANCE, LUCK_PER_LV,
     GEAR_DESIGNS, itemDesign, setRandom, itemName, sellValue, rollItem, dropChance, isUpgrade, receiveItem, equipItem, unequipItem, sellBagItem, sellBagUpTo, sellBagItems, isWeaker, bagWeaker, gearMult,
+    ENH_MAX, ENH_STEP, enhVal, enhCost, enhanceItem, findItem,
     claimAttend, QUEST_PERIODS, QUEST_CFG, QUEST_DEFS, periodKeys, periodSecsLeft, questSync, questBoard, questClaimable, claimQuest, claimQuestBonus,
     DUNGEON_PERIODS: Dg.DUNGEON_PERIODS, DUNGEONS: Dg.DUNGEONS, dungeonSync, dungeonInfo, dungeonClaimable, dungeonBossHp, challengeDungeon,
     moleBonus, gaugeBonus, parryBonus,
