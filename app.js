@@ -2560,6 +2560,7 @@
 
   function renderAccount(st) {
     st = st || cloud.state();
+    $('gmSection').hidden = !G.isGM(st.user && st.user.email);
     const box = $('acct');
     if (!st.configured) {
       // 서버(Firebase)가 아직 연결되지 않았어도 버튼은 보여 주고, 누르면 준비 중이라고 알려 준다
@@ -2606,6 +2607,28 @@
   settings.addEventListener('click', (e) => { if (e.target === settings) closeSettings(); });   // 바깥을 누르면 닫는다
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !settings.hidden && $('modal').hidden) closeSettings(); });
   $('resetBtn2').addEventListener('click', () => { closeSettings(); $('resetBtn').click(); });
+  // ---- GM 모드 (특정 계정에서만 보인다) ----
+  const GM_ACTIONS = {
+    crystal1000: () => { G.gmAddCrystals(state, 1000); return '크리스탈 +1,000'; },
+    crystal10000: () => { G.gmAddCrystals(state, 10000); return '크리스탈 +10,000'; },
+    token50: () => { G.gmAddTokens(state, 50); return '증표 +50'; },
+    token500: () => { G.gmAddTokens(state, 500); return '증표 +500'; },
+    gold1m: () => { G.gmAddGold(state, 1e6); return '골드 +1,000,000'; },
+    level20: () => { G.gmSetLevel(state, state.level + 20); return '레벨 +20'; },
+    stage50: () => { G.gmSetStage(state, 50); return '스테이지 → 50'; },
+    stage150: () => { G.gmSetStage(state, 150); return '스테이지 → 150'; },
+    upgrade10: () => { G.gmMaxUpgrades(state, 10); return '강화 전부 +10'; },
+    relics: () => { G.gmUnlockRelics(state); return '유물 전부 획득'; },
+  };
+  $('gmGrid').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-gm]');
+    if (!b || !G.isGM(cloud.state().user && cloud.state().user.email)) return;
+    const fn = GM_ACTIONS[b.dataset.gm];
+    if (!fn) return;
+    const label = fn();
+    addLog(`[GM] ${label}`, 'is-gold', 'crown');
+    cloudSoon(); writeSave(); render(); renderGear(true); renderClass(true); renderShop(true); renderStore(true); renderDungeon(true);
+  });
   const FX_INFO = { calm: '차분하게: 꼭 필요한 움직임만 보여요', full: '화려하게: 궤적·폭발·스킬 이펙트·화면 흔들림까지 모두 보여요' };
   function renderFxSetting() {
     $('fxSeg').querySelectorAll('button').forEach((b) => b.classList.toggle('is-on', b.dataset.fx === fxMode));

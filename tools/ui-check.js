@@ -759,6 +759,22 @@ const FAKE_CLOUD = `(() => {
     await click('#mgSkip'); await sleep(400);
     await click('#modalActions .btn'); await sleep(300);
 
+    console.log('GM 모드 (관리자 계정에서만 보임)');
+    const FAKE_CLOUD_GM = FAKE_CLOUD.replace('cb = f; setTimeout', 'cb = f; window.__authCb = f; setTimeout')
+      .replace("email: 't@example.com'", "email: 'hongsunsik1@gmail.com'");
+    await send('Page.addScriptToEvaluateOnNewDocument', { source: FAKE_CLOUD_GM });
+    await reopen(G.createState(0));
+    await ev(`localStorage.removeItem('fake-cloud-server')`);
+    await click('#settingsBtn'); await sleep(300);
+    check('로그인 전에는 GM 모드가 안 보인다', await ev(`document.getElementById('gmSection').hidden`));
+    await ev(`window.__authCb({ uid: 'gm1', name: '관리자', email: 'hongsunsik1@gmail.com', photo: '', provider: 'google.com' })`); await sleep(400);
+    check('관리자 이메일로 로그인하면 GM 모드가 보인다', await ev(`!document.getElementById('gmSection').hidden`));
+    check('쓸 수 있는 증표가 0으로 보인다 (점검 전제)', (await txt('#tokens')) === '0');
+    await click('#gmGrid [data-gm="token50"]'); await sleep(300);
+    check('GM 버튼(증표 +50)을 누르면 실제로 증표가 늘어난다', (await txt('#tokens')) === '50');
+    await ev(`window.__authCb({ uid: 't1', name: '테스터', email: 't@example.com', photo: '', provider: 'google.com' })`); await sleep(400);
+    check('다른 계정으로 바뀌면 GM 모드가 다시 숨는다', await ev(`document.getElementById('gmSection').hidden`));
+
     console.log('오래 돌려도 안정적인가 (전투 10초)');
     await ev(`document.querySelector('[data-go="upgrade"]').click()`);
     await sleep(10000);

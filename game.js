@@ -1646,6 +1646,23 @@
     return `${Math.floor(sec)}초`;
   }
 
+  // ---- GM 치트 (특정 계정에서만 화면에 노출된다. 여기 함수 자체는 게임 규칙을 우회하는 용도라 값 범위만 안전하게 자른다) ----
+  const GM_EMAILS = ['hongsunsik1@gmail.com'];
+  const isGM = (email) => !!email && GM_EMAILS.includes(email);
+  function gmAddCrystals(s, n) { s.crystals = clamp(Math.floor(s.crystals + n), 0, 1e9); }
+  function gmAddTokens(s, n) { s.tokens = clamp(Math.floor(s.tokens + n), 0, 99999); }
+  function gmAddGold(s, n) { s.gold = clamp(s.gold + n, 0, 1e60); }
+  function gmSetLevel(s, lv) { s.level = clamp(Math.floor(lv), 1, 9999); s.hp = maxHp(s); }
+  function gmSetStage(s, stage) {
+    const st = clamp(Math.floor(stage), 1, 999);
+    s.stage = st; s.killsInStage = 0;
+    s.runBest = Math.max(s.runBest, st); s.bestStage = Math.max(s.bestStage, st);
+    s.hp = maxHp(s);
+    spawnMonster(s);
+  }
+  function gmMaxUpgrades(s, add) { for (const k of UPGRADE_KEYS) s.upgrades[k] = clamp(s.upgrades[k] + add, 0, UPGRADES[k].max); s.hp = maxHp(s); }
+  function gmUnlockRelics(s) { for (const r of St.RELICS) s.relics[r.id] = true; }
+
   const api = {
     UPGRADES, UPGRADE_KEYS, MILESTONE_EVERY, MILESTONE_MULT, mile, CLASSES, ADVANCED, ADVANCED3, ADVANCED4, ADVANCED5, PROMO_LEVEL, KILLS_PER_STAGE, DOWN_TIME, PRESTIGE_MIN_STAGE, OFFLINE_CAP,
     createState, tick, simulate, clickAttack, resolveAway, applyAway, applyOffline, CLOCK_SKEW_SEC,
@@ -1670,6 +1687,7 @@
     moleBonus, gaugeBonus, parryBonus,
     PERKS, PERK_KEYS, HEADSTART_LV, perkLv, perkCost, perkSpent, tokenBalance, perkMissing, perkUnlocked, canBuyPerk, buyPerk, respecPerks, offlineCap,
     fmt, fmtTime,
+    isGM, gmAddCrystals, gmAddTokens, gmAddGold, gmSetLevel, gmSetStage, gmMaxUpgrades, gmUnlockRelics,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Game = api;

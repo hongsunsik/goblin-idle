@@ -638,6 +638,8 @@ svg { display: block; }
 .sheet__body .sect:first-child { margin-top: 8px; }
 .setrow { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px; }
 .setrow small { display: block; margin-top: 2px; font-size: 11px; color: var(--muted); }
+.gmgrid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
+.gmgrid .btn { font-size: 12px; padding: 10px 6px; }
 .setrow .btn { flex: none; padding: 8px 12px 6px; font-size: 12px; }
 
 /* ===== 설정: 전투 효과 / 장비 선택·정리 / 계정 안내 ===== */

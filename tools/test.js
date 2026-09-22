@@ -2768,4 +2768,23 @@ test('TWA 초안과 assetlinks 견본이 올바른 JSON이고 주소·패키지 
   assert.ok(/keystore/.test(fsx.readFileSync(rootPath('.gitignore'), 'utf8')), '서명 키는 올리지 않는다');
 });
 
+section('GM 치트 (특정 계정 전용)');
+test('등록된 이메일만 GM으로 인정하고, 값 범위를 벗어나지 않게 자른다', () => {
+  assert.strictEqual(G.isGM('hongsunsik1@gmail.com'), true);
+  assert.strictEqual(G.isGM('other@example.com'), false);
+  assert.strictEqual(G.isGM(''), false);
+  assert.strictEqual(G.isGM(undefined), false);
+  const s = G.createState(0);
+  G.gmAddCrystals(s, 1e12); assert.strictEqual(s.crystals, 1e9, '상한을 넘지 않는다');
+  G.gmAddTokens(s, -999); assert.strictEqual(s.tokens, 0, '음수로 내려가지 않는다');
+  G.gmSetLevel(s, -5); assert.strictEqual(s.level, 1);
+  G.gmSetLevel(s, 50); assert.strictEqual(s.level, 50); assert.strictEqual(s.hp, G.maxHp(s), '레벨이 오르면 체력도 다시 계산된다');
+  G.gmSetStage(s, 9999); assert.strictEqual(s.stage, 999, '상한(999)을 넘지 않는다');
+  assert.strictEqual(s.runBest, 999); assert.strictEqual(s.bestStage, 999);
+  const before = { ...s.upgrades };
+  G.gmMaxUpgrades(s, 999); for (const k of G.UPGRADE_KEYS) assert.strictEqual(s.upgrades[k], Math.min(before[k] + 999, G.UPGRADES[k].max), k);
+  G.gmMaxUpgrades(s, 999); assert.strictEqual(s.upgrades.speed, G.UPGRADES.speed.max, '유한한 상한(재빠른 손)은 넘지 않는다');
+  G.gmUnlockRelics(s); assert.strictEqual(Object.keys(s.relics).length, G.STORE.RELICS.length);
+});
+
 queue.then(() => console.log(`\n${passed}개 통과` + (process.exitCode ? ', 실패 있음' : '')));
