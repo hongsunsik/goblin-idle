@@ -9,7 +9,7 @@
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
   <title>고블린 키우기</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css">
-  <link rel="stylesheet" href="style.css?v=202609220130">
+  <link rel="stylesheet" href="style.css?v=202609221518">
 </head>
 <body>
   <div class="app">
@@ -284,25 +284,33 @@
     </div>
   </div>
 
+  <div class="modal" id="mgModal" hidden>
+    <div class="modal__box mg__box" role="dialog" aria-modal="true" aria-labelledby="mgTitle">
+      <h2 id="mgTitle"></h2>
+      <div class="mg__stage" id="mgStage"></div>
+    </div>
+  </div>
+
   <script>
     // 웹 앱 설치·안드로이드 앱(TWA)용 서비스 워커. https에서만 등록하고, 등록에 실패해도 게임은 그대로 동작한다.
     if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(function () {});
   </script>
-  <script src="images/manifest.js?v=202609220130"></script>
-  <script src="art.js?v=202609220130"></script>
-  <script src="classes.js?v=202609220130"></script>
-  <script src="skills.js?v=202609220130"></script>
-  <script src="store.js?v=202609220130"></script>
-  <script src="dungeon.js?v=202609220130"></script>
-  <script src="social.js?v=202609220130"></script>
-  <script src="game.js?v=202609220130"></script>
-  <script src="sync.js?v=202609220130"></script>
-  <script src="cloud.js?v=202609220130"></script>
-  <script src="cloud-firebase.js?v=202609220130"></script>
-  <script src="firebase-config.js?v=202609220130"></script>
-  <script src="payments.js?v=202609220130"></script>
-  <script src="ads.js?v=202609220130"></script>
-  <script src="payments-config.js?v=202609220130"></script>
-  <script src="app.js?v=202609220130"></script>
+  <script src="images/manifest.js?v=202609221518"></script>
+  <script src="art.js?v=202609221518"></script>
+  <script src="classes.js?v=202609221518"></script>
+  <script src="skills.js?v=202609221518"></script>
+  <script src="store.js?v=202609221518"></script>
+  <script src="dungeon.js?v=202609221518"></script>
+  <script src="social.js?v=202609221518"></script>
+  <script src="game.js?v=202609221518"></script>
+  <script src="minigame.js?v=202609221518"></script>
+  <script src="sync.js?v=202609221518"></script>
+  <script src="cloud.js?v=202609221518"></script>
+  <script src="cloud-firebase.js?v=202609221518"></script>
+  <script src="firebase-config.js?v=202609221518"></script>
+  <script src="payments.js?v=202609221518"></script>
+  <script src="ads.js?v=202609221518"></script>
+  <script src="payments-config.js?v=202609221518"></script>
+  <script src="app.js?v=202609221518"></script>
 </body>
 </html>

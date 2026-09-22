@@ -390,6 +390,41 @@ svg { display: block; }
 .modal__actions { display: flex; gap: 8px; margin-top: 16px; }
 .modal__actions .btn { flex: 1; }
 
+/* ===== 던전 미니게임 ===== */
+.mg__box { max-width: 380px; text-align: center; }
+.mg__desc { font-size: 12.5px; color: var(--muted); margin-bottom: 10px; }
+.mg__round { font-size: 13px; color: var(--muted); margin-bottom: 8px; }
+.mg__round b { color: var(--ink); }
+.mg__skip { display: block; margin: 12px auto 0; background: none; border: none; color: var(--muted); font-size: 12px; text-decoration: underline; cursor: pointer; }
+.mg__tap { width: 100%; padding: 12px; font-size: 15px; margin-top: 4px; }
+
+.mg__timerbar { height: 6px; border-radius: 4px; background: rgba(255, 255, 255, 0.12); overflow: hidden; margin-bottom: 10px; }
+.mg__timerbar i { display: block; height: 100%; width: 100%; transform-origin: left; background: linear-gradient(90deg, var(--gold-d), var(--gold)); border-radius: 4px; }
+.mg__grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; touch-action: none; }
+.mg__hole { position: relative; aspect-ratio: 1; border-radius: 14px; background: radial-gradient(circle at 50% 65%, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0.25)); border: 2px solid var(--line); overflow: hidden; }
+.mg__hole-in { position: absolute; inset: 6px; display: flex; align-items: center; justify-content: center; transform: translateY(120%); transition: transform 0.12s ease-out; }
+.mg__hole.is-up .mg__hole-in { transform: translateY(0); }
+.mg__hole .mon-svg { width: 100%; height: 100%; }
+.mg__score { margin-top: 10px; font-size: 13px; color: var(--muted); }
+.mg__score b { color: var(--gold); font-size: 16px; }
+
+.mg__track { position: relative; height: 34px; border-radius: 17px; background: rgba(255, 255, 255, 0.08); border: 1px solid var(--line); margin: 6px 6px 14px; }
+.mg__zone { position: absolute; top: 3px; bottom: 3px; border-radius: 12px; background: rgba(255, 212, 121, 0.3); }
+.mg__zone--crit { background: rgba(111, 224, 106, 0.55); }
+.mg__cursor { position: absolute; top: -5px; bottom: -5px; width: 6px; margin-left: -3px; border-radius: 3px; background: var(--ink); box-shadow: 0 0 8px 2px rgba(255, 255, 255, 0.6); }
+.mg__cursor--crit { background: var(--green); box-shadow: 0 0 12px 4px rgba(111, 224, 106, 0.8); }
+.mg__cursor--hit { background: var(--gold); box-shadow: 0 0 12px 4px rgba(255, 212, 121, 0.8); }
+.mg__cursor--miss { background: var(--red); box-shadow: 0 0 12px 4px rgba(255, 90, 90, 0.8); }
+
+.mg__lane { position: relative; height: 60px; margin: 6px 0 14px; }
+.mg__guard, .mg__bolt { position: absolute; top: 0; width: 44px; height: 60px; display: flex; align-items: center; justify-content: center; }
+.mg__guard { right: 4%; }
+.mg__guard .ic { width: 40px; height: 40px; }
+.mg__bolt { left: 4%; transition: filter 0.15s; }
+.mg__bolt .ic { width: 34px; height: 34px; }
+.mg__bolt.is-parried .ic { filter: drop-shadow(0 0 10px var(--green)); }
+.mg__bolt.is-missed .ic { filter: grayscale(1) opacity(0.4); }
+
 @media (max-width: 380px) {
   .statbar { gap: 3px; padding: 4px; }
   .stat { padding: 2px 4px; gap: 3px; } .stat .ic { width: 16px; height: 16px; } .stat small { display: none; }

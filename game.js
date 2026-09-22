@@ -442,15 +442,29 @@
              bossHp: Array.from({ length: cfg.waves }, (_, w) => dungeonBossHp(s, period, w)) };
   }
   const dungeonClaimable = (s) => Dg.DUNGEON_PERIODS.filter((p) => s.dungeons[p] && s.dungeons[p].used < Dg.DUNGEONS[p].attempts).length;
-  // 도전 한 번. 결과: { ok, reason? | wavesCleared, waves, fullClear, drops[], bonus?, left }
-  function challengeDungeon(s, period) {
+  // 도전 전 미니게임 결과 → 피해 예산 보너스 (0~상한). 미니게임은 minigame.js가 화면에서 진행하고, 결과 수치만 여기서 점수로 바꾼다.
+  const MOLE_BONUS_CAP = 0.35, MOLE_BONUS_PER_HIT = 0.035;
+  const moleBonus = (hits) => Math.min(MOLE_BONUS_CAP, Math.max(0, hits) * MOLE_BONUS_PER_HIT);
+  const GAUGE_BONUS_CAP = 0.4, GAUGE_HIT_V = { crit: 0.09, hit: 0.045, miss: 0 };
+  const gaugeBonus = (results) => Math.min(GAUGE_BONUS_CAP, results.reduce((a, r) => a + (GAUGE_HIT_V[r] || 0), 0));
+  const PARRY_BONUS_CAP = 0.5;
+  const parryBonus = (results) => {
+    let combo = 0, total = 0;
+    for (const ok of results) {
+      if (ok) { combo += 1; total += 0.05 + Math.min(0.03, combo * 0.006); }
+      else combo = 0;
+    }
+    return Math.min(PARRY_BONUS_CAP, total);
+  };
+  // 도전 한 번. bonus(0~0.5)는 미니게임 성과로 늘어난 피해 예산 배율. 결과: { ok, reason? | wavesCleared, waves, fullClear, drops[], bonus?, left }
+  function challengeDungeon(s, period, mgBonus = 0) {
     const cfg = Dg.DUNGEONS[period];
     const d = s.dungeons[period];
     if (!cfg || !d) return { ok: false, reason: 'unknown' };
     if (d.used >= cfg.attempts) return { ok: false, reason: 'limit' };
     d.used += 1;
     s.stats.dungeonRuns += 1;
-    let budget = totalDps(s) * cfg.budgetSec;
+    let budget = totalDps(s) * cfg.budgetSec * (1 + Math.max(0, Math.min(0.5, mgBonus)));
     let wavesCleared = 0;
     const drops = [];
     for (let w = 0; w < cfg.waves; w++) {
@@ -1595,6 +1609,7 @@
     GEAR_DESIGNS, itemDesign, setRandom, itemName, sellValue, rollItem, dropChance, isUpgrade, receiveItem, equipItem, unequipItem, sellBagItem, sellBagUpTo, sellBagItems, isWeaker, bagWeaker, gearMult,
     claimAttend, QUEST_PERIODS, QUEST_CFG, QUEST_DEFS, periodKeys, periodSecsLeft, questSync, questBoard, questClaimable, claimQuest, claimQuestBonus,
     DUNGEON_PERIODS: Dg.DUNGEON_PERIODS, DUNGEONS: Dg.DUNGEONS, dungeonSync, dungeonInfo, dungeonClaimable, dungeonBossHp, challengeDungeon,
+    moleBonus, gaugeBonus, parryBonus,
     PERKS, PERK_KEYS, HEADSTART_LV, perkLv, perkCost, perkSpent, tokenBalance, perkMissing, perkUnlocked, canBuyPerk, buyPerk, respecPerks, offlineCap,
     fmt, fmtTime,
   };

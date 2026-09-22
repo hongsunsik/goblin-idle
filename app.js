@@ -1,6 +1,7 @@
 (function () {
   const G = window.Game;
   const A = window.Art;
+  const Mini = window.Mini;
   A.setParents(G.parentOf);   // 그림이 없는 3·4차 직업은 윗단계 직업 그림으로 대신 그린다
   const SAVE_KEY = 'goblin-idle-save-v1';
   const $ = (id) => document.getElementById(id);
@@ -2217,19 +2218,29 @@
     const body = (waveLines + bonus) || '<div>보스를 물리치지 못했어요. 더 강해져서 다시 도전해 보세요.</div>';
     openModal(r.fullClear ? `${info.name} 완주!` : `${info.name} · 파동 ${r.wavesCleared}/${r.waves}`, body, [{ text: '확인', cls: 'btn--gold' }]);
   }
+  const DUNGEON_MINIGAME_NAME = { daily: '두더지 잡기', weekly: '타이밍 게이지', monthly: '패턴 회피·반격' };
+  function resolveDungeonChallenge(period, info, mgBonus) {
+    const r = G.challengeDungeon(state, period, mgBonus);
+    if (!r.ok) { openModal('도전할 수 없어요', r.reason === 'limit' ? '오늘 도전 횟수를 다 썼어요' : '다시 시도해 주세요', [{ text: '확인' }]); return; }
+    for (const it of r.drops) gearNew.add(it.id);
+    if (r.bonus) gearNew.add(r.bonus.item.id);
+    addLog(`${info.name}: 파동 ${r.wavesCleared}/${r.waves}${r.fullClear ? ' 완주!' : ''}`, r.fullClear ? 'is-gold' : '', 'gate');
+    cloudSoon(); writeSave(); render(); renderDungeon(true); renderGear(true);
+    showDungeonResult(info, r);
+  }
+  function playDungeonMinigame(period, info) {
+    $('mgTitle').textContent = DUNGEON_MINIGAME_NAME[period] || info.name;
+    $('mgModal').hidden = false;
+    Mini.play(period, $('mgStage'), (bonus) => {
+      $('mgModal').hidden = true;
+      resolveDungeonChallenge(period, info, bonus);
+    });
+  }
   function doDungeonChallenge(period) {
-    const cfg = G.DUNGEONS[period], info = G.dungeonInfo(state, period);
+    const info = G.dungeonInfo(state, period);
     if (!info || info.left <= 0) return;
-    openModal(`${info.name} 도전`, `<b>${info.boss}</b>${info.waves > 1 ? ` 외 파동 ${info.waves}마리` : ''}에게 도전해요.<br><small>지금 초당 피해로 ${cfg.budgetSec}초만큼 싸워요. 남은 도전 ${info.left}/${info.attempts}번.</small>`,
-      [{ text: '취소' }, { text: '도전!', cls: 'btn--gold', onClick: () => {
-        const r = G.challengeDungeon(state, period);
-        if (!r.ok) { openModal('도전할 수 없어요', r.reason === 'limit' ? '오늘 도전 횟수를 다 썼어요' : '다시 시도해 주세요', [{ text: '확인' }]); return; }
-        for (const it of r.drops) gearNew.add(it.id);
-        if (r.bonus) gearNew.add(r.bonus.item.id);
-        addLog(`${info.name}: 파동 ${r.wavesCleared}/${r.waves}${r.fullClear ? ' 완주!' : ''}`, r.fullClear ? 'is-gold' : '', 'gate');
-        cloudSoon(); writeSave(); render(); renderDungeon(true); renderGear(true);
-        showDungeonResult(info, r);
-      } }]);
+    openModal(`${info.name} 도전`, `<b>${info.boss}</b>${info.waves > 1 ? ` 외 파동 ${info.waves}마리` : ''}에게 도전해요.<br><small>미니게임(${DUNGEON_MINIGAME_NAME[period]})으로 피해 예산을 늘릴 수 있어요. 남은 도전 ${info.left}/${info.attempts}번.</small>`,
+      [{ text: '취소' }, { text: '도전!', cls: 'btn--gold', onClick: () => playDungeonMinigame(period, info) }]);
   }
   document.querySelector('.tab[data-tab="dungeon"]').addEventListener('click', (e) => {
     const b = e.target.closest('button[data-dchallenge]');

@@ -5,9 +5,9 @@
   const ADVANCED3 = {
     // ---- 기사 ----
     paladin:     { name: '성기사',        parent: 'knight',      desc: '신성한 가호로 체력과 회복이 더 늘어난다.',
-                   mult: { hp: 1.25, regen: 1.35, dmg: 1.45 } },
+                   mult: { hp: 1.25, regen: 1.35, dmg: 1.5 } },
     crusader:    { name: '십자군',        parent: 'knight',      desc: '방패를 든 채 돌격한다. 공격과 체력이 함께 오른다.',
-                   mult: { dmg: 1.5, hp: 1.15 } },
+                   mult: { dmg: 1.55, hp: 1.15 } },
     // ---- 광전사 ----
     warlord:     { name: '전쟁군주',      parent: 'berserker',   desc: '전장을 지휘한다. 공격력과 동료의 힘이 오른다.',
                    mult: { dmg: 1.2, comp: 1.1 } },
@@ -15,9 +15,9 @@
                    mult: { dmg: 1.55, hp: 0.85 } },
     // ---- 저격수 ----
     deadeye:     { name: '명사수',        parent: 'sniper',      desc: '숨을 멈추고 쏜다. 공격력과 직접 공격이 강해진다.',
-                   mult: { dmg: 1.35, click: 1.5 } },
+                   mult: { dmg: 1.45, click: 1.5 } },
     piercer:     { name: '관통사수',      parent: 'sniper',      desc: '갑옷을 뚫는 화살. 공격력과 연사가 함께 늘어난다.',
-                   mult: { dmg: 1.25, aps: 1.15 } },
+                   mult: { dmg: 1.32, aps: 1.15 } },
     // ---- 레인저 ----
     windwalker:  { name: '바람추적자',    parent: 'ranger',      desc: '바람처럼 빠르다. 연사가 크게 늘어난다.',
                    mult: { aps: 1.35, dmg: 1.2 } },
@@ -30,7 +30,7 @@
                    mult: { hp: 1.2, regen: 1.15, dmg: 1.05 } },
     // ---- 사령술사 ----
     lich:        { name: '리치',          parent: 'necromancer', desc: '죽음을 넘어선 마법사. 동료의 힘이 더 강해진다.',
-                   mult: { comp: 1.15, dmg: 1.05 } },
+                   mult: { comp: 1.08, dmg: 1.05 } },
     soulreaper:  { name: '영혼수확자',    parent: 'necromancer', desc: '영혼을 거둬 부를 쌓는다. 골드와 동료가 강해진다.',
                    mult: { gold: 1.35, comp: 1.3 } },
     // ---- 암살자 ----
@@ -48,14 +48,14 @@
   const ADVANCED4 = {
     // ---- 성기사 ----
     seraph:        { name: '세라핌 기사',   parent: 'paladin',     desc: '날개 달린 수호자. 체력·회복과 함께 동료도 축복받는다.',
-                     mult: { hp: 1.25, regen: 2.1, dmg: 2.05, comp: 1.08 } },
+                     mult: { hp: 1.25, regen: 2.1, dmg: 1.95, comp: 1.08 } },
     holyking:      { name: '성왕',          parent: 'paladin',     desc: '신성한 왕. 공격·체력·골드가 고르게 오른다.',
-                     mult: { dmg: 1.98, hp: 1.15, gold: 1.15, comp: 1.04 } },
+                     mult: { dmg: 1.9, hp: 1.15, gold: 1.15, comp: 1.04 } },
     // ---- 십자군 ----
     inquisitor:    { name: '심판관',        parent: 'crusader',    desc: '죄를 심판하는 일격. 공격력과 직접 공격이 크게 오른다.',
-                     mult: { dmg: 1.76, click: 1.5, comp: 1.04 } },
+                     mult: { dmg: 1.7, click: 1.5, comp: 1.04 } },
     templarlord:   { name: '성전 사령관',   parent: 'crusader',    desc: '성전을 이끄는 지휘관. 체력과 연사, 동료가 늘어난다.',
-                     mult: { hp: 1.15, aps: 1.15, dmg: 1.76, comp: 1.04 } },
+                     mult: { hp: 1.15, aps: 1.15, dmg: 1.7, comp: 1.04 } },
     // ---- 전쟁군주 ----
     conqueror:     { name: '정복왕',        parent: 'warlord',     desc: '땅을 차지하고 전리품을 거둔다. 공격력과 골드가 오른다.',
                      mult: { dmg: 1, gold: 1.3 } },
@@ -98,7 +98,7 @@
                      mult: { hp: 1.25, gold: 1.25, regen: 1, dmg: 2.24 } },
     // ---- 리치 ----
     lichking:      { name: '리치왕',        parent: 'lich',        desc: '언데드의 왕. 동료의 공격이 압도적이다.',
-                     mult: { comp: 1.05, dmg: 1.02 } },
+                     mult: { comp: 1.0, dmg: 1.0 } },
     soulbinder:    { name: '영혼결속자',    parent: 'lich',        desc: '영혼을 묶어 방패로 삼는다. 동료와 체력이 오른다.',
                      mult: { comp: 1.0, hp: 1.25 } },
     // ---- 영혼수확자 ----

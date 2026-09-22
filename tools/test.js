@@ -2478,6 +2478,41 @@ test('던전 보상 크리스탈이 상한(10억)을 넘지 않는다', () => {
   assert.strictEqual(s.crystals, 1e9);
 });
 
+section('던전 미니게임 보너스');
+test('두더지 잡기: 적중 수에 비례하고 상한(35%)을 넘지 않는다', () => {
+  assert.strictEqual(G.moleBonus(0), 0);
+  assert.ok(Math.abs(G.moleBonus(4) - 0.14) < 1e-9);
+  assert.strictEqual(G.moleBonus(100), 0.35);
+});
+test('타이밍 게이지: 크리티컬 > 히트 > 미스 순으로 점수를 주고 상한(40%)을 넘지 않는다', () => {
+  assert.strictEqual(G.gaugeBonus(['miss', 'miss']), 0);
+  assert.ok(G.gaugeBonus(['hit']) > 0 && G.gaugeBonus(['crit']) > G.gaugeBonus(['hit']));
+  assert.strictEqual(G.gaugeBonus(Array(20).fill('crit')), 0.4);
+});
+test('패턴 반격: 연속 성공(콤보)일수록 한 번의 성공 가치가 크고, 실패하면 콤보가 끊긴다', () => {
+  assert.strictEqual(G.parryBonus([false, false]), 0);
+  const withoutCombo = G.parryBonus([true, false, true, false]);
+  const withCombo = G.parryBonus([true, true, true, true]);
+  assert.ok(withCombo > withoutCombo);
+  assert.ok(G.parryBonus(Array(30).fill(true)) <= 0.5);
+});
+test('미니게임 보너스만큼 도전 한 번의 피해 예산(=처치 가능한 파동)이 늘어난다', () => {
+  const s = G.createState(0); s.bestStage = 5; s.level = 60;
+  for (const k of G.UPGRADE_KEYS) s.upgrades[k] = 40;
+  G.dungeonSync(s, '2026-09-22');
+  const s2 = JSON.parse(G.serialize(s, 1));
+  const without = G.challengeDungeon(G.deserialize(JSON.stringify(s2)), 'monthly', 0);
+  const withBonus = G.challengeDungeon(G.deserialize(JSON.stringify(s2)), 'monthly', 0.5);
+  assert.ok(withBonus.wavesCleared >= without.wavesCleared, '보너스가 있으면 적어도 같거나 더 많이 처치한다');
+});
+test('미니게임 보너스는 0~50%로 잘린다(음수·과도한 값 방어)', () => {
+  const base = () => { const s = G.createState(0); s.bestStage = 5; s.level = 60; for (const k of G.UPGRADE_KEYS) s.upgrades[k] = 40; G.dungeonSync(s, '2026-09-22'); return s; };
+  const rNeg = G.challengeDungeon(base(), 'monthly', -1);
+  const rHalf = G.challengeDungeon(base(), 'monthly', 0.5);
+  const rHuge = G.challengeDungeon(base(), 'monthly', 999);
+  assert.deepStrictEqual(rNeg.wavesCleared <= rHalf.wavesCleared, true);
+  assert.deepStrictEqual(rHuge.wavesCleared, rHalf.wavesCleared, '50%를 넘겨도 더 늘어나지 않는다');
+});
 
 section('친선 랭킹 · 서버 출석');
 const Social = require('../social.js');
