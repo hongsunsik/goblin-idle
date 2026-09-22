@@ -106,6 +106,13 @@
     if (reduceMotion || !el || !el.animate) return null;
     return el.animate(keyframes, opts);
   }
+  // 고블린 몸(#hero)은 공격 동작·몬스터에게 맞는 움찔거림이 서로 다른 곳에서 겹쳐 걸릴 수 있다.
+  // 겹치면 두 애니메이션이 transform을 동시에 다투면서 뚝뚝 끊겨 보이므로, 새로 걸기 전에 하던 것부터 지운다.
+  function animHero(keyframes, opts) {
+    const el = $('hero');
+    if (el && el.getAnimations) for (const a of el.getAnimations()) a.cancel();
+    return anim(el, keyframes, opts);
+  }
   // 요소의 계산된 filter 값 (없으면 빈 문자열). 기존 그림자·지역 색 필터 뒤에 효과를 이어 붙일 때 쓴다.
   function baseFilter(el) {
     const f = getComputedStyle(el).filter;
@@ -305,7 +312,7 @@
       { transform: 'translate(0, 0) scale(1, 1)' },
     ], { duration: 460 });
     const heroBody = $('hero');
-    anim(heroBody, [
+    animHero([
       { transform: 'translate(0, 0) scale(1, 1)' },
       { transform: 'translate(-9px, 0) scale(1.04, 0.96) rotate(-3deg)', offset: 0.3 },
       { transform: 'translate(0, 0) scale(1, 1)' },
@@ -387,7 +394,13 @@
   // 원거리 직업은 표창·화살·마법구·총알 같은 것을 날려 보낸다. 예전처럼 앞으로 달려갔다 돌아오지 않는다.
   const ARC_CLASS = { slash: 'arc--slash', axe: 'arc--axe', holy: 'arc--holy', dagger: 'arc--dagger' };
   const FLIGHT_MS = { bullet: 110, arrow: 190, bolt: 170, shuriken: 210, coin: 230, orb: 240, fire: 260, dark: 260 };
-  const handPos = () => spot($('heroSprite'), 0.78, 0.42);      // 무기를 든 손
+  // 무기마다 실제 그림에서 쥐고 있는 위치가 달라서, 종류별로 투사체가 나오는 자리를 따로 잡는다 (그림을 보고 눈대중으로 맞춤).
+  const HAND_SPOT = {
+    arrow: [0.74, 0.55], bolt: [0.7, 0.56], bullet: [0.86, 0.46],
+    shuriken: [0.7, 0.64], coin: [0.76, 0.62],
+    orb: [0.8, 0.26], fire: [0.78, 0.24], dark: [0.78, 0.26],
+  };
+  const handPos = (style) => { const [fx, fy] = HAND_SPOT[style] || [0.78, 0.42]; return spot($('heroSprite'), fx, fy); };
   const targetPos = () => spot($('monsterSprite'), 0.42, 0.5);  // 몬스터의 몸통
 
   // 근접: 몸을 살짝 젖혔다가 휘두르고 돌아온다. 몬스터에 닿는 시각(ms)을 돌려준다.
@@ -407,7 +420,7 @@
       kf = [{ transform: 'translate(0, 0) rotate(0deg)' }, { transform: `translate(${-4 * k}px, 0) rotate(${-9 * k}deg)`, offset: 0.3, easing: 'cubic-bezier(0.5, 0, 1, 0.6)' },
         { transform: `translate(${11 * k}px, 1px) rotate(${10 * k}deg)`, offset: 0.55, easing: 'ease-out' }, { transform: 'translate(0, 0) rotate(0deg)' }];
     }
-    anim($('hero'), kf, { duration: dur });
+    animHero(kf, { duration: dur });
     return dur * hit;
   }
   // 근접: 몬스터 위에 베는 궤적(호)이나 내리찍는 충격파를 그린다
@@ -495,12 +508,12 @@
         dur = 300; release = 0.55;
         kf = [{ transform: 'translateY(0) scale(1, 1)' }, { transform: `translateY(${-5 * k}px) scale(1.03, 0.98)`, offset: 0.5 }, { transform: 'translateY(0) scale(1, 1)' }];
     }
-    anim($('hero'), kf, { duration: dur });
+    animHero(kf, { duration: dur });
     return dur * release;
   }
   // 원거리: 손에서 몬스터까지 날아가는 것. 도착까지 걸리는 시간(ms)을 돌려준다.
   function projectile(style, delay, big) {
-    const a = handPos(), b = targetPos();
+    const a = handPos(style), b = targetPos();
     const dx = b.x - a.x, dy = b.y - a.y + rand(-8, 8);
     const ang = (Math.atan2(dy, dx) * 180) / Math.PI;
     const flight = FLIGHT_MS[style] || 200;
