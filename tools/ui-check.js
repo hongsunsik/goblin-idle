@@ -417,6 +417,14 @@ const FAKE_CLOUD = `(() => {
     const bulletRot = await measureRot(['archer', 'sniper']);
     check('저격수는 활 당기기보다 반동이 짧고 작다 (회전 각도가 궁수보다 작음)', bulletRot < arrowRot, `저격수 ${bulletRot.toFixed(1)}도 vs 궁수 ${arrowRot.toFixed(1)}도`);
 
+    console.log('손에 붙어 몸과 함께 움직이는 무기(#heroWeapon)');
+    await reopen(mk(30, ['archer'])); await sleep(300);
+    check('직업에 맞는 무기 모양(활)이 손 자리에 붙어 있다', await ev(`document.getElementById('heroWeapon').className.includes('hw--arrow')`));
+    const sawWeapon = await ev(`new Promise((res) => { let seen = false; const el = document.getElementById('heroWeapon'); const iv = setInterval(() => { if (parseFloat(getComputedStyle(el).opacity) > 0.5) seen = true; }, 20); setTimeout(() => { clearInterval(iv); res(seen); }, 2500); })`);
+    check('공격할 때마다 무기가 손에 나타났다 사라진다 (평소엔 숨어 있음)', sawWeapon);
+    await reopen(mk(30, ['warrior', 'knight'])); await sleep(300);
+    check('근접 직업은 무기 모양이 칼(hw--slash)로 바뀐다', await ev(`document.getElementById('heroWeapon').className.includes('hw--slash')`));
+
     // 스킬 바와 자동 시전 (마법사 → 화염술사: 마법 화살(연타), 점화(지속 피해))
     await reopen(mk(30, ['mage', 'pyromancer'])); await sleep(300);
     check('직업이 있으면 스킬 바에 스킬이 직업 수(2개)만큼 보이고 "화면을 눌러 공격" 안내는 숨는다', (await ev(`document.querySelectorAll('#skillbar .skill').length`)) === 2 && (await ev(`!document.getElementById('skillbar').hidden`)) && (await ev(`getComputedStyle(document.querySelector('.tap-hint')).display`)) === 'none');

@@ -394,13 +394,56 @@
   // 원거리 직업은 표창·화살·마법구·총알 같은 것을 날려 보낸다. 예전처럼 앞으로 달려갔다 돌아오지 않는다.
   const ARC_CLASS = { slash: 'arc--slash', axe: 'arc--axe', holy: 'arc--holy', dagger: 'arc--dagger' };
   const FLIGHT_MS = { bullet: 110, arrow: 190, bolt: 170, shuriken: 210, coin: 230, orb: 240, fire: 260, dark: 260 };
-  // 무기마다 실제 그림에서 쥐고 있는 위치가 달라서, 종류별로 투사체가 나오는 자리를 따로 잡는다 (그림을 보고 눈대중으로 맞춤).
+  // 무기마다 실제 그림에서 쥐고 있는 위치가 달라서, 종류별로 손(무기) 자리를 따로 잡는다 (그림을 보고 눈대중으로 맞춤).
   const HAND_SPOT = {
+    slash: [0.74, 0.58], axe: [0.72, 0.56], hammer: [0.7, 0.54], holy: [0.76, 0.58], dagger: [0.72, 0.62],
     arrow: [0.74, 0.55], bolt: [0.7, 0.56], bullet: [0.86, 0.46],
     shuriken: [0.7, 0.64], coin: [0.76, 0.62],
     orb: [0.8, 0.26], fire: [0.78, 0.24], dark: [0.78, 0.26],
   };
-  const handPos = (style) => { const [fx, fy] = HAND_SPOT[style] || [0.78, 0.42]; return spot($('heroSprite'), fx, fy); };
+  // 손 자리에 무기 모양(#heroWeapon)을 하나 붙여 둔다. #hero의 자식이라서 몸이 흔들리면 무기도 그대로 따라 흔들리고,
+  // 공격할 때는 여기에 무기 자신의 회전도 함께 걸어서(WEAPON_ANIM) 몸보다 더 크게 휘두르는 것처럼 보이게 한다.
+  // 원거리는 이 무기의 실제 화면 위치에서 투사체가 나가서, 몸이 움직인 뒤의 진짜 손 위치와 항상 맞는다.
+  const WEAPON_ANIM = {
+    slash:    { origin: '82% 62%', dur: 300, kf: [{ transform: 'rotate(0deg)', opacity: 0 }, { transform: 'rotate(-42deg)', opacity: 1, offset: 0.18 }, { transform: 'rotate(48deg)', opacity: 1, offset: 0.55 }, { transform: 'rotate(0deg)', opacity: 0, offset: 0.8 }] },
+    axe:      { origin: '78% 68%', dur: 420, kf: [{ transform: 'rotate(0deg)', opacity: 0 }, { transform: 'rotate(-58deg)', opacity: 1, offset: 0.22 }, { transform: 'rotate(52deg)', opacity: 1, offset: 0.62 }, { transform: 'rotate(0deg)', opacity: 0, offset: 0.85 }] },
+    hammer:   { origin: '72% 74%', dur: 440, kf: [{ transform: 'rotate(0deg)', opacity: 0 }, { transform: 'rotate(-62deg)', opacity: 1, offset: 0.2 }, { transform: 'rotate(46deg)', opacity: 1, offset: 0.6 }, { transform: 'rotate(0deg)', opacity: 0, offset: 0.85 }] },
+    holy:     { origin: '82% 66%', dur: 400, kf: [{ transform: 'rotate(0deg) scale(1)', opacity: 0 }, { transform: 'rotate(-34deg) scale(1.08)', opacity: 1, offset: 0.2 }, { transform: 'rotate(42deg) scale(1)', opacity: 1, offset: 0.68 }, { transform: 'rotate(0deg) scale(1)', opacity: 0, offset: 0.88 }] },
+    dagger:   { origin: '78% 60%', dur: 280, kf: [{ transform: 'rotate(0deg)', opacity: 0 }, { transform: 'rotate(32deg)', opacity: 1, offset: 0.2 }, { transform: 'rotate(4deg)', opacity: 1, offset: 0.45 }, { transform: 'rotate(32deg)', opacity: 1, offset: 0.7 }, { transform: 'rotate(0deg)', opacity: 0, offset: 0.9 }] },
+    arrow:    { origin: '100% 50%', dur: 460, kf: [{ transform: 'rotate(0deg) scaleX(1)', opacity: 0 }, { transform: 'rotate(0deg) scaleX(1)', opacity: 1, offset: 0.08 }, { transform: 'rotate(-5deg) scaleX(0.8)', opacity: 1, offset: 0.55 }, { transform: 'rotate(4deg) scaleX(1.08)', opacity: 1, offset: 0.64 }, { transform: 'rotate(0deg) scaleX(1)', opacity: 0, offset: 0.85 }] },
+    bolt:     { origin: '90% 50%', dur: 260, kf: [{ transform: 'rotate(0deg)', opacity: 0 }, { transform: 'rotate(0deg)', opacity: 1, offset: 0.08 }, { transform: 'rotate(-16deg)', opacity: 1, offset: 0.35 }, { transform: 'rotate(11deg)', opacity: 1, offset: 0.55 }, { transform: 'rotate(0deg)', opacity: 0, offset: 0.8 }] },
+    bullet:   { origin: '15% 50%', dur: 220, kf: [{ transform: 'rotate(0deg)', opacity: 0 }, { transform: 'rotate(0deg)', opacity: 1, offset: 0.05 }, { transform: 'rotate(4deg)', opacity: 1, offset: 0.15 }, { transform: 'rotate(-12deg)', opacity: 1, offset: 0.4 }, { transform: 'rotate(0deg)', opacity: 0, offset: 0.75 }] },
+    shuriken: { origin: '50% 50%', dur: 320, kf: [{ transform: 'rotate(0deg)', opacity: 0 }, { transform: 'rotate(45deg)', opacity: 1, offset: 0.22 }, { transform: 'rotate(-60deg)', opacity: 1, offset: 0.6 }, { transform: 'rotate(0deg)', opacity: 0, offset: 0.85 }] },
+    coin:     { origin: '50% 100%', dur: 300, kf: [{ transform: 'rotate(0deg) translateY(0)', opacity: 0 }, { transform: 'rotate(-18deg) translateY(3px)', opacity: 1, offset: 0.25 }, { transform: 'rotate(22deg) translateY(-8px)', opacity: 1, offset: 0.65 }, { transform: 'rotate(0deg) translateY(0)', opacity: 0, offset: 0.88 }] },
+    orb:      { origin: '50% 100%', dur: 300, kf: [{ transform: 'translateY(0) scale(0.6)', opacity: 0 }, { transform: 'translateY(-5px) scale(1.15)', opacity: 1, offset: 0.5 }, { transform: 'translateY(0) scale(0.6)', opacity: 0, offset: 0.9 }] },
+    fire:     { origin: '50% 100%', dur: 420, kf: [{ transform: 'translateY(0) scale(0.6)', opacity: 0 }, { transform: 'translateY(2px) scale(0.5)', opacity: 1, offset: 0.5 }, { transform: 'translateY(-4px) scale(1.3)', opacity: 1, offset: 0.76 }, { transform: 'translateY(0) scale(0.6)', opacity: 0, offset: 0.92 }] },
+    dark:     { origin: '50% 100%', dur: 420, kf: [{ transform: 'translateY(0) scale(0.6)', opacity: 0 }, { transform: 'translateY(3px) scale(0.5)', opacity: 1, offset: 0.5 }, { transform: 'translateY(-5px) scale(1.25)', opacity: 1, offset: 0.76 }, { transform: 'translateY(0) scale(0.6)', opacity: 0, offset: 0.92 }] },
+  };
+  // 직업이 바뀔 때 무기 모양·자리를 다시 잡는다 (render()에서 그림을 새로 그릴 때 함께 부른다)
+  function setupHeroWeapon() {
+    const el = $('heroWeapon');
+    if (!el) return;
+    const style = G.attackStyle(state);
+    const [fx, fy] = HAND_SPOT[style] || [0.78, 0.42];
+    el.className = 'hero-weapon hw--' + style;
+    el.style.left = (fx * 100) + '%';
+    el.style.top = (fy * 100) + '%';
+    const wa = WEAPON_ANIM[style];
+    el.style.transformOrigin = wa ? wa.origin : '50% 50%';
+  }
+  function animWeapon(style) {
+    const el = $('heroWeapon'), wa = WEAPON_ANIM[style];
+    if (!el || !wa) return;
+    if (el.getAnimations) for (const a of el.getAnimations()) a.cancel();
+    anim(el, wa.kf, { duration: wa.dur });
+  }
+  // 무기 자리: #heroWeapon이 있으면 지금 실제 화면 위치(공격 중이면 흔들린 뒤 위치)를 쓰고, 없으면 눈대중 비율을 쓴다.
+  const handPos = (style) => {
+    const el = $('heroWeapon');
+    if (el) { const r = el.getBoundingClientRect(), s = sceneEl.getBoundingClientRect(); return { x: r.left - s.left + r.width / 2, y: r.top - s.top + r.height / 2 }; }
+    const [fx, fy] = HAND_SPOT[style] || [0.78, 0.42];
+    return spot($('heroSprite'), fx, fy);
+  };
   const targetPos = () => spot($('monsterSprite'), 0.42, 0.5);  // 몬스터의 몸통
 
   // 근접: 몸을 살짝 젖혔다가 휘두르고 돌아온다. 몬스터에 닿는 시각(ms)을 돌려준다.
@@ -429,6 +472,7 @@
         { transform: `translate(${11 * k}px, 1px) rotate(${10 * k}deg)`, offset: 0.55, easing: 'ease-out' }, { transform: 'translate(0, 0) rotate(0deg)' }];
     }
     animHero(kf, { duration: dur });
+    animWeapon(style);
     return dur * hit;
   }
   // 근접: 몬스터 위에 베는 궤적(호)이나 내리찍는 충격파를 그린다
@@ -517,6 +561,7 @@
         kf = [{ transform: 'translateY(0) scale(1, 1)' }, { transform: `translateY(${-5 * k}px) scale(1.03, 0.98)`, offset: 0.5 }, { transform: 'translateY(0) scale(1, 1)' }];
     }
     animHero(kf, { duration: dur });
+    animWeapon(style);
     return dur * release;
   }
   // 원거리: 손에서 몬스터까지 날아가는 것. 도착까지 걸리는 시간(ms)을 돌려준다.
@@ -1974,8 +2019,9 @@
     const look = G.lookId(s);
     if (look !== lastLook) {
       lastLook = look;
-      $('hero').innerHTML = A.goblin(look);
+      $('hero').innerHTML = A.goblin(look) + '<i class="hero-weapon" id="heroWeapon"></i>';
       $('avatar').innerHTML = A.goblin(look, { head: true });
+      setupHeroWeapon();
     }
     const scale = 1 + Math.min(0.3, (s.level - 1) / 150);
     if (cache.scale !== scale) { cache.scale = scale; $('hero').style.setProperty('--s', scale.toFixed(3)); }

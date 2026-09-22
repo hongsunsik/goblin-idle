@@ -226,7 +226,7 @@ svg { display: block; }
 .actor--enemy .tag__name { color: #ffb8b0; }
 .actor__sprite { display: flex; justify-content: center; align-items: flex-end; }
 .actor--hero .actor__sprite { width: 134px; height: 156px; transform-origin: 50% 100%; animation: breathe 1.5s ease-in-out infinite; }
-.actor__body { width: 100%; height: 100%; display: flex; justify-content: center; align-items: flex-end; transform-origin: 50% 100%; will-change: transform; }
+.actor__body { position: relative; width: 100%; height: 100%; display: flex; justify-content: center; align-items: flex-end; transform-origin: 50% 100%; will-change: transform; }
 .actor--hero .gob-svg { width: 100%; height: 100%; filter: drop-shadow(0 3px 3px rgba(0, 0, 0, 0.35)); transform: scale(var(--s, 1)); transform-origin: 50% 100%; }
 .actor--enemy .actor__sprite { width: 128px; height: 120px; transform-origin: 50% 100%; animation: breathe 1.9s ease-in-out infinite; animation-delay: -0.7s; }
 .actor--enemy .mon-svg { width: 100%; height: 100%; filter: var(--tint, sepia(0)) drop-shadow(0 3px 3px rgba(0, 0, 0, 0.4)); }
@@ -677,6 +677,24 @@ svg { display: block; }
 .proj--dark { border-radius: 50%; background: radial-gradient(circle at 40% 35%, #e6ffd8, #7ae86a 35%, #6a3aa8 62%, rgba(60, 20, 120, 0) 76%); box-shadow: 0 0 12px 3px rgba(130, 90, 200, 0.75); }
 .proj--shuriken { width: 22px; height: 22px; margin: -11px 0 0 -11px; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 1L15 9L23 12L15 15L12 23L9 15L1 12L9 9Z' fill='%234a5468' stroke='%23e8f0ff' stroke-width='1.4' stroke-linejoin='round'/%3E%3Ccircle cx='12' cy='12' r='2.2' fill='%23e8f0ff'/%3E%3C/svg%3E") center / contain no-repeat; filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.6)); }
 .proj--coin { width: 13px; height: 13px; margin: -6.5px 0 0 -6.5px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff8c8, #ffc93a 55%, #b8801a); box-shadow: 0 0 6px rgba(255, 200, 60, 0.8); }
+
+/* ===== 손에 붙어 몸과 함께 움직이는 무기(#heroWeapon). 원거리는 투사체와 같은 모양을 그대로 쓴다. ===== */
+.hero-weapon { position: absolute; width: 20px; height: 20px; margin: -10px 0 0 -10px; opacity: 0; pointer-events: none; z-index: 2; }
+.hw--arrow { width: 34px; height: 3px; margin: -1.5px 0 0 -6px; border-radius: 2px; background: linear-gradient(90deg, transparent, #cfa35e 35%, #fff2d0); }
+.hw--arrow::after { content: ''; position: absolute; right: -5px; top: -3px; border-left: 8px solid #fff2d0; border-top: 4.5px solid transparent; border-bottom: 4.5px solid transparent; }
+.hw--bolt { width: 24px; height: 5px; margin: -2.5px 0 0 -4px; border-radius: 2px; background: linear-gradient(90deg, #5a3a1a, #c9d3e0); }
+.hw--bullet { width: 34px; height: 6px; margin: -3px 0 0 -6px; border-radius: 2px; background: linear-gradient(90deg, #6a5a4a, #2a2622); box-shadow: 0 0 4px rgba(0, 0, 0, 0.6); }
+.hw--orb, .hw--fire, .hw--dark { width: 24px; height: 24px; margin: -12px 0 0 -12px; border-radius: 50%; }
+.hw--orb { background: radial-gradient(circle at 35% 30%, #fff, #7ad8ff 45%, rgba(40, 140, 255, 0) 72%); box-shadow: 0 0 12px 3px rgba(102, 224, 255, 0.7); }
+.hw--fire { background: radial-gradient(circle at 40% 35%, #fff6b0, #ffb02a 40%, rgba(255, 80, 20, 0) 74%); box-shadow: 0 0 14px 4px rgba(255, 120, 30, 0.75); }
+.hw--dark { background: radial-gradient(circle at 40% 35%, #e6ffd8, #7ae86a 35%, #6a3aa8 62%, rgba(60, 20, 120, 0) 76%); box-shadow: 0 0 12px 3px rgba(130, 90, 200, 0.75); }
+.hw--shuriken { width: 22px; height: 22px; margin: -11px 0 0 -11px; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 1L15 9L23 12L15 15L12 23L9 15L1 12L9 9Z' fill='%234a5468' stroke='%23e8f0ff' stroke-width='1.4' stroke-linejoin='round'/%3E%3Ccircle cx='12' cy='12' r='2.2' fill='%23e8f0ff'/%3E%3C/svg%3E") center / contain no-repeat; filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.6)); }
+.hw--coin { width: 16px; height: 16px; margin: -8px 0 0 -8px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff8c8, #ffc93a 55%, #b8801a); box-shadow: 0 0 6px rgba(255, 200, 60, 0.8); }
+.hw--slash, .hw--holy { width: 40px; height: 6px; margin: -3px 0 0 -32px; border-radius: 2px 6px 6px 2px; background: linear-gradient(90deg, #8a95a8, #e8f0ff 60%, #fff); box-shadow: 0 0 3px rgba(255, 255, 255, 0.7); }
+.hw--holy { background: linear-gradient(90deg, #d8b040, #fff6c0 60%, #fff); box-shadow: 0 0 8px rgba(255, 230, 140, 0.9); }
+.hw--axe { width: 26px; height: 22px; margin: -11px 0 0 -22px; clip-path: polygon(0% 45%, 55% 0%, 100% 20%, 70% 50%, 100% 80%, 55% 100%, 0% 55%); background: linear-gradient(135deg, #b8c2d0, #5a6478); box-shadow: 0 0 3px rgba(0, 0, 0, 0.5); }
+.hw--hammer { width: 26px; height: 20px; margin: -10px 0 0 -22px; border-radius: 4px; background: linear-gradient(135deg, #9aa4b4, #4a5262); box-shadow: 0 0 4px rgba(0, 0, 0, 0.5); }
+.hw--dagger { width: 22px; height: 5px; margin: -2.5px 0 0 -18px; border-radius: 1px 5px 5px 1px; background: linear-gradient(90deg, #8a95a8, #e8f0ff 70%, #fff); box-shadow: 0 0 3px rgba(255, 255, 255, 0.6); }
 .fx-minion { width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50% 50% 40% 40%; background: radial-gradient(circle at 40% 35%, #fff, #c8a0ff 60%, rgba(160, 110, 255, 0)); box-shadow: 0 0 8px rgba(190, 140, 255, 0.8); }
 .fx-plus { margin: -9px 0 0 -5px; font-size: 18px; font-weight: 900; color: #8dff7a; text-shadow: 0 0 6px rgba(80, 220, 60, 0.9), 0 1px 0 #0a3a10; }
 .float--skill { font-size: 15px; font-weight: 900; letter-spacing: 0.02em; -webkit-text-stroke: 0.5px rgba(0, 0, 0, 0.55); }
