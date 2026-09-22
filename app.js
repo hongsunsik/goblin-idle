@@ -415,8 +415,16 @@
       dur = 280; hit = 0.3;
       kf = [{ transform: 'translate(0, 0)' }, { transform: `translate(${8 * k}px, 0) rotate(${5 * k}deg)`, offset: 0.25 }, { transform: 'translate(0, 0)', offset: 0.45 },
         { transform: `translate(${8 * k}px, 0) rotate(${5 * k}deg)`, offset: 0.7 }, { transform: 'translate(0, 0)' }];
-    } else {   // 칼·도끼·성검: 젖혔다가 크게 휘두른다
-      dur = style === 'axe' ? 380 : 330; hit = 0.55;
+    } else if (style === 'axe') {   // 도끼: 크게 뒤로 들어 올렸다가 대각선으로 무겁게 내려찍는다
+      dur = 420; hit = 0.62;
+      kf = [{ transform: 'translate(0, 0) rotate(0deg)' }, { transform: `translate(${-3 * k}px, ${-9 * k}px) rotate(${-18 * k}deg)`, offset: 0.4, easing: 'cubic-bezier(0.6, 0, 1, 0.5)' },
+        { transform: `translate(${10 * k}px, ${4 * k}px) rotate(${14 * k}deg)`, offset: 0.62, easing: 'ease-out' }, { transform: 'translate(0, 0) rotate(0deg)' }];
+    } else if (style === 'holy') {   // 성검: 잠깐 들어 올려 빛을 모았다가 우아하게 내려친다
+      dur = 400; hit = 0.65;
+      kf = [{ transform: 'translate(0, 0) rotate(0deg) scale(1, 1)' }, { transform: `translate(0, ${-6 * k}px) rotate(${-6 * k}deg) scale(${1 + 0.02 * k}, 1)`, offset: 0.45, easing: 'ease-in' },
+        { transform: `translate(${8 * k}px, 0) rotate(${9 * k}deg) scale(1, 1)`, offset: 0.68, easing: 'ease-out' }, { transform: 'translate(0, 0) rotate(0deg) scale(1, 1)' }];
+    } else {   // 칼(기본): 짧게 젖혔다가 빠르게 휘두른다
+      dur = 300; hit = 0.5;
       kf = [{ transform: 'translate(0, 0) rotate(0deg)' }, { transform: `translate(${-4 * k}px, 0) rotate(${-9 * k}deg)`, offset: 0.3, easing: 'cubic-bezier(0.5, 0, 1, 0.6)' },
         { transform: `translate(${11 * k}px, 1px) rotate(${10 * k}deg)`, offset: 0.55, easing: 'ease-out' }, { transform: 'translate(0, 0) rotate(0deg)' }];
     }
