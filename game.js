@@ -132,6 +132,42 @@
   // 5단계: 4단계를 모두 채운 뒤에 열리는 끝없는 강화. 증표를 아무리 벌어도 살 게 없어지지 않도록, 레벨 상한을 훨씬 높게 잡았다.
   PERKS.ascend = { name: '초월자의 힘', icon: 'burst', tier: 5, max: 50, base: 10, req: [['awaken', 5], ['codex', 5]],
                    per: '공격력·골드 +2%', now: (lv) => `공격력·골드 +${lv * 2}%` };
+  // 2026-09-24 추가: 공격력·골드 말고도 여러 방향으로 강해지는 강화 (단계별로 끼워 넣는다 — 표시 순서는 단계 순)
+  Object.assign(PERKS, {
+    scholar:   { name: '배움의 기쁨',   icon: 'book',   tier: 1, max: 10, base: 1, req: [],
+                 per: '경험치 +10%', now: (lv) => `경험치 +${lv * 10}%` },
+    swift:     { name: '재빠른 손',     icon: 'boots',  tier: 1, max: 10, base: 1, req: [],
+                 per: '공격 속도 +3%', now: (lv) => `공격 속도 +${lv * 3}%` },
+    hunter:    { name: '보스 사냥꾼',   icon: 'skull',  tier: 2, max: 10, base: 2, req: [['might', 3]],
+                 per: '보스에게 주는 피해 +8%', now: (lv) => `보스에게 주는 피해 +${lv * 8}%` },
+    bulwark:   { name: '철벽',          icon: 'shield', tier: 2, max: 10, base: 2, req: [['vitality', 3]],
+                 per: '받는 피해 -2%', now: (lv) => `받는 피해 -${lv * 2}%` },
+    spring:    { name: '생명의 샘',     icon: 'heart',  tier: 2, max: 10, base: 2, req: [['vitality', 2]],
+                 per: '체력 회복 +15%', now: (lv) => `체력 회복 +${lv * 15}%` },
+    undying:   { name: '불굴',          icon: 'star',   tier: 2, max: 10, base: 2, req: [['vitality', 5]],
+                 per: '쓰러졌을 때 부활 시간 -6%', now: (lv) => `부활 시간 -${lv * 6}%` },
+    timewarp:  { name: '시간 왜곡',     icon: 'bolt',   tier: 3, max: 10, base: 3, req: [['scholar', 3]],
+                 per: '스킬 쿨타임 -3%', now: (lv) => `스킬 쿨타임 -${lv * 3}%` },
+    harvest:   { name: '증표 수확',     icon: 'crown',  tier: 3, max: 10, base: 3, req: [['greed', 5]],
+                 per: '환생 증표 +4%', now: (lv) => `환생 증표 +${lv * 4}%` },
+    alchemy:   { name: '가루 연금술',   icon: 'anvil',  tier: 3, max: 10, base: 3, req: [['luck', 3]],
+                 per: '분해 가루 +10%', now: (lv) => `분해 가루 +${lv * 10}%` },
+    bigbag:    { name: '큰 가방',       icon: 'pouch',  tier: 3, max: 5,  base: 3, req: [['greed', 3]],
+                 per: '가방 +3칸', now: (lv) => `가방 +${lv * 3}칸` },
+    starluck:  { name: '행운의 별',     icon: 'medal',  tier: 3, max: 5,  base: 4, req: [['luck', 5]],
+                 per: '희귀 이상 장비 확률 +8%', now: (lv) => `희귀 이상 장비 확률 +${lv * 8}%` },
+    artisan:   { name: '장인의 손길',   icon: 'anvil',  tier: 4, max: 5,  base: 5, req: [['kingly', 1]],
+                 per: '장비 강화 성공 확률 +3%p (100% 미만 단계)', now: (lv) => `장비 강화 성공 확률 +${lv * 3}%p` },
+    conquest:  { name: '던전 정복자',   icon: 'gate',   tier: 4, max: 5,  base: 5, req: [['kingly', 1]],
+                 per: '던전·탑 크리스탈 +10%', now: (lv) => `던전·탑 크리스탈 +${lv * 10}%` },
+    titanbody: { name: '불멸의 육체',   icon: 'heart',  tier: 5, max: 50, base: 10, req: [['awaken', 5], ['codex', 5]],
+                 per: '최대 체력 +3%', now: (lv) => `최대 체력 +${lv * 3}%` },
+    legion:    { name: '끝없는 군단',   icon: 'party',  tier: 5, max: 50, base: 10, req: [['awaken', 5], ['codex', 5]],
+                 per: '동료 공격 +3%', now: (lv) => `동료 공격 +${lv * 3}%` },
+  });
+  // 유물·특별 옵션과 같은 '특수 효과'로 합쳐지는 강화 (specialV가 더한다 — 상한도 유물과 함께 적용된다)
+  const PERK_SPECIAL = { exp: ['scholar', 0.1], boss: ['hunter', 0.08], guard: ['bulwark', 0.02], regen: ['spring', 0.15],
+                         revive: ['undying', 0.06], cdr: ['timewarp', 0.03], token: ['harvest', 0.04], rare: ['starluck', 0.08] };
   const PERK_KEYS = Object.keys(PERKS);
   const HEADSTART_LV = 3;
 
@@ -439,6 +475,7 @@
     }
     return changed;
   }
+  const conquestMult = (s) => 1 + 0.1 * perkLv(s, 'conquest');   // 증표 상점 '던전 정복자'
   // 파동별 보스: 마지막 파동이 그 기간의 대표 보스이고, 앞 파동들은 같은 던전의 다른 보스들이 차례로 나온다.
   function dungeonWaveBosses(period, boss) {
     const cfg = Dg.DUNGEONS[period];
@@ -531,7 +568,7 @@
       giveItem(s, it);   // 등급 기록(tallyRarity)은 giveItem 안에서 한다 — 예전엔 여기서 한 번 더 세서 업적이 두 배로 올랐다
       drops.push(it);
       s.gold += Math.ceil(dgBaseGold(s) * cfg.reward.gold * goldMult(s));
-      s.crystals = Math.min(1e9, s.crystals + cfg.reward.crystals);
+      s.crystals = Math.min(1e9, s.crystals + Math.round(cfg.reward.crystals * conquestMult(s)));
     }
     if (wavesCleared > d.bestWaves) d.bestWaves = wavesCleared;
     const fullClear = wavesCleared >= cfg.waves;
@@ -539,12 +576,12 @@
     let bonus = null;
     if (fullClear && !d.bonusClaimed) {
       d.bonusClaimed = true;
-      s.crystals = Math.min(1e9, s.crystals + cfg.clear.crystals);
+      s.crystals = Math.min(1e9, s.crystals + Math.round(cfg.clear.crystals * conquestMult(s)));
       s.gold += Math.ceil(dgBaseGold(s) * cfg.clear.gold * goldMult(s));
       if (cfg.clear.tokens) s.tokens += cfg.clear.tokens;
       const it = rollItem(s, s.bestStage, true, rollFromOdds(cfg.clear.boxOdds));
       giveItem(s, it);
-      bonus = { crystals: cfg.clear.crystals, gold: cfg.clear.gold, tokens: cfg.clear.tokens || 0, item: it };
+      bonus = { crystals: Math.round(cfg.clear.crystals * conquestMult(s)), gold: cfg.clear.gold, tokens: cfg.clear.tokens || 0, item: it };
     }
     s.stats.drops += drops.length;
     return { ok: true, wavesCleared, waves: cfg.waves, fullClear, drops, bonus, left: Math.max(0, cfg.attempts - d.used),
@@ -569,7 +606,7 @@
   function towerInfo(s, day) {
     const next = Math.min(Tw.maxFloor, s.tower.best + 1);
     return { best: s.tower.best, next, nextBoss: towerBoss(next), nextHp: towerHp(next), budget: towerBudget(s), forecast: towerForecast(s),
-             top: s.tower.best >= Tw.maxFloor, dailyReady: s.tower.best > 0 && s.tower.day !== day, daily: Tw.daily(s.tower.best) };
+             top: s.tower.best >= Tw.maxFloor, dailyReady: s.tower.best > 0 && s.tower.day !== day, daily: Math.round(Tw.daily(s.tower.best) * conquestMult(s)) };
   }
   // 오르기 한 번: 넘을 수 있는 층까지 오르고, 막히는 층에서 멈춘다 (져도 잃는 건 없다).
   // 결과: { ok, reason? | from, to, climbed, fights[{boss,hp,dealt,killed,floor,drop}], drops[], crystals, tokens, budget, more }
@@ -588,7 +625,7 @@
         drops.push(it);
       }
       if (f % Tw.tokenEvery === 0) tokens += Tw.tokens;
-      crystals += Tw.crystals(f);
+      crystals += Math.round(Tw.crystals(f) * conquestMult(s));
       fights.push({ boss: towerBoss(f), hp, dealt: hp, killed: true, floor: f, drop: it });
     }
     s.tower.best = from + n;
@@ -607,7 +644,7 @@
     if (s.tower.best <= 0) return { ok: false, reason: 'none' };
     if (s.tower.day === day) return { ok: false, reason: 'claimed' };
     s.tower.day = day;
-    const c = Tw.daily(s.tower.best);
+    const c = Math.round(Tw.daily(s.tower.best) * conquestMult(s));
     s.crystals = Math.min(1e9, s.crystals + c);
     return { ok: true, crystals: c };
   }
@@ -630,7 +667,7 @@
   const BOSS_DROP_CHANCE = 0.5;    // 보스
   const LUCK_PER_LV = 0.015;       // 증표 상점 '수집가' 레벨당 드롭 확률 추가(+1.5%p)
   const BAG_MAX = 24;              // 기본 가방 칸 수 (가방 확장으로 늘어난다). 가득 차면 새로 얻은 장비는 자동으로 팔린다
-  const bagLimit = (s) => BAG_MAX + s.bagExtra;
+  const bagLimit = (s) => BAG_MAX + s.bagExtra + 3 * perkLv(s, 'bigbag');   // 증표 상점 '큰 가방'
   const GEAR_SCALE_STAGE = 40;     // 아이템 레벨이 이만큼 오를 때마다 수치가 기본값만큼 더 붙는다 (스테이지 40 = 2배)
   // 종류마다 올려 주는 능력(kind)과 등급별 기본 수치(%: 노말·고급·희귀·영웅·전설), 이름에 쓰는 명사
   const GEAR = {
@@ -678,7 +715,8 @@
   // 최대 15강까지, 낮은 단계는 100% 성공하지만 높은 단계로 갈수록 실패 확률이 생긴다. 실패해도 골드와 재료는 그대로 사라진다(위험 요소).
   const ENH_MAX = 15, ENH_STEP = 0.08;   // 강화 1단계당 +8%, 최대 15단계(+120%)
   const ENH_CHANCE = [1, 1, 1, 1, 1, 0.85, 0.85, 0.7, 0.7, 0.55, 0.55, 0.4, 0.3, 0.2, 0.15];   // lv → lv+1 성공 확률 (배열 순서 = 지금 레벨)
-  const enhChance = (lv) => ENH_CHANCE[Math.max(0, Math.min(ENH_CHANCE.length - 1, lv))];
+  // 증표 상점 '장인의 손길': 100% 미만 단계에만 +3%p씩
+  const enhChance = (lv, s) => { const c = ENH_CHANCE[Math.max(0, Math.min(ENH_CHANCE.length - 1, lv))]; return c >= 1 ? 1 : Math.min(1, c + (s ? 0.03 * perkLv(s, 'artisan') : 0)); };
   // ---- 장비 초월(✦): 15강을 채운 장비를 한 단계 더. 단계마다 효과 +25%, 장비 레벨 상한 +100. 실패 없음. ----
   const STAR_MAX = 5, STAR_STEP = 0.25, STAR_LV = 100;
   const enhVal = (it) => it.val * (1 + ENH_STEP * (it.enh || 0)) * (1 + STAR_STEP * (it.star || 0));   // 실제로 적용되는 수치 (강화·초월 반영)
@@ -714,7 +752,7 @@
     if (mi < 0 || s.bag[mi].id === targetId || s.bag[mi].slot !== target.slot || s.bag[mi].lock) return { ok: false, reason: 'material' };
     const cost = enhCost(target);
     if (s.gold < cost) return { ok: false, reason: 'gold', cost };
-    const chance = enhChance(lv);
+    const chance = enhChance(lv, s);
     s.gold -= cost;
     s.bag.splice(mi, 1);
     const success = rnd() < chance;
@@ -779,7 +817,7 @@
   // 장비를 가방에 넣는다. 자동 판매 등급 이하이거나 가방이 가득 차면 판다(자동 분해면 가루로). 결과: 'bag' | 'sold' | 'dusted'
   function stow(s, it) {
     if ((it.r <= s.autoSell && it.r <= AUTO_SELL_MAX && !it.sp) || s.bag.length >= bagLimit(s)) {
-      if (s.autoDust) { s.dust = Math.min(DUST_CAP, s.dust + dustValue(it)); s.stats.sold += 1; return 'dusted'; }
+      if (s.autoDust) { s.dust = Math.min(DUST_CAP, s.dust + dustGain(s, it)); s.stats.sold += 1; return 'dusted'; }
       s.gold += sellValue(it);
       s.stats.sold += 1;
       return 'sold';
@@ -803,7 +841,7 @@
     }
     s.stats.drops += 1;
     tallyRarity(s, it);
-    ev.push({ type: 'drop', item: it, action, gold: action === 'sold' ? sellValue(it) : 0, dust: action === 'dusted' ? dustValue(it) : 0 });
+    ev.push({ type: 'drop', item: it, action, gold: action === 'sold' ? sellValue(it) : 0, dust: action === 'dusted' ? dustGain(s, it) : 0 });
   }
 
   function equipItem(s, id) {
@@ -866,6 +904,7 @@
   const dustValue = (it) => Math.ceil(DUST_R[it.r] * (1 + it.ilvl / 50) * (1 + 0.5 * (it.enh || 0)) + 0.6 * 1500 * [0.5, 0.6, 0.8, 1, 1.3, 1.7, 2.2][it.r] * ((it.star || 0) * ((it.star || 0) + 1)) / 2);   // 초월에 쓴 가루(starDust 누적)는 60% 돌려받는다
   // 장비 레벨 상한: 최고 스테이지 + 100, 초월 한 단계마다 +100 더 (최대 999)
   const ITEM_LV_MAX = 999, ITEM_LV_BONUS = 100;
+  const dustGain = (s, it) => Math.ceil(dustValue(it) * (1 + 0.1 * perkLv(s, 'alchemy')));   // 실제로 받는 가루 (증표 상점 '가루 연금술')
   const itemLevelCap = (s, it) => Math.min(ITEM_LV_MAX, Math.max(1, s.bestStage) + ITEM_LV_BONUS + STAR_LV * ((it && it.star) || 0));
   const lvStepCost = (r, lv) => Math.ceil((2 + lv / 10) * LV_COST_R[r]);   // lv → lv+1
   function levelUpCost(it, n) { let c = 0; for (let i = 0; i < n; i++) c += lvStepCost(it.r, it.ilvl + i); return c; }
@@ -896,7 +935,7 @@
     let n = 0, dust = 0;
     s.bag = s.bag.filter((it) => {
       if (!set.has(it.id) || it.lock) return true;
-      dust += dustValue(it); n += 1;
+      dust += dustGain(s, it); n += 1;
       return false;
     });
     s.dust = Math.min(DUST_CAP, s.dust + dust);
@@ -939,6 +978,8 @@
   // 유물과 장착한 특수 장비(장비 상점에서 산 특별 옵션 장비)가 key 효과에 주는 값의 합
   function specialV(s, key) {
     let v = relicV(s, key);
+    const pk = PERK_SPECIAL[key];
+    if (pk) v += perkLv(s, pk[0]) * pk[1];   // 증표 상점 강화
     for (const slot of SLOT_KEYS) { const it = s.equip[slot]; if (it && it.sp && it.sp.k === key) v += it.sp.v; }
     return v;
   }
@@ -1273,13 +1314,13 @@
   };
   const buffV = (s, kind) => (s.buffs[kind] ? s.buffs[kind].v : 0);   // 스킬 효과의 위력 (없으면 0)
   const baseDmg = (s) => 3 + 1.5 * (s.level - 1);
-  const maxHp = (s) => (50 + 12 * (s.level - 1)) * (1 + 0.25 * s.upgrades.armor) * mile(s.upgrades.armor) * statMult(s, 'hp') * (1 + 0.1 * perkLv(s, 'vitality')) * gearMult(s, 'hp') * tokenHpMult(s);
+  const maxHp = (s) => (50 + 12 * (s.level - 1)) * (1 + 0.25 * s.upgrades.armor) * mile(s.upgrades.armor) * statMult(s, 'hp') * (1 + 0.1 * perkLv(s, 'vitality')) * gearMult(s, 'hp') * tokenHpMult(s) * (1 + 0.03 * perkLv(s, 'titanbody'));
   const hitDmg = (s) =>
     baseDmg(s) * (1 + 0.25 * s.upgrades.weapon) * mile(s.upgrades.weapon) * tokenMult(s) * masteryMult(s) * achieveMult(s) * statMult(s, 'dmg') * (1 + 0.1 * perkLv(s, 'might')) * kinglyMult(s) * transcendMult(s) * ascendMult(s) * gearMult(s, 'dmg') * (1 + buffV(s, 'might') + potionV(s, 'might'));
-  const attacksPerSec = (s) => (1 + SPEED_PER_LV * s.upgrades.speed) * statMult(s, 'aps') * gearMult(s, 'aps') * (1 + buffV(s, 'haste') + potionV(s, 'haste'));
+  const attacksPerSec = (s) => (1 + SPEED_PER_LV * s.upgrades.speed) * statMult(s, 'aps') * gearMult(s, 'aps') * (1 + buffV(s, 'haste') + potionV(s, 'haste')) * (1 + 0.03 * perkLv(s, 'swift'));
   // 직업의 공격 속도 배율은 동료에게도 절반만큼 적용된다 (동료가 전체 피해의 대부분이라, 연사 직업이 내 공격만 빨라져서는 다른 직업보다 한참 약했다)
   const partySpeed = (s) => 1 + 0.5 * (statMult(s, 'aps') - 1);
-  const companionDps = (s) => s.upgrades.companion * mile(s.upgrades.companion) * hitDmg(s) * 0.35 * statMult(s, 'comp') * (1 + 0.1 * perkLv(s, 'bond')) * gearMult(s, 'comp') * (1 + specialV(s, 'comp')) * (1 + SPEED_PARTY * s.upgrades.speed) * partySpeed(s);
+  const companionDps = (s) => s.upgrades.companion * mile(s.upgrades.companion) * hitDmg(s) * 0.35 * statMult(s, 'comp') * (1 + 0.1 * perkLv(s, 'bond')) * gearMult(s, 'comp') * (1 + specialV(s, 'comp')) * (1 + SPEED_PARTY * s.upgrades.speed) * partySpeed(s) * (1 + 0.03 * perkLv(s, 'legion'));
   const goldMult = (s) =>
     (1 + 0.15 * s.upgrades.loot) * mile(s.upgrades.loot) * tokenMult(s) * masteryMult(s) * achieveMult(s) * statMult(s, 'gold') * (1 + 0.1 * perkLv(s, 'greed')) * kinglyMult(s) * transcendMult(s) * ascendMult(s) * gearMult(s, 'gold') * (1 + potionV(s, 'gold')) * (1 + specialV(s, 'gold'));
   const totalDps = (s) => hitDmg(s) * attacksPerSec(s) + companionDps(s);
@@ -1735,7 +1776,7 @@
     try { o = JSON.parse(text); } catch (e) { return null; }
     if (!o || typeof o !== 'object') return null;
     const s = createState(num(o.savedAt, 0));
-    s.gold = clamp(num(o.gold, 0), 0, 1e60);
+    s.gold = clamp(num(o.gold, 0), 0, GOLD_CAP);
     s.level = clamp(Math.floor(num(o.level, 1)), 1, 9999);
     s.exp = clamp(num(o.exp, 0), 0, 1e60);
     s.stage = clamp(Math.floor(num(o.stage, 1)), 1, 999);
@@ -1890,7 +1931,14 @@
   const isGM = (email) => !!email && GM_EMAILS.includes(email);
   function gmAddCrystals(s, n) { s.crystals = clamp(Math.floor(s.crystals + n), 0, 1e9); }
   function gmAddTokens(s, n) { s.tokens = clamp(Math.floor(s.tokens + n), 0, 99999); }
-  function gmAddGold(s, n) { s.gold = clamp(s.gold + n, 0, 1e60); }
+  const GOLD_CAP = 1e60;   // 저장 복원이 허용하는 골드 상한 (deserialize와 같다)
+  function gmAddGold(s, n) { s.gold = clamp(s.gold + n, 0, GOLD_CAP); }
+  function gmMaxGold(s) { s.gold = GOLD_CAP; }
+  // 던전 초기화: 일일·주간·월간 도전 횟수·완주 보상·최고 기록을 처음 상태로, 탑 오늘 보상도 다시 받을 수 있게
+  function gmResetDungeons(s) {
+    for (const p of Dg.DUNGEON_PERIODS) { const d = s.dungeons[p]; if (d) Object.assign(d, { used: 0, cleared: false, bonusClaimed: false, bestWaves: 0, bestBonus: 0 }); }
+    s.tower.day = '';
+  }
   function gmSetLevel(s, lv) { s.level = clamp(Math.floor(lv), 1, 9999); s.hp = maxHp(s); }
   function gmSetStage(s, stage) {
     const st = clamp(Math.floor(stage), 1, 999);
@@ -1923,12 +1971,12 @@
     toggleLock, ENH_MAX, ENH_STEP, STAR_MAX, STAR_STEP, STAR_LV, starDust, starMaterials, starItem, enhVal, enhCost, enhChance, enhanceItem, findItem, equipPower,
     claimAttend, QUEST_PERIODS, QUEST_CFG, QUEST_DEFS, periodKeys, periodSecsLeft, questSync, questBoard, questClaimable, claimQuest, claimQuestBonus,
     DUNGEON_PERIODS: Dg.DUNGEON_PERIODS, DUNGEONS: Dg.DUNGEONS, BOSS_ART: Dg.BOSS_ART, dungeonSync, dungeonInfo, dungeonClaimable, dungeonBossHp, challengeDungeon, dungeonForecast, dungeonWaveBosses, dungeonBagNeed, MG_BONUS_CAP,
-    itemQuality, ITEM_SPREAD, ITEM_LV_BONUS, dustValue, itemLevelCap, levelUpCost, levelUpPlan, levelUpItem, dismantleItems,
+    itemQuality, ITEM_SPREAD, ITEM_LV_BONUS, dustValue, dustGain, itemLevelCap, levelUpCost, levelUpPlan, levelUpItem, dismantleItems,
     TOWER: Dg.TOWER, towerHp, towerBoss, towerForecast, towerInfo, climbTower, claimTowerDaily,
     moleBonus, gaugeBonus, parryBonus,
     PERKS, PERK_KEYS, HEADSTART_LV, perkLv, perkCost, perkSpent, tokenBalance, perkMissing, perkUnlocked, canBuyPerk, buyPerk, respecPerks, offlineCap,
     fmt, fmtTime,
-    isGM, gmAddCrystals, gmAddTokens, gmAddGold, gmSetLevel, gmSetStage, gmMaxUpgrades, gmUnlockRelics,
+    isGM, gmAddCrystals, gmAddTokens, gmAddGold, gmMaxGold, gmResetDungeons, GOLD_CAP, gmSetLevel, gmSetStage, gmMaxUpgrades, gmUnlockRelics,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Game = api;

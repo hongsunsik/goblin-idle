@@ -146,7 +146,9 @@
   // 이펙트를 재생하고 끝나면 지운다
   function playFx(el, keyframes, opts) {
     if (!el) return;
-    const a = anim(el, keyframes, Object.assign({ fill: 'forwards' }, opts));
+    // fill 'both': delay로 기다리는 동안에도 첫 장면(대개 투명)을 적용한다. 'forwards'만 쓰면 기다리는 동안
+    // 이펙트가 완전 불투명·원래 크기로 몬스터 위에 떠 있어서 몬스터 모습을 가렸다.
+    const a = anim(el, keyframes, Object.assign({ fill: 'both' }, opts));
     if (a) a.onfinish = () => el.remove(); else el.remove();
   }
   const rand = (a, b) => a + Math.random() * (b - a);
@@ -530,7 +532,7 @@
   function arcFx(style, strong, delay) {
     const p = targetPos();
     if (style === 'hammer') {
-      if (!calm() || strong) sprite('explosion_fire', p.x, p.y + 8, { size: strong ? 190 : 130, delay, dur: 420, from: 0.4, to: 1.1, screen: true });
+      if (!calm() || strong) sprite('explosion_fire', p.x, p.y + 8, { size: strong ? 190 : 130, delay, dur: 420, from: 0.4, to: 1.1, screen: true, opacity: 0.6 });
       const ring = addFx('fx-ring', p.x, p.y + 12);
       playFx(ring, [{ transform: 'scale(0.3, 0.15)', opacity: 1 }, { transform: `scale(${strong ? 2.4 : 1.7}, ${strong ? 1.1 : 0.8})`, opacity: 0 }], { duration: 380, delay, easing: 'ease-out' });
       return;
@@ -538,7 +540,7 @@
     // 화려하게: 궤적 그림을 크게 그린다 (그림이 없으면 아래 CSS 궤적)
     const ARC_SPRITE = { slash: 'slash_white', axe: 'slash_fire', holy: 'slash_gold', dagger: 'claw_slash' };
     if (!calm() || strong) {
-      const sp = sprite(ARC_SPRITE[style] || 'slash_white', p.x, p.y, { size: strong ? 190 : 130, delay, dur: 320, from: 0.5, to: 1.15, screen: style !== 'dagger' });
+      const sp = sprite(ARC_SPRITE[style] || 'slash_white', p.x, p.y, { size: strong ? 190 : 130, delay, dur: 320, from: 0.5, to: 1.15, screen: style !== 'dagger', opacity: 0.65 });
       if (sp) return;
     }
     const strokes = style === 'dagger' ? 2 : 1;
@@ -666,6 +668,7 @@
   const HIT_RING = { slash: '#e8f0ff', axe: '#ff9a3a', hammer: '#ffb066', holy: '#ffe27a', dagger: '#ff5a5a', arrow: '#7be86a', bolt: '#c9d3e0',
     bullet: '#fff2d0', shuriken: '#c07aff', coin: '#ffc93a', orb: '#5ad8ff', fire: '#ff7a2a', dark: '#9a6aff' };
   const heroTier = () => G.classPath(state).length;   // 0 견습 ~ 5 (5차)
+  const HIT_ALPHA = 0.45;   // 타격 이펙트 불투명도 (속성 그림은 이보다 더 옅게). 연속 타격으로 2~3장이 겹쳐도 몬스터가 비쳐 보이게
   function hitSpriteName(style, ex) {
     const n = (ex ? 'hitx_' : 'hit_') + style;
     return A.vfx(n) ? n : (IMPACT_SPRITE[style] || 'impact_burst');
@@ -678,9 +681,10 @@
     const x = p.x + rand(-10, 10), y = p.y + rand(-10, 10);
     const el = heroElement();
     // 공격 모양이 먼저 조금 작게 번쩍이고, 곧바로 직업 속성이 그 위로 크게 피어난다 (속성이 직업 차이를 가장 잘 보여 준다)
-    sprite(hitSpriteName(style, ex), x, y, { size: size * (el ? 0.8 : 1), delay, dur: ex ? 420 : 360, from: 0.3, to: strong ? 1.3 : 1.0 });
-    if (el) sprite('el_' + el, x + rand(-6, 6), y + rand(-6, 6), { size: size * (1.1 + 0.05 * tier), delay: delay + 45, dur: ex ? 480 : 400, from: 0.35, to: strong ? 1.35 : 1.1, rot: rand(-25, 25) });
-    if (tier >= 5 && (!calm() || strong)) sprite(hitSpriteName(style, false), x + rand(-14, 14), y + rand(-12, 12), { size: size * 0.6, delay: delay + 70, dur: 320, from: 0.4, to: 1.1 });
+    // 반투명: 타격 그림이 몬스터 모습을 가리지 않게 (몬스터가 비쳐 보인다)
+    sprite(hitSpriteName(style, ex), x, y, { size: size * (el ? 0.8 : 1), delay, dur: ex ? 420 : 360, from: 0.3, to: strong ? 1.3 : 1.0, opacity: HIT_ALPHA });
+    if (el) sprite('el_' + el, x + rand(-6, 6), y + rand(-6, 6), { size: size * (1.1 + 0.05 * tier), delay: delay + 45, dur: ex ? 360 : 300, from: 0.35, to: strong ? 1.35 : 1.1, rot: rand(-25, 25), opacity: HIT_ALPHA * 0.6 });
+    if (tier >= 5 && (!calm() || strong)) sprite(hitSpriteName(style, false), x + rand(-14, 14), y + rand(-12, 12), { size: size * 0.6, delay: delay + 70, dur: 320, from: 0.4, to: 1.1, opacity: HIT_ALPHA });
     if (ex && strong) ringFx(x, y, HIT_RING[style] || '#fff', 2.6 + 0.3 * (tier - 4), 480, delay);
   }
 
@@ -985,7 +989,7 @@
         const land = bigHit();
         if (e.kind === 'execute') { if (!sprite('slash_dark', t.x, t.y, { size: 210, delay: land, dur: 380, rot: -35, rot2: -12 })) ringFx(t.x, t.y, color, 2.6, 500, land); }
         if (e.kind === 'bossbane') { if (!sprite('lightning', t.x, t.y - 30, { size: 220, delay: land - 40, dur: 420, from: 0.7, to: 1.1, rot: 0, rot2: 0, screen: true })) ringFx(t.x, t.y, color, 3, 520, land); }
-        const boom = sprite(e.kind === 'strike' ? hitSpriteName(style, true) : 'explosion_fire', t.x, t.y, { size: 200 * (1 + 0.06 * heroTier()), delay: land, dur: 460, from: 0.4, to: 1.25, screen: e.kind !== 'strike' });
+        const boom = sprite(e.kind === 'strike' ? hitSpriteName(style, true) : 'explosion_fire', t.x, t.y, { size: 200 * (1 + 0.06 * heroTier()), delay: land, dur: 460, from: 0.4, to: 1.25, screen: e.kind !== 'strike', opacity: HIT_ALPHA + 0.1 });
         if (!boom) ringFx(t.x, t.y, color, 2.8, 520, land);
         monsterHit(true, land, false);
         impactFx(true, land);
@@ -1604,7 +1608,7 @@
     $('selAll').textContent = chosen.length && chosen.length === s.bag.filter((x) => !x.lock).length ? '선택 해제' : '전체 선택';
     $('selSell').disabled = chosen.length === 0;
     $('selDust').disabled = chosen.length === 0;
-    $('selDust').textContent = chosen.length ? `분해 +${G.fmt(chosen.reduce((a, x) => a + G.dustValue(x), 0))}` : '분해';
+    $('selDust').textContent = chosen.length ? `분해 +${G.fmt(chosen.reduce((a, x) => a + G.dustGain(state, x), 0))}` : '분해';
     $('tidyBtn').disabled = s.bag.length === 0;
     $('dropInfo').innerHTML = dropInfoHtml();
   }
@@ -1615,7 +1619,7 @@
     const materials = state.bag.filter((x) => x.slot === it.slot && x.id !== it.id && !x.lock);
     if (!materials.length) { openModal('강화할 재료가 없어요', `가방에 같은 칸(<b>${G.GEAR[it.slot].name}</b>)의 다른 장비가 하나 더 있어야 강화할 수 있어요. 재료로 쓴 장비는 사라져요.`, [{ text: '확인' }]); return; }
     const cost = G.enhCost(it);
-    const chance = G.enhChance(it.enh || 0);
+    const chance = G.enhChance(it.enh || 0, state);
     const chancePct = Math.round(chance * 100);
     enhanceTarget = it.id;
     openModal(`${G.GEAR[it.slot].name} 강화`,
@@ -1713,7 +1717,7 @@
         addLog(`${G.itemName(it)}을(를) 분해했다 (가루 +${G.fmt(r.dust)})`, 'is-good', 'anvil');
         cloudSoon(); writeSave(); render(); renderGear(true);
       };
-      if (it.r >= 3) openModal('정말 분해할까요?', `<b style="color:${G.RARITIES[it.r].color}">[${G.RARITIES[it.r].name}] ${G.itemName(it)}</b><br>가루 ${G.fmt(G.dustValue(it))}이(가) 돼요.<br><small>되돌릴 수 없어요.</small>`, [{ text: '취소' }, { text: '분해', cls: 'btn--blue', onClick: go }]);
+      if (it.r >= 3) openModal('정말 분해할까요?', `<b style="color:${G.RARITIES[it.r].color}">[${G.RARITIES[it.r].name}] ${G.itemName(it)}</b><br>가루 ${G.fmt(G.dustGain(state, it))}이(가) 돼요.<br><small>되돌릴 수 없어요.</small>`, [{ text: '취소' }, { text: '분해', cls: 'btn--blue', onClick: go }]);
       else go();
     }
   });
@@ -1735,12 +1739,6 @@
     }
   });
 
-  // 품질: 같은 등급·종류·레벨의 기준 수치보다 몇 % 높거나 낮게 뽑혔는지 (±5%, 예전 장비는 ±15%까지)
-  function qualityText(it) {
-    const q = Math.round(G.itemQuality(it) * 100);
-    const color = q >= 3 ? 'var(--green)' : q <= -3 ? 'var(--red)' : 'var(--muted)';
-    return `<span style="color:${color}">품질 ${q > 0 ? '+' : ''}${q}%</span>`;
-  }
   // 장비 하나의 정보 창. 장착 중이면 해제, 가방에 있으면 장착·판매를 고를 수 있다.
   function showItem(it, equipped) {
     const R = G.RARITIES[it.r], def = G.GEAR[it.slot].kinds[it.kind];
@@ -1758,10 +1756,10 @@
     const body =
       `<div class="itemd__head"><div class="slot r${it.r}">${gearArt(it)}</div>` +
       `<div><span class="itemd__tag r${it.r}">${R.name}</span><div class="itemd__main">${def.label} +${fmtVal(G.enhVal(it))}%</div>${it.sp ? `<div class="itemd__sp">★ ${spText(it)}</div>` : ''}${it.enh ? `<div class="itemd__sp">⚒ 강화 Lv.${it.enh}</div>` : ''}${it.star ? `<div class="itemd__sp itemd__star">✦ 초월 ${it.star}단계 (효과 +${Math.round(G.STAR_STEP * 100 * it.star)}%)</div>` : ''}` +
-      `<small>${G.GEAR[it.slot].name} · 장비 레벨 ${it.ilvl} · ${qualityText(it)}</small></div></div>${cmp}` +
+      `<small>${G.GEAR[it.slot].name} · 장비 레벨 ${it.ilvl}</small></div></div>${cmp}` +
       `<div class="itemd__tools"><button class="btn btn--gray" type="button" data-lvup="${it.id}">${DUST_IC}레벨 올리기</button>` +
       `<button class="btn btn--gray" type="button" data-star="${it.id}">✦ 초월</button>` +
-      (equipped || it.lock ? '' : `<button class="btn btn--gray" type="button" data-dismantle="${it.id}">분해 +${G.fmt(G.dustValue(it))}</button>`) + '</div>' +
+      (equipped || it.lock ? '' : `<button class="btn btn--gray" type="button" data-dismantle="${it.id}">분해 +${G.fmt(G.dustGain(state, it))}</button>`) + '</div>' +
       `<button class="btn ${it.lock ? 'btn--gold' : 'btn--gray'} itemd__lock" type="button" data-lock="${it.id}">${it.lock ? '🔓 잠금 해제' : '🔒 잠그기'}</button>` +
       (it.lock ? '<small class="itemd__locknote">잠긴 장비는 판매·분해·정리·강화 재료에서 빠져요.</small>' : '');
     const done = (msg, icon) => { addLog(msg, 'is-good', icon); writeSave(); render(); renderGear(true); };
@@ -1816,7 +1814,7 @@
   $('selDust').addEventListener('click', () => {
     const items = state.bag.filter((x) => picked.has(x.id));
     if (!items.length) return;
-    const dust = items.reduce((a, x) => a + G.dustValue(x), 0);
+    const dust = items.reduce((a, x) => a + G.dustGain(state, x), 0);
     const go = () => {
       const r = G.dismantleItems(state, items.map((x) => x.id));
       picked.clear();
@@ -1871,7 +1869,7 @@
     if (!first) { openModal('정리할 장비가 없어요', '가방에서 팔 만한 장비를 찾지 못했어요.', [{ text: '확인' }]); return; }
     const html = '<div class="tidy">' + opts.map((o) =>
       `<label class="tidy__opt ${o.items.length ? '' : 'is-empty'}"><input type="radio" name="tidy" value="${o.id}" ${o === first ? 'checked' : ''} ${o.items.length ? '' : 'disabled'}>` +
-      `<span><b>${o.label}</b><small>${o.items.length}개 · ${COIN}${G.fmt(goldOf(o.items))} 또는 ${DUST_IC}${G.fmt(o.items.reduce((a, x) => a + G.dustValue(x), 0))}</small></span></label>`).join('') +
+      `<span><b>${o.label}</b><small>${o.items.length}개 · ${COIN}${G.fmt(goldOf(o.items))} 또는 ${DUST_IC}${G.fmt(o.items.reduce((a, x) => a + G.dustGain(state, x), 0))}</small></span></label>`).join('') +
       '</div><small>장착 중인 장비, 잠긴(🔒) 장비, 특별 옵션(★) 장비, 유니크·신화는 팔리지 않아요.</small>';
     const pickOpt = () => { const v = document.querySelector('input[name="tidy"]:checked'); return opts.find((x) => v && x.id === v.value); };
     openModal('장비 정리', html, [
@@ -3001,12 +2999,13 @@
     crystal10000: () => { G.gmAddCrystals(state, 10000); return '크리스탈 +10,000'; },
     token50: () => { G.gmAddTokens(state, 50); return '증표 +50'; },
     token500: () => { G.gmAddTokens(state, 500); return '증표 +500'; },
-    gold1m: () => { G.gmAddGold(state, 1e6); return '골드 +1,000,000'; },
-    level20: () => { G.gmSetLevel(state, state.level + 20); return '레벨 +20'; },
+    goldmax: () => { G.gmMaxGold(state); return '골드 최대'; },
+    level100: () => { G.gmSetLevel(state, state.level + 100); return '레벨 +100'; },
     stage50: () => { G.gmSetStage(state, 50); return '스테이지 → 50'; },
     stage150: () => { G.gmSetStage(state, 150); return '스테이지 → 150'; },
     upgrade10: () => { G.gmMaxUpgrades(state, 10); return '강화 전부 +10'; },
     relics: () => { G.gmUnlockRelics(state); return '유물 전부 획득'; },
+    dungeonreset: () => { G.gmResetDungeons(state); renderDungeon(true); return '던전 초기화'; },
   };
   $('gmGrid').addEventListener('click', (e) => {
     const b = e.target.closest('button[data-gm]');

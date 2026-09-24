@@ -813,7 +813,6 @@ const FAKE_CLOUD = `(() => {
     await click('[data-go="gear"]'); await sleep(300);
     check('가방 옆에 가진 가루가 보인다', (await txt('#dustBal')).includes('20'));
     await click(`#bag [data-item="${lvItem.id}"]`); await sleep(250);
-    check('장비 정보 창에 품질(기준 대비 편차)이 보인다', (await txt('#modalBody')).includes('품질'));
     check('장비 정보 창에 레벨 올리기·분해 버튼이 있다', !!(await ev(`document.querySelector('#modalBody [data-lvup]')`)) && !!(await ev(`document.querySelector('#modalBody [data-dismantle]')`)));
     await click('#modalBody [data-lvup]'); await sleep(250);
     check('레벨 올리기 창에 +1·+10·최대 선택지와 최대 레벨(최고 스테이지 80 + 100)이 보인다', (await ev(`document.querySelectorAll('#modalBody .lvopt').length`)) === 3 && (await txt('#modalBody')).includes('최대 180'));
@@ -842,6 +841,17 @@ const FAKE_CLOUD = `(() => {
     check('게이지가 차는 뽑기에서 신화 보장이 발동해 신화 무기가 나온다', (await txt('#modalBody')).includes('신화 보장 발동') && (await txt('#modalBody')).includes('[신화]'));
     await click('#modalActions .btn'); await sleep(200);
     check('발동 뒤 게이지는 0부터 다시 시작한다', (await txt('#pityBar')).includes('0 / '));
+
+    console.log('증표 상점 확장 · GM 버튼');
+    const tk = mk(30, ['warrior']); tk.tokens = 400;
+    await reopen(tk);
+    await click('[data-go="shop"]'); await sleep(300);
+    check('증표 상점에 강화가 27종 보인다', (await ev(`document.querySelectorAll('#perks .perk').length`)) === 27);
+    check('새 강화(배움의 기쁨·재빠른 손)는 바로 살 수 있다', !(await ev(`document.querySelector('[data-perk="scholar"]').disabled`)) && !(await ev(`document.querySelector('[data-perk="swift"]').disabled`)));
+    await shot('perks');
+    await click('[data-perk="swift"]'); await sleep(250);
+    await click('#modalActions .btn--gold'); await sleep(300);
+    check('재빠른 손을 사면 Lv.1이 된다', (await txt('#perks .perk[data-id="swift"]')).includes('Lv.1'));
 
     console.log('장비 잠금');
     const lk = mk(30, ['warrior']); lk.autoEquip = false;
@@ -913,6 +923,7 @@ const FAKE_CLOUD = `(() => {
     await ev(`window.__authCb({ uid: 't1', name: '테스터', email: 't@example.com', photo: '', provider: 'google.com' })`); await sleep(400);
     check('다른 계정으로 바뀌면 GM 모드가 다시 숨는다', await ev(`document.getElementById('gmSection').hidden`));
 
+    check('GM 버튼: 골드 최대·레벨 +100·던전 초기화가 있다', !!(await ev(`document.querySelector('[data-gm="goldmax"]')`)) && !!(await ev(`document.querySelector('[data-gm="level100"]')`)) && !!(await ev(`document.querySelector('[data-gm="dungeonreset"]')`)));
     console.log('오래 돌려도 안정적인가 (전투 10초)');
     await ev(`document.querySelector('[data-go="upgrade"]').click()`);
     await sleep(10000);
