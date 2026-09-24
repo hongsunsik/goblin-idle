@@ -51,7 +51,7 @@ const FAKE_CLOUD = `(() => {
 (async () => {
   const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'flow-'));
   const chrome = spawn(CHROME,
-    ['--headless=new', '--disable-gpu', '--allow-file-access-from-files', '--remote-debugging-port=9334', `--user-data-dir=${profile}`, 'about:blank'], { stdio: 'ignore' });
+    ['--headless=new', '--disable-gpu', '--allow-file-access-from-files', '--autoplay-policy=no-user-gesture-required', '--remote-debugging-port=9334', `--user-data-dir=${profile}`, 'about:blank'], { stdio: 'ignore' });
   const errors = [], fails = [];
   try {
     let target;
@@ -855,6 +855,21 @@ const FAKE_CLOUD = `(() => {
     await shot('star');
     await click(`#modalBody [data-starmat="${smat.id}"]`); await sleep(300);
     check('초월하면 가방 칸에 ✦1이 붙고 재료가 사라진다', (await txt(`#bag [data-item="${tgt.id}"]`)).includes('✦1') && !(await ev(`document.querySelector('#bag [data-item="${smat.id}"]')`)));
+
+    console.log('배경음');
+    const bg = mk(30, ['warrior']); bg.stage = 9; bg.runBest = bg.bestStage = 9;
+    await reopen(bg);
+    await ev(`document.getElementById('scene').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }))`); await sleep(600);
+    check('화면을 한 번 누르면 배경음이 재생된다', await ev(`window.GoblinAudio.playing`));
+    check('일반 스테이지에서는 밝은 곡(field)이 나온다', (await ev(`window.GoblinAudio.song`)) === 'field');
+    const bossSeen = await ev(`new Promise((res) => { const iv = setInterval(() => { if (window.GoblinAudio.song === 'boss') { clearInterval(iv); res(true); } }, 100); setTimeout(() => { clearInterval(iv); res(false); }, 25000); })`);
+    check('보스 스테이지에 가면 마디가 바뀔 때 보스 곡으로 바뀐다', bossSeen);
+    await click('#settingsBtn'); await sleep(250);
+    await click('#bgmSeg [data-bgm="off"]'); await sleep(300);
+    check('설정에서 끄면 멈추고 음량 막대가 잠긴다', !(await ev(`window.GoblinAudio.playing`)) && (await ev(`document.getElementById('bgmVol').disabled`)));
+    await click('#bgmSeg [data-bgm="on"]'); await sleep(300);
+    check('다시 켜면 다시 나온다', await ev(`window.GoblinAudio.playing`));
+    await click('#settingsClose'); await sleep(200);
 
     console.log('GM 모드 (관리자 계정에서만 보임)');
     const FAKE_CLOUD_GM = FAKE_CLOUD.replace('cb = f; setTimeout', 'cb = f; window.__authCb = f; setTimeout')

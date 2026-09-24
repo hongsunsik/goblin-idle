@@ -994,3 +994,6 @@ svg { display: block; }
 .gitem__star { position: absolute; right: 3px; bottom: 16px; font-style: normal; font-size: 9.5px; font-weight: 900; color: #ffd66b; text-shadow: 0 0 5px rgba(255, 180, 40, 0.9), 0 0 2px #000; }
 .itemd__star { color: #ffd66b; }
 .slot__star { color: #ffd66b; font-weight: 900; }
+
+/* 배경음 음량 */
+.vol { width: 140px; accent-color: var(--gold); }

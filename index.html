@@ -265,6 +265,15 @@
           <div><b>움직임과 이펙트</b><small id="fxInfo">차분하게: 꼭 필요한 움직임만 보여요</small></div>
           <div class="seg" id="fxSeg"><button type="button" data-fx="calm">차분하게</button><button type="button" data-fx="full">화려하게</button></div>
         </div>
+        <h3 class="sect">소리</h3>
+        <div class="card setrow">
+          <div><b>배경음</b><small id="bgmInfo">일반 스테이지는 밝은 곡, 보스·던전은 긴장감 있는 곡이 나와요</small></div>
+          <div class="seg" id="bgmSeg"><button type="button" data-bgm="off">끄기</button><button type="button" data-bgm="on">켜기</button></div>
+        </div>
+        <div class="card setrow">
+          <div><b>음량</b></div>
+          <input class="vol" id="bgmVol" type="range" min="0" max="100" step="5" aria-label="배경음 음량">
+        </div>
         <h3 class="sect">저장</h3>
         <div class="card setrow">
           <div><b>이 기기에 자동 저장</b><small id="saveInfo2">5초마다 자동으로 저장돼요</small></div>
@@ -334,6 +343,7 @@
   <script src="payments.js?v=202609241417"></script>
   <script src="ads.js?v=202609241417"></script>
   <script src="payments-config.js?v=202609241417"></script>
+  <script src="audio.js?v=202609241417"></script>
   <script src="app.js?v=202609241417"></script>
 </body>
 </html>

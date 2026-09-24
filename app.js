@@ -2339,6 +2339,8 @@
       G.PERK_KEYS.some((id) => G.canBuyPerk(s, id)) && currentTab !== 'shop', G.adStatus(s, today()).left > 0 && adsMod.available && currentTab !== 'store',
       (G.dungeonClaimable(s) > 0 || G.towerInfo(s, today()).dailyReady) && currentTab !== 'dungeon', (G.unclaimedAchievements(s).length > 0 || G.questClaimable(s) > 0) && currentTab !== 'log'];
     dots.forEach((d, i) => { if (d.hidden === want[i]) d.hidden = !want[i]; });
+    // 배경음: 보스 스테이지나 던전·탑 전투 중이면 긴장감 있는 곡
+    if (window.GoblinAudio) window.GoblinAudio.setSong(boss || !$('mgModal').hidden ? 'boss' : 'field');
   }
 
   $('relicBar').addEventListener('click', () => goTab('store'));
@@ -2744,6 +2746,20 @@
     if (e.target.closest('button[data-tclimb]:not([disabled])')) doTowerClimb();
     if (e.target.closest('button[data-tdaily]:not([disabled])')) doTowerDaily();
   });
+
+  // ---- 배경음 설정 ----
+  const Bgm = window.GoblinAudio;
+  function renderBgm() {
+    if (!Bgm) return;
+    document.querySelectorAll('#bgmSeg button').forEach((b) => b.classList.toggle('is-on', (b.dataset.bgm === 'on') === Bgm.on));
+    $('bgmVol').value = String(Math.round(Bgm.volume * 100));
+    $('bgmVol').disabled = !Bgm.on;
+  }
+  if (Bgm) {
+    $('bgmSeg').addEventListener('click', (e) => { const b = e.target.closest('button[data-bgm]'); if (!b) return; Bgm.setOn(b.dataset.bgm === 'on'); renderBgm(); });
+    $('bgmVol').addEventListener('input', (e) => Bgm.setVolume(Number(e.target.value) / 100));
+    renderBgm();
+  }
 
   // ---- 공격 (화면 누르기) ----
   function attack(px, py) {
