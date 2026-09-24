@@ -661,10 +661,22 @@
     return land;
   }
   const IMPACT_SPRITE = { axe: 'explosion_fire', hammer: 'explosion_fire', fire: 'explosion_fire', orb: 'explosion_magic', dark: 'explosion_magic', coin: 'coin_burst' };
+  // 타격 이펙트: 공격 방식마다 다른 그림(images/vfx/hit_*), 4차부터는 화려한 그림(hitx_*), 5차는 한 겹 더 겹친다.
+  // 전직할수록 조금씩 커진다. 그림이 없으면 예전 공용 폭발로 대신한다.
+  const HIT_RING = { slash: '#e8f0ff', axe: '#ff9a3a', hammer: '#ffb066', holy: '#ffe27a', dagger: '#ff5a5a', arrow: '#7be86a', bolt: '#c9d3e0',
+    bullet: '#fff2d0', shuriken: '#c07aff', coin: '#ffc93a', orb: '#5ad8ff', fire: '#ff7a2a', dark: '#9a6aff' };
+  const heroTier = () => G.classPath(state).length;   // 0 견습 ~ 5 (5차)
+  function hitSpriteName(style, ex) {
+    const n = (ex ? 'hitx_' : 'hit_') + style;
+    return A.vfx(n) ? n : (IMPACT_SPRITE[style] || 'impact_burst');
+  }
   function impactSprite(style, strong, delay) {
-    const p = targetPos();
-    const name = IMPACT_SPRITE[style] || 'impact_burst';
-    sprite(name, p.x + rand(-10, 10), p.y + rand(-10, 10), { size: strong ? 140 : 88, delay, dur: 360, from: 0.3, to: strong ? 1.3 : 1.0, screen: name !== 'coin_burst' });
+    const p = targetPos(), tier = heroTier(), ex = tier >= 4;
+    const size = (strong ? 140 : 88) * (1 + 0.08 * tier) * (ex ? 1.15 : 1);
+    const x = p.x + rand(-10, 10), y = p.y + rand(-10, 10);
+    sprite(hitSpriteName(style, ex), x, y, { size, delay, dur: ex ? 420 : 360, from: 0.3, to: strong ? 1.3 : 1.0 });
+    if (tier >= 5 && (!calm() || strong)) sprite(hitSpriteName(style, false), x + rand(-14, 14), y + rand(-12, 12), { size: size * 0.6, delay: delay + 70, dur: 320, from: 0.4, to: 1.1 });
+    if (ex && strong) ringFx(x, y, HIT_RING[style] || '#fff', 2.6 + 0.3 * (tier - 4), 480, delay);
   }
 
   // 고블린이 한 번 때릴 때마다 부르는 연출. 차분하게는 0.45초에 한 번만, 화려하게는 0.22초에 한 번(불꽃·타격 숫자 포함).
@@ -968,7 +980,7 @@
         const land = bigHit();
         if (e.kind === 'execute') { if (!sprite('slash_dark', t.x, t.y, { size: 210, delay: land, dur: 380, rot: -35, rot2: -12 })) ringFx(t.x, t.y, color, 2.6, 500, land); }
         if (e.kind === 'bossbane') { if (!sprite('lightning', t.x, t.y - 30, { size: 220, delay: land - 40, dur: 420, from: 0.7, to: 1.1, rot: 0, rot2: 0, screen: true })) ringFx(t.x, t.y, color, 3, 520, land); }
-        const boom = sprite(e.kind === 'strike' ? (IMPACT_SPRITE[style] || 'explosion_fire') : 'explosion_fire', t.x, t.y, { size: 200, delay: land, dur: 460, from: 0.4, to: 1.25, screen: true });
+        const boom = sprite(e.kind === 'strike' ? hitSpriteName(style, true) : 'explosion_fire', t.x, t.y, { size: 200 * (1 + 0.06 * heroTier()), delay: land, dur: 460, from: 0.4, to: 1.25, screen: e.kind !== 'strike' });
         if (!boom) ringFx(t.x, t.y, color, 2.8, 520, land);
         monsterHit(true, land, false);
         impactFx(true, land);

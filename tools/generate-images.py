@@ -15,6 +15,7 @@ API 키는 ~/.pollinations-key 파일에서 읽는다 (저장소에는 넣지 �
 필요한 것: Python 3, Pillow, numpy
 """
 import argparse
+import re
 import os
 import threading
 import sys
@@ -399,6 +400,27 @@ VFX = {
     'swing_hammer': 'a heavy smash motion trail only, a thick curved white and grey arc swooshing down from the top right to the bottom, no weapon, no blade, a round dust cloud burst with flying rocks at the bottom',
     'thrust_dagger': 'two short parallel horizontal white stab streaks pointing right with a small bright star flash at the tips, thin speed lines, no arrow heads, no weapon',
 }
+# 몬스터에 맞는 순간 터지는 타격 이펙트: 공격 방식 13종 × (기본 hit_: 1~3차, 화려한 hitx_: 4~5차)
+HIT_STYLES = {
+    'slash': 'a white and silver sword slash impact with crossed slash lines and sparks',
+    'axe': 'a heavy orange cleaving axe impact with a jagged split and flying chips',
+    'hammer': 'a crushing heavy impact with a round shockwave ring and flying rock debris',
+    'holy': 'a golden holy light impact with a glowing cross and radiant rays',
+    'dagger': 'a quick crimson double stab impact with two small sharp star flashes',
+    'arrow': 'an arrow hit impact with green wind swirls, feathers and a small burst',
+    'bolt': 'a crossbow bolt piercing impact with steel shards and speed lines',
+    'bullet': 'a gunshot bullet impact with a bright white spark star and a smoke puff',
+    'shuriken': 'a shuriken hit impact with a purple star burst and thin cut lines',
+    'coin': 'a coin hit impact with a splash of gold coins and sparkles',
+    'orb': 'a blue arcane orb impact with swirling runes and sparkles',
+    'fire': 'a fireball impact explosion with flames and embers',
+    'dark': 'a dark necromancy impact with a purple and green skull smoke burst',
+}
+for _k, _d in HIT_STYLES.items():
+    VFX['hit_' + _k] = _d
+    VFX['hitx_' + _k] = ('an epic legendary ' + re.sub(r'^an? ', '', _d) +
+                         ', huge and extremely flashy, with a glowing magic circle, radiant light beams and many bright sparkles')
+
 FX = ('game visual effect sprite, bold dark outline, glossy cel-shaded, vibrant colors, centered, square composition, '
       'no character, no text, ' + BG)
 BACKGROUNDS = {

@@ -127,7 +127,8 @@
   // 전투 이펙트 스프라이트 이름 (images/vfx/이름.webp). tools/generate-images.py의 VFX와 같아야 한다.
   const VFX_NAMES = ['slash_white', 'slash_gold', 'slash_fire', 'slash_dark', 'claw_slash', 'impact_burst', 'explosion_fire', 'explosion_magic', 'lightning',
     'heal_light', 'shield_bubble', 'magic_circle', 'summon_circle', 'coin_burst', 'poison_cloud', 'stun_stars', 'wind_swirl', 'rage_aura',
-    'swing_sword', 'swing_axe', 'swing_holy', 'swing_hammer', 'thrust_dagger'];
+    'swing_sword', 'swing_axe', 'swing_holy', 'swing_hammer', 'thrust_dagger',
+    ...['slash', 'axe', 'hammer', 'holy', 'dagger', 'arrow', 'bolt', 'bullet', 'shuriken', 'coin', 'orb', 'fire', 'dark'].flatMap((k) => ['hit_' + k, 'hitx_' + k])];   // 타격 이펙트 (기본 / 4차 이상)
 
   const api = { VFX_NAMES, KINDS, TIER_POWER, SKILLS, makeSkill, describeSkill, ATTACK_STYLE, MELEE_STYLES };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
