@@ -370,7 +370,7 @@ test('5단계(초월자의 힘)는 4단계(직업 각성·도감 공명)를 모�
   for (let i = 0; i < 5; i++) G.buyPerk(s, 'kingly');
   for (let i = 0; i < 5; i++) { G.buyPerk(s, 'awaken'); G.buyPerk(s, 'codex'); }
   assert.strictEqual(G.canBuyPerk(s, 'ascend'), true);
-  assert.strictEqual(G.PERKS.ascend.max, 50, '증표를 아무리 벌어도 금방 다 사서 살 게 없어지지 않게 상한이 넉넉해야 한다');
+  assert.ok(G.PERKS.ascend.max >= 1000, '증표를 몇 년 벌어도 다 사서 살 게 없어지지 않게 상한이 넉넉해야 한다');
   const d = G.hitDmg(s), g = G.goldMult(s);
   for (let i = 0; i < 10; i++) G.buyPerk(s, 'ascend');
   assert.ok(Math.abs(G.hitDmg(s) / d - 1.2) < 1e-9, '10레벨이면 공격력 +20%');
@@ -2106,8 +2106,9 @@ test('전직 단계가 오를수록 증표의 공격력·골드 보너스가 커
   const m = [G.tokenMult(s)];
   for (const id of ['mage', 'pyromancer', 'infernomage', 'flameemperor']) { G.promote(s, id); m.push(G.tokenMult(s)); }
   for (let i = 1; i < m.length; i++) assert.ok(m[i] > m[i - 1], m.join(','));
-  assert.ok(Math.abs(m[0] - (1 + G.TOKEN_BONUS * 10)) < 1e-9);
-  assert.ok(Math.abs(m[4] - (1 + G.TOKEN_BONUS * (1 + 4 * G.RESONANCE) * 10)) < 1e-9);
+  const T = Math.pow(10, G.TOKEN_POW);   // 증표 효과는 개수의 TOKEN_POW제곱
+  assert.ok(Math.abs(m[0] - (1 + G.TOKEN_BONUS * T)) < 1e-9);
+  assert.ok(Math.abs(m[4] - (1 + G.TOKEN_BONUS * (1 + 4 * G.RESONANCE) * T)) < 1e-9);
   assert.ok(Math.abs(G.resonance(s) - (1 + 4 * G.RESONANCE)) < 1e-9);
 });
 test('증표는 체력에도 깃든다 (증표 효과의 0.4제곱)', () => {

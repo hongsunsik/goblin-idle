@@ -2340,7 +2340,7 @@
     setText('pBest', s.bestStage);
     pb.disabled = gain <= 0;
     setText('prestigeBtn', gain > 0 ? `환생하기 (증표 +${gain})` : '아직 환생할 수 없어요');
-    const perTok = Math.round(G.TOKEN_BONUS * G.resonance(s) * 100), maxTok = Math.round(G.TOKEN_BONUS * (1 + 5 * G.RESONANCE) * 100);
+    const nowBonus = G.tokenMult(s) - 1;   // 지금 증표로 받는 공격력·골드 보너스 (배율 - 1)
     const runMin = Math.floor(s.runT / 60);
     const timeNote = gain <= 0 ? '' : info.timeF < 1
       ? `이번 판은 <b>${runMin}분</b> 키웠어요. 증표는 판을 <b>10분</b> 키우면 100%이고 지금은 ${Math.round(info.timeF * 100)}%예요 (${Math.ceil(info.secsLeft / 60)}분 더 키우면 +${fullGain}).`
@@ -2349,8 +2349,8 @@
       ? `지금 환생하면 왕의 증표 <b>${gain}개</b>를 얻어요. ${timeNote}<br>골드·레벨·강화·스테이지·직업은 처음부터 다시 시작하고, 직업 도감은 그대로 남아요.`
       : `스테이지 ${G.PRESTIGE_MIN_STAGE}에 도달하면 환생할 수 있어요. 환생하면 왕의 증표를 얻어 영구히 강해지고, 다른 직업으로 다시 시작해 볼 수 있어요.`);
     setHtml('prestigeNote',
-      `증표 1개당 공격력·골드 <b>+${perTok}%</b>, 체력도 조금 늘어요.<br>` +
-      `<b>전직할 때마다 증표의 힘이 ${Math.round(G.RESONANCE * 100)}%씩 더 깨어나요.</b> 지금 ${G.classPath(s).length}단계 → 5차 직업이면 증표 1개당 +${maxTok}%까지 올라요.<br>` +
+      `지금 증표 ${G.fmt(s.tokens)}개로 공격력·골드 <b>×${G.fmt(1 + nowBonus)}</b>, 체력도 조금 늘어요. 증표는 많이 모을수록 한 개의 가치가 조금씩 커져요.<br>` +
+      `<b>전직할 때마다 증표의 힘이 ${Math.round(G.RESONANCE * 100)}%씩 더 깨어나요.</b> (지금 ${G.classPath(s).length}단계, 5차면 +${Math.round(5 * G.RESONANCE * 100)}%)<br>` +
       `증표는 <b>증표 탭</b>에서 영구 강화를 사는 데 쓰고, 4단계의 <b>직업 각성·도감 공명</b>은 전직과 이어진 강화예요.`);
 
     setText('awayNote', `자리를 비워도 최대 ${Math.round(G.offlineCap(s) / 3600)}시간까지 보상을 받아요. 비운 시간은 ${serverNow() === null ? '기기 시계' : '서버 시각'} 기준으로 재고, 창을 닫아도 백그라운드에 두어도 같은 규칙이에요.`);

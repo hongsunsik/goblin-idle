@@ -131,8 +131,8 @@
                    per: '직업 능력의 장점 효과 +10% 강화', now: (lv) => `직업 능력의 장점 효과 +${lv * 10}% 강화` };
   PERKS.codex = { name: '도감 공명', icon: 'book', tier: 4, max: 5, base: 4, req: [['kingly', 1]],
                   per: '직업 도감 보너스 +20%', now: (lv) => `직업 도감 보너스 +${lv * 20}%` };
-  // 5단계: 4단계를 모두 채운 뒤에 열리는 끝없는 강화. 증표를 아무리 벌어도 살 게 없어지지 않도록, 레벨 상한을 훨씬 높게 잡았다.
-  PERKS.ascend = { name: '초월자의 힘', icon: 'burst', tier: 5, max: 50, base: 10, req: [['awaken', 5], ['codex', 5]],
+  // 5단계: 4단계를 모두 채운 뒤에 열리는 끝없는 강화 (최대 1000레벨: 1년이면 증표가 5만~9만 개 쌓이는데 50레벨이면 200일쯤에 다 채워 쓸 곳이 없었다). 증표를 아무리 벌어도 살 게 없어지지 않도록, 레벨 상한을 훨씬 높게 잡았다.
+  PERKS.ascend = { name: '초월자의 힘', icon: 'burst', tier: 5, max: 1000, base: 10, req: [['awaken', 5], ['codex', 5]],
                    per: '공격력·골드 +2%', now: (lv) => `공격력·골드 +${lv * 2}%` };
   // 2026-09-24 추가: 공격력·골드 말고도 여러 방향으로 강해지는 강화 (단계별로 끼워 넣는다 — 표시 순서는 단계 순)
   Object.assign(PERKS, {
@@ -162,9 +162,9 @@
                  per: '장비 강화 성공 확률 +3%p (100% 미만 단계)', now: (lv) => `장비 강화 성공 확률 +${lv * 3}%p` },
     conquest:  { name: '던전 정복자',   icon: 'gate',   tier: 4, max: 5,  base: 5, req: [['kingly', 1]],
                  per: '던전·탑 크리스탈 +10%', now: (lv) => `던전·탑 크리스탈 +${lv * 10}%` },
-    titanbody: { name: '불멸의 육체',   icon: 'heart',  tier: 5, max: 50, base: 10, req: [['awaken', 5], ['codex', 5]],
+    titanbody: { name: '불멸의 육체',   icon: 'heart',  tier: 5, max: 1000, base: 10, req: [['awaken', 5], ['codex', 5]],
                  per: '최대 체력 +3%', now: (lv) => `최대 체력 +${lv * 3}%` },
-    legion:    { name: '끝없는 군단',   icon: 'party',  tier: 5, max: 50, base: 10, req: [['awaken', 5], ['codex', 5]],
+    legion:    { name: '끝없는 군단',   icon: 'party',  tier: 5, max: 1000, base: 10, req: [['awaken', 5], ['codex', 5]],
                  per: '동료 공격 +3%', now: (lv) => `동료 공격 +${lv * 3}%` },
   });
   // 유물·특별 옵션과 같은 '특수 효과'로 합쳐지는 강화 (specialV가 더한다 — 상한도 유물과 함께 적용된다)
@@ -1251,9 +1251,10 @@
 
   // ---- 능력치 계산 ----
   // 왕의 증표 1개당 공격력·골드 보너스. 전직을 한 단계 할 때마다 증표의 힘이 RESONANCE만큼 더 깨어난다 (4차 직업이면 ×1.32).
-  const TOKEN_BONUS = 0.32, RESONANCE = 0.08;
+  const TOKEN_BONUS = 0.16, TOKEN_POW = 1.15, RESONANCE = 0.08;
   const resonance = (s) => 1 + RESONANCE * classPath(s).length;
-  const tokenMult = (s) => 1 + TOKEN_BONUS * resonance(s) * s.tokens;
+  // 증표 효과는 개수의 1.15제곱: 초반(100개)은 예전(0.32 × 개수)과 거의 같고, 많이 모을수록 한 개의 가치가 조금씩 커진다 (몇 년 동안 모으는 보람)
+  const tokenMult = (s) => 1 + TOKEN_BONUS * resonance(s) * Math.pow(s.tokens, TOKEN_POW);
   // 증표는 체력에도 깃든다 (증표 효과의 0.4제곱). 예전에는 공격력·골드만 커져서, 증표를 많이 모으면 몬스터가 한 번에 죽는데도 고블린이 1초 만에 쓰러져
   // 스테이지 90 근처에서 더 나아가지 못했다 (증표를 2배로 늘려도 스테이지가 거의 안 올랐다). tools/simulate.js로 확인.
   const HP_TOKEN_EXP = 0.4;
@@ -1340,9 +1341,13 @@
   // 값은 tools/simulate.js로 비교해 정했다 (같은 조건에서 3판째 80 → 90, 8판째 97 → 114).
   // 스테이지 120부터는 체력이 ×1.18씩만 는다 (2026-09-24 tools/balance.js 실측: ×1.22 그대로면 첫날 이후 며칠 동안 하루 +5~10 스테이지로 거의 멈췄다)
   const LATE_FROM = 120, HP_LATE_GROWTH = 1.18;
+  // 스테이지 300부터는 ×1.075: 강화(골드 ×1.21/스테이지 → 공격력 약 ×1.05)와 거의 맞먹게 해서 몇 년 동안 꾸준히 오르게 한다.
+  // 1년·2년 시뮬레이션(tools/balance.js, 하루 1시간): ×1.18 그대로면 3달 뒤 하루 +0.08로 정체, ×1.06 이하는 몇 주 만에 폭주,
+  // ×1.075는 1년 530~650 · 2년 660~810, 반년 뒤에도 하루 +0.4~0.5 스테이지.
+  const END_FROM = 300, HP_END_GROWTH = 1.075;
   const BOSS_HP = 6, BOSS_ATK = 1.5, HP_GROWTH = 1.25, ATK_GROWTH = 1.19, SOFT_FROM = 50, HP_SOFT_GROWTH = 1.22, ATK_SOFT_GROWTH = 1.15;
   const monsterMaxHp = (stage) =>
-    Math.round(24 * Math.pow(HP_GROWTH, Math.min(stage, SOFT_FROM) - 1) * Math.pow(HP_SOFT_GROWTH, Math.max(0, Math.min(stage, LATE_FROM) - SOFT_FROM)) * Math.pow(HP_LATE_GROWTH, Math.max(0, stage - LATE_FROM))) * (isBossStage(stage) ? BOSS_HP : 1);
+    Math.round(24 * Math.pow(HP_GROWTH, Math.min(stage, SOFT_FROM) - 1) * Math.pow(HP_SOFT_GROWTH, Math.max(0, Math.min(stage, LATE_FROM) - SOFT_FROM)) * Math.pow(HP_LATE_GROWTH, Math.max(0, Math.min(stage, END_FROM) - LATE_FROM)) * Math.pow(HP_END_GROWTH, Math.max(0, stage - END_FROM))) * (isBossStage(stage) ? BOSS_HP : 1);
   const monsterAtk = (stage) =>
     2 * Math.pow(ATK_GROWTH, Math.min(stage, SOFT_FROM) - 1) * Math.pow(ATK_SOFT_GROWTH, Math.max(0, stage - SOFT_FROM)) * (isBossStage(stage) ? BOSS_ATK : 1);
   const monsterGold = (stage) =>
@@ -1971,7 +1976,7 @@
     upgradeCost, canBuy, buy, planBuy, buyMany,
     prestigeGain, prestigeInfo, PRESTIGE_FULL_SEC, canPrestige, prestige,
     serialize, deserialize,
-    TOKEN_BONUS, maxHp, hitDmg, attacksPerSec, companionDps, totalDps, goldMult, expNeeded, tokenMult,
+    TOKEN_BONUS, TOKEN_POW, maxHp, hitDmg, attacksPerSec, companionDps, totalDps, goldMult, expNeeded, tokenMult,
     monsterAtk, monsterGold, monsterInfo, biomeOf, roundOf, BIOME_LEN, NORMAL_SLOTS, isBossStage, lookId, classTitle,
     STORE: St, potionV, dayKey, creditCrystals, buyProduct, shopSync, shopStock, buyShopItem, rerollShop, specialV, adToday, adStatus, claimAd, shopItemLevel, unownedRelics,
     SKILL_KINDS: Sk.KINDS, SKILL_NAMES: Sk.SKILLS, describeSkill: Sk.describeSkill, MELEE_STYLES: Sk.MELEE_STYLES, ATTACK_STYLE: Sk.ATTACK_STYLE,
