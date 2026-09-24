@@ -1002,3 +1002,34 @@ svg { display: block; }
 .slot__lock { position: absolute; right: 5px; top: 18px; font-style: normal; font-size: 11px; filter: drop-shadow(0 0 2px #000); }
 .itemd__lock { width: 100%; margin-top: 6px; padding: 7px; font-size: 12.5px; }
 .itemd__locknote { display: block; margin-top: 4px; color: var(--muted); font-size: 11.5px; }
+
+/* ---- 미니게임 품질 개선: 카운트다운 · 결과 등급 · 흙더미 구멍 · 판정 ---- */
+.mg__stage { position: relative; }
+.mg__count { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 64px; font-weight: 900; color: #fff; text-shadow: 0 4px 0 rgba(0, 0, 0, 0.5), 0 0 24px rgba(255, 212, 121, 0.8); background: rgba(8, 12, 30, 0.55); border-radius: 10px; z-index: 5; pointer-events: none; }
+.mg__count.is-go { color: var(--gold); }
+.mg__grid--3 { grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.mg__hole { background: radial-gradient(ellipse at 50% 88%, #1a0f08 0 30%, rgba(0, 0, 0, 0.25) 62%); border-color: rgba(120, 90, 60, 0.5); }
+.mg__mound { position: absolute; left: 6%; right: 6%; bottom: 4%; height: 26%; border-radius: 50% 50% 40% 40%; background: linear-gradient(180deg, #8a5a32, #5a3a1e); box-shadow: inset 0 3px 0 rgba(255, 220, 170, 0.25); z-index: 2; pointer-events: none; }
+.mg__hole-in { z-index: 1; }
+.mg__combo { margin-left: 8px; font-weight: 900; color: #6fe0c0; }
+.mg__combo.is-hot { color: var(--gold); text-shadow: 0 0 8px rgba(255, 212, 121, 0.9); }
+.mg__pop { position: absolute; font-weight: 900; font-size: 20px; color: var(--green); pointer-events: none; text-shadow: 0 2px 3px rgba(0, 0, 0, 0.6); z-index: 6; }
+.mg__pop--good { color: #6fe0c0; }
+.mg__judge { margin-left: 8px; font-weight: 900; display: inline-block; }
+.mg__judge.is-crit { color: var(--green); } .mg__judge.is-hit { color: var(--gold); } .mg__judge.is-miss { color: var(--red); }
+.mg__dots { display: flex; justify-content: center; gap: 6px; margin: -4px 0 10px; }
+.mg__dots i { width: 12px; height: 12px; border-radius: 50%; background: rgba(0, 0, 0, 0.4); border: 1px solid var(--line); }
+.mg__dots i.is-crit { background: var(--green); } .mg__dots i.is-hit { background: var(--gold); } .mg__dots i.is-miss { background: var(--red); }
+.mg__zone, .mg__zone--crit { transition: left 0.25s ease-out; }
+.mg__lane { height: 76px; border-radius: 12px; background: linear-gradient(90deg, rgba(122, 74, 255, 0.25), rgba(0, 0, 0, 0.2)); }
+.mg__boss { position: absolute; left: 0; top: 2px; width: 70px; height: 72px; }
+.mg__boss img, .mg__boss svg { width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 3px 3px rgba(0, 0, 0, 0.5)); }
+.mg__bolt { top: 8px; }
+.mg__guard { top: 8px; transition: filter 0.1s, transform 0.1s; }
+.mg__guard.is-warn { filter: drop-shadow(0 0 12px #6fe0c0) brightness(1.4); transform: scale(1.12); }
+.mg__result { text-align: center; padding: 8px 0 2px; position: relative; }
+.mg__grade { font-size: 84px; font-weight: 900; line-height: 1; text-shadow: 0 5px 0 rgba(0, 0, 0, 0.45), 0 0 26px currentColor; }
+.mg__resline { margin-top: 10px; font-size: 16px; }
+.mg__resline b { color: var(--gold); font-size: 20px; }
+.mg__resdetail { margin: 6px 0 12px; font-size: 13px; color: var(--muted); }
+.mg__resdetail b { color: var(--ink); }

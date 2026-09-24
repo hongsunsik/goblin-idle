@@ -2582,7 +2582,7 @@ test('같은 기간에는 다시 동기화해도 진행이 그대로고, 날이 
   assert.strictEqual(s.dungeons.weekly.key, weeklyKey, '같은 주 안에서는 주간이 그대로다');
 });
 test('도전은 기간의 한도(attempts) 안에서만 되고, 넘으면 reason:limit이다', () => {
-  const s = G.createState(0); s.bestStage = 100;
+  const s = G.createState(0); s.bestStage = s.runBest = 100;
   G.dungeonSync(s, '2026-09-22');
   for (let i = 0; i < G.DUNGEONS.weekly.attempts; i++) assert.strictEqual(G.challengeDungeon(s, 'weekly').ok, true);
   const r = G.challengeDungeon(s, 'weekly');
@@ -2590,7 +2590,7 @@ test('도전은 기간의 한도(attempts) 안에서만 되고, 넘으면 reason
   assert.strictEqual(r.reason, 'limit');
 });
 test('피해 예산이 충분하면 모든 파동을 물리치고, 처음 완주할 때만 완주 보너스를 준다', () => {
-  const s = G.createState(0); s.bestStage = 100; s.level = 60;
+  const s = G.createState(0); s.bestStage = s.runBest = 100; s.level = 60;
   for (const k of G.UPGRADE_KEYS) s.upgrades[k] = 200;
   G.promote(s, 'mage'); G.promote(s, 'necromancer'); G.promote(s, 'lich'); G.promote(s, 'lichking');
   G.dungeonSync(s, '2026-09-22');
@@ -2605,7 +2605,7 @@ test('피해 예산이 충분하면 모든 파동을 물리치고, 처음 완주
   assert.strictEqual(s.dungeons.weekly.bonusClaimed, true);
 });
 test('피해 예산이 모자라면 그 자리에서 멈추고, 도전은 소모되지만 완주 보상은 없다', () => {
-  const s = G.createState(0); s.bestStage = 150;   // 갓 시작한 고블린이 스테이지 150 던전에 도전
+  const s = G.createState(0); s.bestStage = s.runBest = 150;   // 갓 시작한 고블린이 스테이지 150 던전에 도전
   G.dungeonSync(s, '2026-09-22');
   const r = G.challengeDungeon(s, 'monthly');
   assert.strictEqual(r.ok, true);
@@ -2615,7 +2615,7 @@ test('피해 예산이 모자라면 그 자리에서 멈추고, 도전은 소모
   assert.strictEqual(s.dungeons.monthly.used, 1, '실패해도 도전 횟수는 줄어든다');
 });
 test('저장·복원: 그대로 돌아오고, 조작된 값(없는 이름표·한도를 넘는 횟수·가짜 보스)은 걸러진다', () => {
-  const s = G.createState(0); s.bestStage = 100; s.level = 60;
+  const s = G.createState(0); s.bestStage = s.runBest = 100; s.level = 60;
   for (const k of G.UPGRADE_KEYS) s.upgrades[k] = 200;
   G.promote(s, 'mage'); G.promote(s, 'necromancer'); G.promote(s, 'lich'); G.promote(s, 'lichking');
   G.dungeonSync(s, '2026-09-22');
@@ -2634,7 +2634,7 @@ test('저장·복원: 그대로 돌아오고, 조작된 값(없는 이름표·�
   assert.deepStrictEqual(G.deserialize(JSON.stringify(old)).dungeons, { daily: null, weekly: null, monthly: null });
 });
 test('던전 보상 크리스탈이 상한(10억)을 넘지 않는다', () => {
-  const s = G.createState(0); s.bestStage = 100; s.level = 60;
+  const s = G.createState(0); s.bestStage = s.runBest = 100; s.level = 60;
   for (const k of G.UPGRADE_KEYS) s.upgrades[k] = 200;
   G.promote(s, 'mage'); G.promote(s, 'necromancer'); G.promote(s, 'lich'); G.promote(s, 'lichking');
   G.dungeonSync(s, '2026-09-22'); s.crystals = 1e9 - 1;
@@ -2661,7 +2661,7 @@ test('패턴 반격: 연속 성공(콤보)일수록 한 번의 성공 가치가 
   assert.ok(G.parryBonus(Array(30).fill(true)) <= 0.5);
 });
 test('미니게임 보너스만큼 도전 한 번의 피해 예산(=처치 가능한 파동)이 늘어난다', () => {
-  const s = G.createState(0); s.bestStage = 100; s.level = 60;
+  const s = G.createState(0); s.bestStage = s.runBest = 100; s.level = 60;
   for (const k of G.UPGRADE_KEYS) s.upgrades[k] = 40;
   G.dungeonSync(s, '2026-09-22');
   const s2 = JSON.parse(G.serialize(s, 1));
@@ -2670,7 +2670,7 @@ test('미니게임 보너스만큼 도전 한 번의 피해 예산(=처치 가�
   assert.ok(withBonus.wavesCleared >= without.wavesCleared, '보너스가 있으면 적어도 같거나 더 많이 처치한다');
 });
 test('미니게임 보너스는 0~50%로 잘린다(음수·과도한 값 방어)', () => {
-  const base = () => { const s = G.createState(0); s.bestStage = 100; s.level = 60; for (const k of G.UPGRADE_KEYS) s.upgrades[k] = 40; G.dungeonSync(s, '2026-09-22'); return s; };
+  const base = () => { const s = G.createState(0); s.bestStage = s.runBest = 100; s.level = 60; for (const k of G.UPGRADE_KEYS) s.upgrades[k] = 40; G.dungeonSync(s, '2026-09-22'); return s; };
   const rNeg = G.challengeDungeon(base(), 'monthly', -1);
   const rHalf = G.challengeDungeon(base(), 'monthly', 0.5);
   const rHuge = G.challengeDungeon(base(), 'monthly', 999);
@@ -2690,7 +2690,7 @@ test('던전·탑은 최고 스테이지가 입장 조건(일일 20·탑 30·주
   s.bestStage = 30; assert.strictEqual(G.climbTower(s).ok, true);
 });
 section('던전 개선 (예상·파동별 보스·전투 기록·소탕·위로 보상)');
-const dgBase = (lv = 40) => { const s = G.createState(0); s.bestStage = 100; s.level = 60; for (const k of G.UPGRADE_KEYS) s.upgrades[k] = lv; G.dungeonSync(s, '2026-09-22'); return s; };
+const dgBase = (lv = 40) => { const s = G.createState(0); s.bestStage = s.runBest = 100; s.level = 60; for (const k of G.UPGRADE_KEYS) s.upgrades[k] = lv; G.dungeonSync(s, '2026-09-22'); return s; };
 test('파동별 보스: 마지막 파동은 대표 보스이고, 파동 수만큼 모두 그 던전의 보스 목록 안에서 나온다', () => {
   const s = dgBase();
   for (const p of G.DUNGEON_PERIODS) {
@@ -2744,7 +2744,7 @@ test('소탕: 완주한 적이 없으면 거절하고, 완주 뒤엔 최고 보�
   assert.strictEqual(s.dungeons.daily.used, 2);
 });
 test('던전 보스 체력·골드는 최고 스테이지가 보스 스테이지(10의 배수)여도 튀지 않고 스테이지에 따라 매끄럽게 는다', () => {
-  const at = (st) => { const s = dgBase(); s.bestStage = st; return G.dungeonBossHp(s, 'monthly', 0); };
+  const at = (st) => { const s = dgBase(); s.bestStage = s.runBest = st; return G.dungeonBossHp(s, 'monthly', 0); };
   assert.ok(at(109) < at(110) && at(110) < at(111), '109 < 110 < 111');
   assert.ok(at(110) / at(109) < 1.5, '보스 스테이지 배율(6배)이 끼지 않는다');
 });

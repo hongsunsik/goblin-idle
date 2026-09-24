@@ -286,7 +286,7 @@
   const lastEv = {};
   function sfxEvent(name, arg) {
     if (!sfxOn || !ctx || ctx.state !== 'running') return;
-    const now = ctx.currentTime, gap = { kill: 0.12, levelup: 0.4, drop: 0.2, down: 1, boss: 1 }[name] || 0.2;
+    const now = ctx.currentTime, gap = { kill: 0.12, levelup: 0.4, drop: 0.2, down: 1, boss: 1, mgHit: 0.03, mgPerfect: 0.03, mgMiss: 0.05, mgCount: 0.2, mgGo: 0.2, mgResult: 0.5 }[name] || 0.2;
     if (now - (lastEv[name] || 0) < gap) return;
     lastEv[name] = now; sfxCount += 1;
     const g = G, b = G.sfxBus, t = now + 0.005;
@@ -306,6 +306,13 @@
         break;
       }
       case 'down': notes([392, 330, 262, 196], 0.12, 'triangle', 0.08); break;   // 쓰러짐: 내려가는 소리
+      // 미니게임: 카운트다운 삑 · 시작 삐익 · 맞힘(콤보가 쌓일수록 높아짐) · 완벽 · 실패 · 결과(등급별)
+      case 'mgCount': T('square', 660, 0.09, 0.06); break;
+      case 'mgGo': T('square', 990, 0.25, 0.07); T('square', 1320, 0.25, 0.04); break;
+      case 'mgHit': { const up = Math.min(12, arg || 0); T('square', 700 * Math.pow(2, up / 24), 0.07, 0.07, { slide: 1000 * Math.pow(2, up / 24) }); N(0.04, 0.1, 2500, 'bandpass'); break; }
+      case 'mgPerfect': notes([880, 1175, 1568], 0.045, 'square', 0.06); N(0.05, 0.1, 4000); break;
+      case 'mgMiss': T('sawtooth', 300, 0.18, 0.06, { slide: 150 }); break;
+      case 'mgResult': notes(arg === 'S' ? [784, 988, 1175, 1568, 1976] : arg === 'A' ? [784, 988, 1175, 1568] : arg === 'B' ? [659, 784, 988] : [523, 659], 0.07, 'triangle', 0.08); break;
       case 'boss': T('sawtooth', 110, 0.5, 0.06, { slide: 82 }); T('sawtooth', 116, 0.5, 0.05, { slide: 87 }); N(0.4, 0.08, 300, 'lowpass'); break;   // 보스 등장 경고음
       default: break;
     }

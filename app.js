@@ -2734,7 +2734,7 @@
   function playDungeonMinigame(period, info) {
     $('mgTitle').textContent = DUNGEON_MINIGAME_NAME[period] || info.name;
     $('mgModal').hidden = false;
-    Mini.play(period, $('mgStage'), (bonus) => resolveDungeonChallenge(period, info, bonus, false));
+    Mini.play(period, $('mgStage'), (bonus) => resolveDungeonChallenge(period, info, bonus, false), { bossArt: A.bossArt(G.BOSS_ART[info.boss]) });
   }
   function doDungeonChallenge(period) {
     const info = G.dungeonInfo(state, period);

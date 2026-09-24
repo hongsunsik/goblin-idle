@@ -497,8 +497,11 @@
   }
   // 던전은 '최고 스테이지의 일반 몬스터' 기준이다. 보스 스테이지(10의 배수) 배율까지 따라가면
   // 최고 기록이 110·120처럼 딱 보스 스테이지일 때만 던전이 체력 6배·골드 5배로 튀었다.
-  const dgBaseHp = (s) => monsterMaxHp(s.bestStage) / (isBossStage(s.bestStage) ? BOSS_HP : 1);
-  const dgBaseGold = (s) => monsterGold(s.bestStage) / (isBossStage(s.bestStage) ? BOSS_GOLD : 1);
+  // 던전 난이도·보상은 '이번 판의 최고 스테이지' 기준이다. 예전(평생 최고 스테이지)은 환생 뒤 공격력이 한참 낮은데 보스는 그대로라
+  // 판 대부분 동안 못 깼다 (tools/balance.js 실측: 4일째부터 완주 가능한 순간 3%, 15일 뒤 0%). 판 후반에 도전할수록 보상도 크다.
+  const dgStage = (s) => Math.max(1, s.runBest);
+  const dgBaseHp = (s) => monsterMaxHp(dgStage(s)) / (isBossStage(dgStage(s)) ? BOSS_HP : 1);
+  const dgBaseGold = (s) => monsterGold(dgStage(s)) / (isBossStage(dgStage(s)) ? BOSS_GOLD : 1);
   const dungeonBossHp = (s, period, wave) => Math.round(dgBaseHp(s) * Dg.DUNGEONS[period].hpMult * Math.pow(Dg.DUNGEONS[period].hpStep, wave));
   // 화면 표시용 현황
   function dungeonInfo(s, period) {
@@ -567,7 +570,7 @@
       budget -= need;
       wavesCleared += 1;
       fights.push({ boss: bosses[w], hp: need, dealt: need, killed: true });
-      const it = rollItem(s, s.bestStage, true, rollFromOdds(cfg.odds));
+      const it = rollItem(s, dgStage(s), true, rollFromOdds(cfg.odds));
       giveItem(s, it);   // 등급 기록(tallyRarity)은 giveItem 안에서 한다 — 예전엔 여기서 한 번 더 세서 업적이 두 배로 올랐다
       drops.push(it);
       s.gold += Math.ceil(dgBaseGold(s) * cfg.reward.gold * goldMult(s));
@@ -582,7 +585,7 @@
       s.crystals = Math.min(1e9, s.crystals + Math.round(cfg.clear.crystals * conquestMult(s)));
       s.gold += Math.ceil(dgBaseGold(s) * cfg.clear.gold * goldMult(s));
       if (cfg.clear.tokens) s.tokens += cfg.clear.tokens;
-      const it = rollItem(s, s.bestStage, true, rollFromOdds(cfg.clear.boxOdds));
+      const it = rollItem(s, dgStage(s), true, rollFromOdds(cfg.clear.boxOdds));
       giveItem(s, it);
       bonus = { crystals: Math.round(cfg.clear.crystals * conquestMult(s)), gold: cfg.clear.gold, tokens: cfg.clear.tokens || 0, item: it };
     }

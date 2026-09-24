@@ -10,7 +10,8 @@ const G = require(process.env.GAME || '../game.js');   // 실험용: GAME=변형
 const DAYS = Number(process.argv[2]) || 7, SEEDS = Number(process.argv[3]) || 4, JSON_OUT = process.argv.includes('--json');
 const ACTIVE_MIN = Number(process.env.ACTIVE_MIN || 120), PRESTIGE_MIN = Number(process.env.PRESTIGE_MIN || 10), STALL = Number(process.env.STALL || 90);
 const DAY_MS = 864e5, T0 = Date.UTC(2026, 8, 21, 3);   // 한국 시간 정오쯤
-const DT = Number(process.env.DT || 1);   // 몇 초씩 묶어 계산할지 (장기 시뮬레이션은 5~10으로 빠르게)
+const DT = Number(process.env.DT || 1);
+const DGSTAT = !!process.env.DGSTAT, DGS = {};   // DGSTAT=1: 던전 난이도 표본을 모아 끝에 요약   // 몇 초씩 묶어 계산할지 (장기 시뮬레이션은 5~10으로 빠르게)
 
 function seeded(seed) { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 const BUY = ['weapon', 'armor', 'speed', 'companion', 'loot'];
@@ -64,6 +65,9 @@ function runSeed(seed, path) {
       if (s.runBest > lastBest || s.runBest < lastBest) { lastBest = s.runBest; lastBestAt = playSec; }
       for (const m of [50, 100, 150, 200, 250, 300]) if (s.bestStage >= m) mark('스테이지' + m, playSec);
       if (t % 60 === 0) { gearCare(s); if (t === 600 || t === ACTIVE_MIN * 60 - 60) content(); }
+      // 던전 난이도 표본: 5분마다 '지금 도전하면' 완주에 필요한 체력 대비 피해 예산 (미니게임 0 / 상한의 60%)
+      if (DGSTAT && t % 300 === 0) for (const p of G.DUNGEON_PERIODS) { const i = G.dungeonInfo(s, p); if (!i || s.bestStage < (G.DUNGEONS[p].minStage || 0)) continue;
+        const need = i.bossHp.reduce((a, b) => a + b, 0); (DGS[p] = DGS[p] || []).push([d + 1, i.budget / need, (i.budgetMax / need)]); }
       const stalled = playSec - lastBestAt >= STALL;
       if (stalled) walls[s.runBest] = (walls[s.runBest] || 0) + DT;
       if (s.runT >= PRESTIGE_MIN * 60 && stalled && G.canPrestige(s)) { G.prestige(s); prestiges += 1; spendTokens(s); lastBest = 0; lastBestAt = playSec; }
@@ -89,6 +93,17 @@ const results = [];
 const ONLY = process.env.ONLY !== undefined ? Number(process.env.ONLY) : null;   // 병렬로 나눠 돌릴 때: 이 번호의 씨앗만
 for (let i = 0; i < SEEDS; i++) if (ONLY === null || ONLY === i) results.push({ path: PATHS[i % PATHS.length], ...runSeed(1000 + i, PATHS[i % PATHS.length]) });
 if (JSON_OUT) { console.log(JSON.stringify(results)); process.exit(0); }
+if (DGSTAT) {
+  const q = (a, f) => a[Math.floor(f * (a.length - 1))].toFixed(2);
+  for (const [p, arr] of Object.entries(DGS)) {
+    for (const [lo, hi] of [[1, 3], [4, 14], [15, 60], [61, 9999]]) {
+      const x = arr.filter((r) => r[0] >= lo && r[0] <= hi); if (!x.length) continue;
+      const a = x.map((r) => r[1]).sort((u, v) => u - v), b = x.map((r) => r[2]).sort((u, v) => u - v);
+      const ok = (arr2) => Math.round(arr2.filter((v) => v >= 1).length / arr2.length * 100);
+      console.log(`${p.padEnd(8)} ${lo}~${hi}일: 예산/필요 중앙값 ${q(a, 0.5)} (미니게임 60%면 ${q(b, 0.5)}) · 완주 가능한 순간 ${ok(a)}% (미니게임 60%면 ${ok(b)}%)`);
+    }
+  }
+}
 const fmtT = (sec) => (sec === undefined ? '  -  ' : `${(sec / 3600).toFixed(1)}h`);
 console.log(`하루 ${ACTIVE_MIN}분 접속 × ${DAYS}일, 씨앗 ${SEEDS}개 (환생: 판 ${PRESTIGE_MIN}분 이상 + ${STALL}초 정체)`);
 for (const r of results) {
