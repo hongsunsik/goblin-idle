@@ -433,20 +433,42 @@
       if (!s.dungeons[p] || s.dungeons[p].key !== keys[p]) {
         const cfg = Dg.DUNGEONS[p];
         const rng = seededRng([...keys[p]].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 11) + p.length * 733);
-        s.dungeons[p] = { key: keys[p], used: 0, cleared: false, bonusClaimed: false, bestWaves: 0, boss: cfg.boss[Math.floor(rng() * cfg.boss.length)] };
+        s.dungeons[p] = { key: keys[p], used: 0, cleared: false, bonusClaimed: false, bestWaves: 0, bestBonus: 0, boss: cfg.boss[Math.floor(rng() * cfg.boss.length)] };
         changed = true;
       }
     }
     return changed;
+  }
+  // 파동별 보스: 마지막 파동이 그 기간의 대표 보스이고, 앞 파동들은 같은 던전의 다른 보스들이 차례로 나온다.
+  function dungeonWaveBosses(period, boss) {
+    const cfg = Dg.DUNGEONS[period];
+    const others = cfg.boss.filter((b) => b !== boss);
+    return Array.from({ length: cfg.waves }, (_, w) => (w === cfg.waves - 1 ? boss : others[w % others.length]));
+  }
+  const dungeonBudget = (s, period, mgBonus = 0) => totalDps(s) * Dg.DUNGEONS[period].budgetSec * (1 + Math.max(0, Math.min(0.5, mgBonus)));
+  // 미리 보기: 이 미니게임 보너스로 도전하면 파동 몇 개까지 물리치나 (실제 도전과 같은 계산)
+  function dungeonForecast(s, period, mgBonus = 0) {
+    let budget = dungeonBudget(s, period, mgBonus), waves = 0;
+    for (let w = 0; w < Dg.DUNGEONS[period].waves; w++) {
+      const need = dungeonBossHp(s, period, w);
+      if (budget < need) break;
+      budget -= need; waves += 1;
+    }
+    return waves;
   }
   const dungeonBossHp = (s, period, wave) => Math.round(monsterMaxHp(s.bestStage) * Dg.DUNGEONS[period].hpMult * Math.pow(Dg.DUNGEONS[period].hpStep, wave));
   // 화면 표시용 현황
   function dungeonInfo(s, period) {
     const d = s.dungeons[period], cfg = Dg.DUNGEONS[period];
     if (!d || !cfg) return null;
+    const cap = MG_BONUS_CAP[period] || 0;
     return { period, name: cfg.name, boss: d.boss, waves: cfg.waves, bestWaves: d.bestWaves, used: d.used, attempts: cfg.attempts,
-             left: Math.max(0, cfg.attempts - d.used), cleared: d.cleared, bonusClaimed: d.bonusClaimed,
-             bossHp: Array.from({ length: cfg.waves }, (_, w) => dungeonBossHp(s, period, w)) };
+             left: Math.max(0, cfg.attempts - d.used), cleared: d.cleared, bonusClaimed: d.bonusClaimed, bestBonus: d.bestBonus || 0,
+             waveBosses: dungeonWaveBosses(period, d.boss),
+             bossHp: Array.from({ length: cfg.waves }, (_, w) => dungeonBossHp(s, period, w)),
+             budget: dungeonBudget(s, period, 0), budgetMax: dungeonBudget(s, period, cap), mgCap: cap,
+             forecast: dungeonForecast(s, period, 0), forecastMax: dungeonForecast(s, period, cap),
+             canSweep: d.cleared && cfg.attempts - d.used > 0 };
   }
   const dungeonClaimable = (s) => Dg.DUNGEON_PERIODS.filter((p) => s.dungeons[p] && s.dungeons[p].used < Dg.DUNGEONS[p].attempts).length;
   // 도전 전 미니게임 결과 → 피해 예산 보너스 (0~상한). 미니게임은 minigame.js가 화면에서 진행하고, 결과 수치만 여기서 점수로 바꾼다.
@@ -463,22 +485,39 @@
     }
     return Math.min(PARRY_BONUS_CAP, total);
   };
-  // 도전 한 번. bonus(0~0.5)는 미니게임 성과로 늘어난 피해 예산 배율. 결과: { ok, reason? | wavesCleared, waves, fullClear, drops[], bonus?, left }
-  function challengeDungeon(s, period, mgBonus = 0) {
+  const MG_BONUS_CAP = { daily: MOLE_BONUS_CAP, weekly: GAUGE_BONUS_CAP, monthly: PARRY_BONUS_CAP };   // 던전별 미니게임 보너스 상한
+  const PARTIAL_GOLD = 0.5;   // 못 물리친 파동: 깎은 체력 비율 × 파동 골드 보상 × 이 값만큼 위로 골드
+  // 도전 한 번. bonus(0~0.5)는 미니게임 성과로 늘어난 피해 예산 배율.
+  // 결과: { ok, reason? | wavesCleared, waves, fullClear, drops[], bonus?, left, budget, fights[{boss,hp,dealt,killed}], partialGold }
+  // fights는 화면의 전투 연출용 기록이다 (보상은 이미 여기서 다 준다).
+  // sweep=true: 소탕. 이번 기간에 완주한 적이 있어야 하고, 미니게임 대신 이번 기간 최고 미니게임 보너스를 쓴다.
+  function challengeDungeon(s, period, mgBonus = 0, sweep = false) {
     const cfg = Dg.DUNGEONS[period];
     const d = s.dungeons[period];
     if (!cfg || !d) return { ok: false, reason: 'unknown' };
     if (d.used >= cfg.attempts) return { ok: false, reason: 'limit' };
+    if (sweep && !d.cleared) return { ok: false, reason: 'nosweep' };
+    const cap = MG_BONUS_CAP[period] || 0;
+    const b = sweep ? (d.bestBonus || 0) : Math.max(0, Math.min(cap, num(mgBonus, 0)));
+    if (!sweep && b > (d.bestBonus || 0)) d.bestBonus = b;
     d.used += 1;
     s.stats.dungeonRuns += 1;
-    let budget = totalDps(s) * cfg.budgetSec * (1 + Math.max(0, Math.min(0.5, mgBonus)));
-    let wavesCleared = 0;
-    const drops = [];
+    const startBudget = dungeonBudget(s, period, b);
+    let budget = startBudget;
+    let wavesCleared = 0, partialGold = 0;
+    const drops = [], fights = [], bosses = dungeonWaveBosses(period, d.boss);
     for (let w = 0; w < cfg.waves; w++) {
       const need = dungeonBossHp(s, period, w);
-      if (budget < need) break;
+      if (budget < need) {
+        const frac = budget / need;
+        partialGold = Math.floor(monsterGold(s.bestStage) * cfg.reward.gold * goldMult(s) * frac * PARTIAL_GOLD);
+        s.gold += partialGold;
+        fights.push({ boss: bosses[w], hp: need, dealt: budget, killed: false });
+        break;
+      }
       budget -= need;
       wavesCleared += 1;
+      fights.push({ boss: bosses[w], hp: need, dealt: need, killed: true });
       const it = rollItem(s, s.bestStage, true, rollFromOdds(cfg.odds));
       giveItem(s, it);
       tallyRarity(s, it);
@@ -501,7 +540,8 @@
       bonus = { crystals: cfg.clear.crystals, gold: cfg.clear.gold, tokens: cfg.clear.tokens || 0, item: it };
     }
     s.stats.drops += drops.length;
-    return { ok: true, wavesCleared, waves: cfg.waves, fullClear, drops, bonus, left: Math.max(0, cfg.attempts - d.used) };
+    return { ok: true, wavesCleared, waves: cfg.waves, fullClear, drops, bonus, left: Math.max(0, cfg.attempts - d.used),
+             budget: startBudget, mgBonus: b, fights, partialGold, sweep };
   }
 
   // ---- 장비 ----
@@ -1581,6 +1621,7 @@
         bestWaves,
         cleared: d.cleared === true && bestWaves >= cfg.waves,
         bonusClaimed: d.bonusClaimed === true,
+        bestBonus: clamp(num(d.bestBonus, 0), 0, MG_BONUS_CAP[p] || 0),
         boss: typeof d.boss === 'string' && cfg.boss.includes(d.boss) ? d.boss : cfg.boss[0],
       };
     }
@@ -1699,7 +1740,7 @@
     GEAR_DESIGNS, itemDesign, setRandom, itemName, sellValue, rollItem, dropChance, isUpgrade, receiveItem, equipItem, unequipItem, sellBagItem, sellBagUpTo, sellBagItems, isWeaker, bagWeaker, gearMult,
     ENH_MAX, ENH_STEP, enhVal, enhCost, enhChance, enhanceItem, findItem, equipPower,
     claimAttend, QUEST_PERIODS, QUEST_CFG, QUEST_DEFS, periodKeys, periodSecsLeft, questSync, questBoard, questClaimable, claimQuest, claimQuestBonus,
-    DUNGEON_PERIODS: Dg.DUNGEON_PERIODS, DUNGEONS: Dg.DUNGEONS, BOSS_ART: Dg.BOSS_ART, dungeonSync, dungeonInfo, dungeonClaimable, dungeonBossHp, challengeDungeon,
+    DUNGEON_PERIODS: Dg.DUNGEON_PERIODS, DUNGEONS: Dg.DUNGEONS, BOSS_ART: Dg.BOSS_ART, dungeonSync, dungeonInfo, dungeonClaimable, dungeonBossHp, challengeDungeon, dungeonForecast, dungeonWaveBosses, MG_BONUS_CAP,
     moleBonus, gaugeBonus, parryBonus,
     PERKS, PERK_KEYS, HEADSTART_LV, perkLv, perkCost, perkSpent, tokenBalance, perkMissing, perkUnlocked, canBuyPerk, buyPerk, respecPerks, offlineCap,
     fmt, fmtTime,

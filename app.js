@@ -565,7 +565,15 @@
     return dur * release;
   }
   // 원거리: 손에서 몬스터까지 날아가는 것. 도착까지 걸리는 시간(ms)을 돌려준다.
+  // delay가 있으면 그만큼 기다렸다가(= 무기를 놓는 순간) 손 위치를 읽고 쏜다. 공격 시작 순간 위치로 쏘면 스윙 중 움직임이 반영되지 않는다.
   function projectile(style, delay, big) {
+    const flight = FLIGHT_MS[style] || 200;
+    if (delay > 0) { setTimeout(() => fireProjectile(style, big), delay); return flight; }
+    fireProjectile(style, big);
+    return flight;
+  }
+  function fireProjectile(style, big) {
+    const delay = 0;
     const a = handPos(style), b = targetPos();
     const dx = b.x - a.x, dy = b.y - a.y + rand(-8, 8);
     const ang = (Math.atan2(dy, dx) * 180) / Math.PI;
@@ -589,7 +597,6 @@
       const f = addFx('fx-spark', a.x + 8, a.y);
       playFx(f, [{ transform: 'scale(0.4)', opacity: 1 }, { transform: 'scale(1.4)', opacity: 0 }], { duration: 120, delay });
     }
-    return flight;
   }
   // 그 직업의 평타 한 번: 몸동작 + 궤적/투사체 + 몬스터 피격. 몬스터에 닿는 시각(ms)을 돌려준다.
   function classAttack(strong) {
@@ -2402,58 +2409,93 @@
   }
 
   // ---- 던전 (일일·주간·월간) ----
+  // 예상 파동 문구: 지금 그대로 / 미니게임을 잘하면 몇 파동까지 가는지
+  function dungeonForecastHtml(info) {
+    if (info.forecast >= info.waves) return `<span class="dfc dfc--ok">${A.icon('check')}지금 전투력으로 완주 가능</span>`;
+    if (info.forecastMax >= info.waves) return `<span class="dfc dfc--mid">미니게임을 잘하면 완주 가능 (지금은 ${info.forecast}/${info.waves})</span>`;
+    return `<span class="dfc dfc--hard">예상 ${info.forecast}/${info.waves} · 미니게임 만점이면 ${info.forecastMax}/${info.waves}</span>`;
+  }
   let dungeonKey = '';
   function renderDungeon(force) {
     const s = state;
     G.dungeonSync(s, today());
     const left = G.periodSecsLeft(serverNow());
-    const key = G.DUNGEON_PERIODS.map((p) => { const d = s.dungeons[p]; return `${d.key}:${d.used}:${d.bestWaves}:${d.bonusClaimed ? 1 : 0}`; }).join('|') + '#' + G.DUNGEON_PERIODS.map((p) => (left[p] === null ? 'x' : Math.floor(left[p] / 60))).join(',');
+    const infos = {};
+    for (const p of G.DUNGEON_PERIODS) infos[p] = G.dungeonInfo(s, p);
+    const key = G.DUNGEON_PERIODS.map((p) => { const d = s.dungeons[p], i = infos[p]; return `${d.key}:${d.used}:${d.bestWaves}:${d.bonusClaimed ? 1 : 0}:${i.forecast}:${i.forecastMax}`; }).join('|') + '#' + G.DUNGEON_PERIODS.map((p) => (left[p] === null ? 'x' : Math.floor(left[p] / 60))).join(',');
     if (!force && key === dungeonKey) return;
     dungeonKey = key;
     $('dungeonList').innerHTML = G.DUNGEON_PERIODS.map((p) => {
-      const info = G.dungeonInfo(s, p), secLeft = left[p];
+      const info = infos[p], secLeft = left[p];
       const dots = Array.from({ length: info.waves }, (_, i) => `<i class="dwave ${i < info.bestWaves ? 'is-on' : ''}"></i>`).join('');
       const clearNote = info.bonusClaimed ? `<span class="dclear">${A.icon('chest')}완주 보상 받음</span>` : '';
-      const btn = `<button class="btn ${info.left > 0 ? 'btn--gold' : 'btn--gray'} prod__btn" type="button" data-dchallenge="${p}" ${info.left > 0 ? '' : 'disabled'}><span>${info.left > 0 ? '도전' : '오늘 끝'}</span><small>${A.icon('ticket')}${info.left}/${info.attempts}</small></button>`;
+      const label = info.left <= 0 ? '오늘 끝' : info.canSweep ? '도전·소탕' : '도전';
+      const btn = `<button class="btn ${info.left > 0 ? 'btn--gold' : 'btn--gray'} prod__btn" type="button" data-dchallenge="${p}" ${info.left > 0 ? '' : 'disabled'}><span>${label}</span><small>${A.icon('ticket')}${info.left}/${info.attempts}</small></button>`;
       return `<div class="card prod dungeon"><div class="prod__tile prod__tile--boss" style="--tone:#7a4aff99">${A.bossArt(G.BOSS_ART[info.boss])}</div>` +
         `<div><div class="prod__name">${info.name} <span class="prod__chip">${info.boss}</span></div>` +
         `<div class="prod__desc">파동 ${info.waves > 1 ? `${info.bestWaves}/${info.waves} 최고 기록` : (info.cleared ? '처치' : '미처치')} ${clearNote}</div>` +
         `<div class="dwaves">${dots}</div>` +
+        `<div class="prod__desc">${dungeonForecastHtml(info)}</div>` +
         `<div class="prod__desc">초기화까지 ${secLeft === null ? '서버 시각을 확인하지 못했어요' : clockText(secLeft)}</div></div>${btn}</div>`;
     }).join('');
   }
+  const itemLine = (it) => { const R = G.RARITIES[it.r]; return `<div class="got" style="--rc:${R.color}">${gearArt(it)}<div><b>[${R.name}] ${G.itemName(it)}</b><small>${G.GEAR[it.slot].kinds[it.kind].label} +${fmtVal(it.val)}%</small></div></div>`; };
   function showDungeonResult(info, r) {
-    const item = (it) => { const R = G.RARITIES[it.r]; return `<div class="got" style="--rc:${R.color}">${gearArt(it)}<div><b>[${R.name}] ${G.itemName(it)}</b><small>${G.GEAR[it.slot].kinds[it.kind].label} +${fmtVal(it.val)}%</small></div></div>`; };
-    const waveLines = r.drops.map(item).join('');
-    const bonus = r.bonus ? `<div style="margin:10px 0 6px;font-weight:900;color:var(--gold)">${A.icon('chest')} 완주 보상! ${GEM}${r.bonus.crystals}${r.bonus.tokens ? ` · ${A.icon('crown')}증표 +${r.bonus.tokens}` : ''}</div>${item(r.bonus.item)}` : '';
-    const body = (waveLines + bonus) || '<div>보스를 물리치지 못했어요. 더 강해져서 다시 도전해 보세요.</div>';
+    const waveLines = r.drops.map(itemLine).join('');
+    const partial = r.partialGold > 0 ? `<div class="dres__partial">${A.icon('coin')} 깎아 둔 만큼 위로 골드 +${G.fmt(r.partialGold)}</div>` : '';
+    const bonus = r.bonus ? `<div style="margin:10px 0 6px;font-weight:900;color:var(--gold)">${A.icon('chest')} 완주 보상! ${GEM}${r.bonus.crystals}${r.bonus.tokens ? ` · ${A.icon('crown')}증표 +${r.bonus.tokens}` : ''}</div>${itemLine(r.bonus.item)}` : '';
+    const head = `<div class="dres__head">${r.sweep ? '소탕' : '미니게임'} 보너스 +${Math.round(r.mgBonus * 100)}%</div>`;
+    const body = head + ((waveLines + bonus) || '<div>보스를 물리치지 못했어요. 더 강해져서 다시 도전해 보세요.</div>') + partial;
     openModal(r.fullClear ? `${info.name} 완주!` : `${info.name} · 파동 ${r.wavesCleared}/${r.waves}`, body, [{ text: '확인', cls: 'btn--gold' }]);
   }
   const DUNGEON_MINIGAME_NAME = { daily: '두더지 잡기', weekly: '타이밍 게이지', monthly: '패턴 회피·반격' };
-  function resolveDungeonChallenge(period, info, mgBonus) {
-    const r = G.challengeDungeon(state, period, mgBonus);
-    if (!r.ok) { openModal('도전할 수 없어요', r.reason === 'limit' ? '오늘 도전 횟수를 다 썼어요' : '다시 시도해 주세요', [{ text: '확인' }]); return; }
+  // 도전 결과를 먼저 확정·저장하고(중간에 앱을 꺼도 보상은 남는다), 보스 체력이 깎이는 전투 연출을 보여 준 뒤 결과 창을 띄운다.
+  function resolveDungeonChallenge(period, info, mgBonus, sweep) {
+    const r = G.challengeDungeon(state, period, mgBonus, sweep);
+    if (!r.ok) { $('mgModal').hidden = true; openModal('도전할 수 없어요', r.reason === 'limit' ? '오늘 도전 횟수를 다 썼어요' : r.reason === 'nosweep' ? '먼저 한 번 완주해야 소탕할 수 있어요' : '다시 시도해 주세요', [{ text: '확인' }]); return; }
     for (const it of r.drops) gearNew.add(it.id);
     if (r.bonus) gearNew.add(r.bonus.item.id);
-    addLog(`${info.name}: 파동 ${r.wavesCleared}/${r.waves}${r.fullClear ? ' 완주!' : ''}`, r.fullClear ? 'is-gold' : '', 'gate');
+    addLog(`${info.name}${r.sweep ? ' 소탕' : ''}: 파동 ${r.wavesCleared}/${r.waves}${r.fullClear ? ' 완주!' : ''}`, r.fullClear ? 'is-gold' : '', 'gate');
     cloudSoon(); writeSave(); render(); renderDungeon(true); renderGear(true);
-    showDungeonResult(info, r);
+    const fights = r.fights.map((f, i) => {
+      const it = f.killed ? r.drops[i] : null;
+      return { name: f.boss, art: A.bossArt(G.BOSS_ART[f.boss]), hp: f.hp, dealt: f.dealt, killed: f.killed,
+               drop: it ? { color: G.RARITIES[it.r].color, label: `[${G.RARITIES[it.r].name}] ${G.itemName(it)}` } : null };
+    });
+    $('mgTitle').textContent = `${info.name} 전투`;
+    $('mgModal').hidden = false;
+    Mini.fight($('mgStage'), fights, r.budget, { waves: r.waves, calm: calm(), fmt: G.fmt }, () => {
+      $('mgModal').hidden = true;
+      showDungeonResult(info, r);
+    });
   }
   function playDungeonMinigame(period, info) {
     $('mgTitle').textContent = DUNGEON_MINIGAME_NAME[period] || info.name;
     $('mgModal').hidden = false;
-    Mini.play(period, $('mgStage'), (bonus) => {
-      $('mgModal').hidden = true;
-      resolveDungeonChallenge(period, info, bonus);
-    });
+    Mini.play(period, $('mgStage'), (bonus) => resolveDungeonChallenge(period, info, bonus, false));
   }
   function doDungeonChallenge(period) {
     const info = G.dungeonInfo(state, period);
     if (!info || info.left <= 0) return;
+    // 파동별 보스와 체력, 내 피해 예산이 어디까지 닿는지 한눈에 (누적 체력 기준)
+    let acc = 0;
+    const rows = info.waveBosses.map((name, i) => {
+      acc += info.bossHp[i];
+      const st = info.budget >= acc ? 'ok' : info.budgetMax >= acc ? 'mid' : 'hard';
+      const mark = st === 'ok' ? A.icon('check') : st === 'mid' ? '<em>미니게임</em>' : '<em>무리</em>';
+      return `<div class="dwrow dwrow--${st}"><span class="dwrow__art">${A.bossArt(G.BOSS_ART[name])}</span><span class="dwrow__name">${i + 1}. ${name}</span><span class="dwrow__hp">${G.fmt(info.bossHp[i])}</span><span class="dwrow__mark">${mark}</span></div>`;
+    }).join('');
+    const sweepNote = info.canSweep ? `<br><small>소탕: 미니게임 없이 이번 ${period === 'daily' ? '날' : period === 'weekly' ? '주' : '달'} 최고 보너스(+${Math.round(info.bestBonus * 100)}%)로 바로 도전해요.</small>` : '';
+    const buttons = [{ text: '취소' }];
+    if (info.canSweep) buttons.push({ text: '소탕', onClick: () => resolveDungeonChallenge(period, info, 0, true) });
+    buttons.push({ text: '도전!', cls: 'btn--gold', onClick: () => playDungeonMinigame(period, info) });
     openModal(`${info.name} 도전`,
       `<div class="dungeon__bossart">${A.bossArt(G.BOSS_ART[info.boss])}</div>` +
-      `<b>${info.boss}</b>${info.waves > 1 ? ` 외 파동 ${info.waves}마리` : ''}에게 도전해요.<br><small>미니게임(${DUNGEON_MINIGAME_NAME[period]})으로 피해 예산을 늘릴 수 있어요. 남은 도전 ${info.left}/${info.attempts}번.</small>`,
-      [{ text: '취소' }, { text: '도전!', cls: 'btn--gold', onClick: () => playDungeonMinigame(period, info) }]);
+      `<b>${info.boss}</b>${info.waves > 1 ? ` 외 파동 ${info.waves}마리` : ''}에게 도전해요.` +
+      `<div class="dwlist">${rows}</div>` +
+      `<div class="dwbudget">내 피해 예산 <b>${G.fmt(info.budget)}</b> → 미니게임 만점 시 <b>${G.fmt(info.budgetMax)}</b> (+${Math.round(info.mgCap * 100)}%)</div>` +
+      `<small>미니게임(${DUNGEON_MINIGAME_NAME[period]})으로 피해 예산을 늘릴 수 있어요. 남은 도전 ${info.left}/${info.attempts}번.</small>${sweepNote}`,
+      buttons);
   }
   document.querySelector('.tab[data-tab="dungeon"]').addEventListener('click', (e) => {
     const b = e.target.closest('button[data-dchallenge]');

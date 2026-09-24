@@ -2668,6 +2668,68 @@ test('미니게임 보너스는 0~50%로 잘린다(음수·과도한 값 방어)
   assert.deepStrictEqual(rHuge.wavesCleared, rHalf.wavesCleared, '50%를 넘겨도 더 늘어나지 않는다');
 });
 
+section('던전 개선 (예상·파동별 보스·전투 기록·소탕·위로 보상)');
+const dgBase = (lv = 40) => { const s = G.createState(0); s.bestStage = 5; s.level = 60; for (const k of G.UPGRADE_KEYS) s.upgrades[k] = lv; G.dungeonSync(s, '2026-09-22'); return s; };
+test('파동별 보스: 마지막 파동은 대표 보스이고, 파동 수만큼 모두 그 던전의 보스 목록 안에서 나온다', () => {
+  const s = dgBase();
+  for (const p of G.DUNGEON_PERIODS) {
+    const info = G.dungeonInfo(s, p);
+    assert.strictEqual(info.waveBosses.length, G.DUNGEONS[p].waves);
+    assert.strictEqual(info.waveBosses[info.waveBosses.length - 1], info.boss);
+    for (const b of info.waveBosses) assert.ok(G.DUNGEONS[p].boss.includes(b));
+    if (info.waves > 1) assert.notStrictEqual(info.waveBosses[0], info.boss, '앞 파동은 다른 보스');
+  }
+});
+test('예상 파동 수는 실제 도전 결과와 같다 (보너스 0과 상한 모두)', () => {
+  for (const lv of [5, 20, 40, 80]) for (const p of G.DUNGEON_PERIODS) for (const bonus of [0, G.MG_BONUS_CAP[p]]) {
+    const s = dgBase(lv);
+    const f = G.dungeonForecast(s, p, bonus);
+    assert.strictEqual(G.challengeDungeon(s, p, bonus).wavesCleared, f, `${p} lv${lv} bonus${bonus}`);
+  }
+});
+test('전투 기록: 물리친 파동은 체력만큼, 막힌 파동은 남은 예산만큼 피해를 기록하고 합이 시작 예산을 넘지 않는다', () => {
+  const s = dgBase(5); s.bestStage = 20;
+  const r = G.challengeDungeon(s, 'monthly', 0);
+  assert.strictEqual(r.fights.filter((f) => f.killed).length, r.wavesCleared);
+  for (const f of r.fights) assert.ok(f.dealt <= f.hp + 1e-6);
+  assert.ok(r.fights.reduce((a, f) => a + f.dealt, 0) <= r.budget + 1e-6);
+  if (!r.fullClear) assert.strictEqual(r.fights[r.fights.length - 1].killed, false);
+});
+test('못 물리친 파동은 깎은 비율만큼 위로 골드를 주고, 완주하면 위로 골드는 0이다', () => {
+  const s = dgBase(5); s.bestStage = 20; const g0 = s.gold;   // 월간 5파동 중 1파동만 잡는 세기
+  const r = G.challengeDungeon(s, 'monthly', 0);
+  assert.ok(!r.fullClear, '이 설정에서는 월간을 다 못 깬다');
+  assert.ok(r.partialGold > 0 && s.gold >= g0 + r.partialGold);
+  const strong = dgBase(200);
+  assert.strictEqual(G.challengeDungeon(strong, 'daily', 0).partialGold, 0);
+});
+test('미니게임 보너스는 던전별 상한으로 잘리고, 이번 기간 최고 보너스로 기록된다', () => {
+  const s = dgBase();
+  const r = G.challengeDungeon(s, 'daily', 0.5);
+  assert.strictEqual(r.mgBonus, G.MG_BONUS_CAP.daily);
+  assert.strictEqual(s.dungeons.daily.bestBonus, G.MG_BONUS_CAP.daily);
+  G.challengeDungeon(s, 'daily', 0.1);
+  assert.strictEqual(s.dungeons.daily.bestBonus, G.MG_BONUS_CAP.daily, '낮은 점수는 기록을 덮지 않는다');
+});
+test('소탕: 완주한 적이 없으면 거절하고, 완주 뒤엔 최고 보너스로 도전 횟수를 쓴다', () => {
+  const s = dgBase(200);
+  assert.strictEqual(G.challengeDungeon(s, 'daily', 0, true).reason, 'nosweep');
+  assert.strictEqual(s.dungeons.daily.used, 0, '거절되면 횟수를 안 쓴다');
+  G.challengeDungeon(s, 'daily', 0.2);
+  assert.strictEqual(G.dungeonInfo(s, 'daily').canSweep, true);
+  const r = G.challengeDungeon(s, 'daily', 0, true);
+  assert.strictEqual(r.ok, true); assert.strictEqual(r.sweep, true);
+  assert.ok(Math.abs(r.mgBonus - 0.2) < 1e-9);
+  assert.strictEqual(s.dungeons.daily.used, 2);
+});
+test('최고 보너스 기록은 저장·복원되고, 상한을 넘게 조작하면 잘린다', () => {
+  const s = dgBase(); G.challengeDungeon(s, 'weekly', 0.3);
+  const o = JSON.parse(G.serialize(s, 1));
+  assert.ok(Math.abs(G.deserialize(JSON.stringify(o)).dungeons.weekly.bestBonus - 0.3) < 1e-9);
+  o.dungeons.weekly.bestBonus = 99;
+  assert.strictEqual(G.deserialize(JSON.stringify(o)).dungeons.weekly.bestBonus, G.MG_BONUS_CAP.weekly);
+});
+
 section('친선 랭킹 · 서버 출석');
 const Social = require('../social.js');
 test('한국 시간 기준 날짜 번호: 자정(한국 시간)에 바뀐다', () => {
