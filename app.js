@@ -2345,7 +2345,7 @@
       (G.dungeonClaimable(s) > 0 || G.towerInfo(s, today()).dailyReady) && currentTab !== 'dungeon', (G.unclaimedAchievements(s).length > 0 || G.questClaimable(s) > 0) && currentTab !== 'log'];
     dots.forEach((d, i) => { if (d.hidden === want[i]) d.hidden = !want[i]; });
     // 배경음: 보스 스테이지나 던전·탑 전투 중이면 긴장감 있는 곡
-    if (window.GoblinAudio) window.GoblinAudio.setSong(boss || !$('mgModal').hidden ? 'boss' : 'field');
+    if (window.GoblinAudio) window.GoblinAudio.setSong(window.GoblinAudio.songFor(biome, boss, !$('mgModal').hidden));   // 지역마다 다른 곡, 보스·던전 전투 곡
   }
 
   $('relicBar').addEventListener('click', () => goTab('store'));

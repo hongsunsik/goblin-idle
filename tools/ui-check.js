@@ -861,9 +861,14 @@ const FAKE_CLOUD = `(() => {
     await reopen(bg);
     await ev(`document.getElementById('scene').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }))`); await sleep(600);
     check('화면을 한 번 누르면 배경음이 재생된다', await ev(`window.GoblinAudio.playing`));
-    check('일반 스테이지에서는 밝은 곡(field)이 나온다', (await ev(`window.GoblinAudio.song`)) === 'field');
+    check('고블린 숲(지역 1)에서는 숲 곡이 나온다', (await ev(`window.GoblinAudio.song`)) === 'forest');
     const bossSeen = await ev(`new Promise((res) => { const iv = setInterval(() => { if (window.GoblinAudio.song === 'boss') { clearInterval(iv); res(true); } }, 100); setTimeout(() => { clearInterval(iv); res(false); }, 25000); })`);
     check('보스 스테이지에 가면 마디가 바뀔 때 보스 곡으로 바뀐다', bossSeen);
+    const lv = await ev(`Promise.all(window.GoblinAudio.SONGS.map((n) => window.GoblinAudio.measure(n, 8).then((m) => [n, m])))`);
+    console.log('    곡별 크기(8초, 음량 50%): ' + lv.map(([n, m]) => `${n} 최고 ${m.peak.toFixed(2)} 평균 ${m.rms.toFixed(3)}`).join(' · '));
+    check('8곡 모두 소리가 나고 찢어지지 않는다 (최고 < 0.95, 평균 > 0.01)', lv.length === 8 && lv.every(([, m]) => m.peak < 0.95 && m.rms > 0.01));
+    const rms = lv.map(([, m]) => m.rms);
+    check('곡마다 크기 차이가 크지 않다 (가장 큰 곡이 가장 작은 곡의 2.5배 이하)', Math.max(...rms) / Math.min(...rms) <= 2.5, rms.map((x) => x.toFixed(3)).join(','));
     await click('#settingsBtn'); await sleep(250);
     await click('#bgmSeg [data-bgm="off"]'); await sleep(300);
     check('설정에서 끄면 멈추고 음량 막대가 잠긴다', !(await ev(`window.GoblinAudio.playing`)) && (await ev(`document.getElementById('bgmVol').disabled`)));
