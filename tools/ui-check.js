@@ -813,6 +813,7 @@ const FAKE_CLOUD = `(() => {
     await click('[data-go="gear"]'); await sleep(300);
     check('가방 옆에 가진 가루가 보인다', (await txt('#dustBal')).includes('20'));
     await click(`#bag [data-item="${lvItem.id}"]`); await sleep(250);
+    check('장비 정보 창에 품질(기준 대비 편차)이 보인다', (await txt('#modalBody')).includes('품질'));
     check('장비 정보 창에 레벨 올리기·분해 버튼이 있다', !!(await ev(`document.querySelector('#modalBody [data-lvup]')`)) && !!(await ev(`document.querySelector('#modalBody [data-dismantle]')`)));
     await click('#modalBody [data-lvup]'); await sleep(250);
     check('레벨 올리기 창에 +1·+10·최대 선택지와 최대 레벨(최고 스테이지 80)이 보인다', (await ev(`document.querySelectorAll('#modalBody .lvopt').length`)) === 3 && (await txt('#modalBody')).includes('최대 80'));

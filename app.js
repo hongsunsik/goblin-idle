@@ -1680,6 +1680,12 @@
     }
   });
 
+  // 품질: 같은 등급·종류·레벨의 기준 수치보다 몇 % 높거나 낮게 뽑혔는지 (±5%, 예전 장비는 ±15%까지)
+  function qualityText(it) {
+    const q = Math.round(G.itemQuality(it) * 100);
+    const color = q >= 3 ? 'var(--green)' : q <= -3 ? 'var(--red)' : 'var(--muted)';
+    return `<span style="color:${color}">품질 ${q > 0 ? '+' : ''}${q}%</span>`;
+  }
   // 장비 하나의 정보 창. 장착 중이면 해제, 가방에 있으면 장착·판매를 고를 수 있다.
   function showItem(it, equipped) {
     const R = G.RARITIES[it.r], def = G.GEAR[it.slot].kinds[it.kind];
@@ -1697,7 +1703,7 @@
     const body =
       `<div class="itemd__head"><div class="slot r${it.r}">${gearArt(it)}</div>` +
       `<div><span class="itemd__tag r${it.r}">${R.name}</span><div class="itemd__main">${def.label} +${fmtVal(G.enhVal(it))}%</div>${it.sp ? `<div class="itemd__sp">★ ${spText(it)}</div>` : ''}${it.enh ? `<div class="itemd__sp">⚒ 강화 Lv.${it.enh}</div>` : ''}` +
-      `<small>${G.GEAR[it.slot].name} · 장비 레벨 ${it.ilvl}</small></div></div>${cmp}` +
+      `<small>${G.GEAR[it.slot].name} · 장비 레벨 ${it.ilvl} · ${qualityText(it)}</small></div></div>${cmp}` +
       `<div class="itemd__tools"><button class="btn btn--gray" type="button" data-lvup="${it.id}">${DUST_IC}레벨 올리기</button>` +
       (equipped ? '' : `<button class="btn btn--gray" type="button" data-dismantle="${it.id}">분해 +${G.fmt(G.dustValue(it))}</button>`) + '</div>';
     const done = (msg, icon) => { addLog(msg, 'is-good', icon); writeSave(); render(); renderGear(true); };

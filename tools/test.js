@@ -2218,25 +2218,31 @@ test('32가지 4차 직업이 증표 70개 상태에서 15분 뒤 도달하는 �
   const spread = Math.max(...res) - Math.min(...res);
   assert.ok(spread <= 9, `격차 ${spread} (${Math.min(...res)}~${Math.max(...res)})`);
 });
-test('64가지 5차 직업이 증표 2000개 상태에서 25분 뒤 도달하는 스테이지 격차가 15 이하다', () => {
+// 씨앗 하나로만 재면 장비 드롭 운에 따라 격차가 10~20으로 흔들려서(2026-09-24 실측), 씨앗 3개로 경로마다 평균을 낸 뒤 비교한다.
+test('64가지 5차 직업이 증표 2000개 상태에서 25분 뒤 도달하는 스테이지(씨앗 3개 평균) 격차가 15 이하다', () => {
   const paths = [];
   const walk = (p) => { if (p.length === 5) { paths.push(p); return; } for (const c of (p.length === 0 ? Object.keys(G.CLASSES) : G.childrenOf(p[p.length - 1]))) walk(p.concat(c)); };
   walk([]);
   assert.strictEqual(paths.length, 64);
+  const SEEDS = [1, 2, 3];
   const res = paths.map((p) => {
-    G.setRandom(seeded(2));
-    const s = G.createState(0); s.tokens = 2000; s.prestiges = 25;
-    for (const id of ['might', 'greed', 'vitality', 'kingly']) s.perks[id] = G.PERKS[id].max;
-    s.hp = G.maxHp(s);
-    bot(s, p, 25 * 60);
-    const reached5 = G.classPath(s).length === 5;
+    let sum = 0, reached5 = true;
+    for (const seed of SEEDS) {
+      G.setRandom(seeded(seed));
+      const s = G.createState(0); s.tokens = 2000; s.prestiges = 25;
+      for (const id of ['might', 'greed', 'vitality', 'kingly']) s.perks[id] = G.PERKS[id].max;
+      s.hp = G.maxHp(s);
+      bot(s, p, 25 * 60);
+      reached5 = reached5 && G.classPath(s).length === 5;
+      sum += s.runBest;
+    }
     G.setRandom();
-    return { stage: s.runBest, reached5 };
+    return { stage: sum / SEEDS.length, reached5 };
   });
   assert.ok(res.every((r) => r.reached5), '이 정도 투자로는 25분 안에 모든 경로가 5차에 닿아야 한다');
   const stages = res.map((r) => r.stage);
   const spread = Math.max(...stages) - Math.min(...stages);
-  assert.ok(spread <= 15, `격차 ${spread} (${Math.min(...stages)}~${Math.max(...stages)})`);
+  assert.ok(spread <= 15, `격차 ${spread.toFixed(1)} (${Math.min(...stages).toFixed(1)}~${Math.max(...stages).toFixed(1)})`);
 });
 
 
@@ -2849,6 +2855,21 @@ test('장비 상점에 유니크·신화도 가끔 진열되고 값은 등급별
   for (let w = 1; w <= 3000; w++) { s.shop = { win: w, reroll: 0, lvl: 40, bought: [] }; for (const o of G.shopStock(s)) { n += 1; if (o.item.r === 5) uniq += 1; if (o.item.r === 6) { myth += 1; assert.strictEqual(o.price, St.GEAR_SHOP.price[6]); } } }
   assert.ok(Math.abs(myth / n - St.GEAR_SHOP.mythChance) < 0.006, `신화 ${myth / n}`);
   assert.ok(Math.abs(uniq / n - St.GEAR_SHOP.uniqueChance) < 0.01, `유니크 ${uniq / n}`);
+});
+
+section('장비 수치 편차');
+test('새로 얻는 장비는 같은 등급·종류·레벨이면 기준 수치의 ±5% 안이고, 품질로 편차를 알 수 있다', () => {
+  const s = G.createState(0);
+  for (let i = 0; i < 3000; i++) {
+    const it = G.rollItem(s, 60, i % 2 === 0, i % 7);
+    const q = G.itemQuality(it);
+    assert.ok(q >= -G.ITEM_SPREAD - 0.01 && q <= G.ITEM_SPREAD + 0.01, `품질 ${q}`);
+  }
+});
+test('예전 ±15% 장비도 복원할 때 깎이지 않는다', () => {
+  const s = G.createState(0); const it = G.rollItem(s, 40, false, 4, 'weapon');
+  it.val = Math.round(G.GEAR.weapon.kinds[it.kind].base[4] * 2 * 1.14 * 10) / 10; s.bag.push(it);
+  assert.strictEqual(G.deserialize(G.serialize(s, 1)).bag[0].val, it.val);
 });
 
 section('무한의 탑');

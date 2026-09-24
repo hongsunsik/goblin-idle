@@ -659,7 +659,12 @@
   const GEAR_DESIGNS = [];
   for (const slot of Object.keys(GEAR)) for (const kind of Object.keys(GEAR[slot].kinds)) for (const [id] of GEAR[slot].kinds[kind].nouns) GEAR_DESIGNS.push(id);
   const round1 = (x) => Math.round(x * 10) / 10;
+  // 무작위 편차: 예전엔 ±15%라 같은 등급·종류·레벨이어도 최대 35%까지 차이 나서 너무 들쭉날쭉했다 → ±5%.
+  // 저장 검사(maxItemVal)는 예전 장비를 깎지 않도록 옛 상한(+15%)을 그대로 쓴다.
+  const ITEM_SPREAD = 0.05;
   const maxItemVal = (slot, kind, r, ilvl) => round1(GEAR[slot].kinds[kind].base[r] * (1 + ilvl / GEAR_SCALE_STAGE) * 1.15) + 0.1;
+  const itemBaseVal = (it) => GEAR[it.slot].kinds[it.kind].base[it.r] * (1 + it.ilvl / GEAR_SCALE_STAGE);
+  const itemQuality = (it) => it.val / itemBaseVal(it) - 1;   // 기준 수치 대비 편차 (-0.05 ~ +0.05, 예전 장비는 ±0.15까지)
   const sellValue = (it) => Math.ceil(monsterGold(it.ilvl) * RARITIES[it.r].gold);
 
   // ---- 장비 강화(재련): 같은 칸의 다른 장비를 재료로 써서 수치를 올린다. 등급·레벨은 그대로, 실제 효과만 세진다. ----
@@ -709,7 +714,7 @@
     const kinds = Object.keys(GEAR[slot].kinds);
     const kind = kinds[Math.floor(rnd() * kinds.length)];
     const def = GEAR[slot].kinds[kind];
-    const val = round1(def.base[r] * (1 + stage / GEAR_SCALE_STAGE) * (0.85 + rnd() * 0.3));   // ±15% 무작위
+    const val = round1(def.base[r] * (1 + stage / GEAR_SCALE_STAGE) * (1 - ITEM_SPREAD + rnd() * 2 * ITEM_SPREAD));   // ±5% 무작위
     s.itemSeq += 1;
     return { id: s.itemSeq, slot, kind, r, ilvl: stage, val, n: Math.floor(rnd() * def.nouns.length), enh: 0 };
   }
@@ -817,7 +822,7 @@
   // 여러 개를 골라서 판다. 가방에 없는 번호는 무시한다. { n, gold }
   // ---- 분해와 장비 레벨 ----
   // 분해: 가방 장비를 가루로 바꾼다. 등급·레벨·강화 단계가 높을수록 많이 나온다.
-  // 레벨 올리기: 가루로 장비 레벨(ilvl)을 1씩 올린다. 수치는 레벨 비율만큼 오르고, 처음 굴린 무작위 편차(±15%)는 그대로 남는다.
+  // 레벨 올리기: 가루로 장비 레벨(ilvl)을 1씩 올린다. 수치는 레벨 비율만큼 오르고, 처음 굴린 무작위 편차(±5%)는 그대로 남는다.
   // 상한은 내 최고 스테이지라서, 예전에 얻은 좋은 장비를 지금 진행도까지 끌어올려 계속 쓸 수 있다.
   const DUST_CAP = 1e12;
   const DUST_R = [1, 2, 5, 12, 30, 80, 200];        // 등급별 기본 가루
@@ -1057,7 +1062,7 @@
       const kinds = Object.keys(GEAR[slot].kinds), kind = kinds[Math.floor(rng() * kinds.length)], def = GEAR[slot].kinds[kind];
       const sp = St.SPECIALS[order[i % order.length]], [lo, hi] = r >= 4 ? sp.legend : sp.hero;
       const item = { slot, kind, r, ilvl: lvl, n: Math.floor(rng() * def.nouns.length),
-                     val: round1(def.base[r] * (1 + lvl / GEAR_SCALE_STAGE) * (1 + rng() * 0.15)),   // 드롭(±15%)과 달리 기본값 이상으로 나온다
+                     val: round1(def.base[r] * (1 + lvl / GEAR_SCALE_STAGE) * (1 + rng() * ITEM_SPREAD)),   // 드롭(±5%)과 달리 기본값 이상으로 나온다
                      sp: { k: sp.k, v: Math.round((lo + rng() * (hi - lo)) * 1000) / 1000 } };
       return { i, item, price: St.GEAR_SHOP.price[r], sold: bought.includes(i) };
     });
@@ -1877,7 +1882,7 @@
     ENH_MAX, ENH_STEP, enhVal, enhCost, enhChance, enhanceItem, findItem, equipPower,
     claimAttend, QUEST_PERIODS, QUEST_CFG, QUEST_DEFS, periodKeys, periodSecsLeft, questSync, questBoard, questClaimable, claimQuest, claimQuestBonus,
     DUNGEON_PERIODS: Dg.DUNGEON_PERIODS, DUNGEONS: Dg.DUNGEONS, BOSS_ART: Dg.BOSS_ART, dungeonSync, dungeonInfo, dungeonClaimable, dungeonBossHp, challengeDungeon, dungeonForecast, dungeonWaveBosses, dungeonBagNeed, MG_BONUS_CAP,
-    dustValue, itemLevelCap, levelUpCost, levelUpPlan, levelUpItem, dismantleItems,
+    itemQuality, ITEM_SPREAD, dustValue, itemLevelCap, levelUpCost, levelUpPlan, levelUpItem, dismantleItems,
     TOWER: Dg.TOWER, towerHp, towerBoss, towerForecast, towerInfo, climbTower, claimTowerDaily,
     moleBonus, gaugeBonus, parryBonus,
     PERKS, PERK_KEYS, HEADSTART_LV, perkLv, perkCost, perkSpent, tokenBalance, perkMissing, perkUnlocked, canBuyPerk, buyPerk, respecPerks, offlineCap,
