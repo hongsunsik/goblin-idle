@@ -53,14 +53,14 @@
     warrior: { name: '전사',   desc: '튼튼한 체력과 빠른 회복. 오래 버티는 싸움이 특기.',
                mult: { hp: 1.5, regen: 1.3 }, adv: ['knight', 'berserker'] },
     archer:  { name: '궁수',   desc: '빠른 연사로 꾸준히 피해를 준다.',
-               mult: { aps: 1.3 }, adv: ['sniper', 'ranger'] },
+               mult: { aps: 1.1 }, adv: ['sniper', 'ranger'] },   // 1.3 → 1.1: 공격 속도는 동료 공격까지 끌어올려 궁수 계열만 1.8배 강했다
     mage:    { name: '마법사', desc: '강력한 마법 공격. 대신 체력이 약하다.',
                mult: { dmg: 1.35, hp: 0.85 }, adv: ['pyromancer', 'necromancer'] },
     rogue:   { name: '도적',   desc: '재빠른 손놀림으로 골드를 더 많이 훔친다.',
                mult: { gold: 1.4, dmg: 1.1 }, adv: ['assassin', 'pirate'] },
   };
   const ADVANCED = {
-    knight:      { name: '기사',     parent: 'warrior', desc: '철벽 방어. 체력과 회복이 크게 늘지만 공격은 조금 약해진다.',
+    knight:      { name: '기사',     parent: 'warrior', desc: '철벽 방어. 체력과 회복이 크게 늘고, 단단한 만큼 공격도 오른다.',
                    mult: { hp: 1.5, regen: 1.4, dmg: 1.22 } },
     berserker:   { name: '광전사',   parent: 'warrior', desc: '분노의 일격. 공격력이 크게 오르는 대신 체력이 줄어든다.',
                    mult: { dmg: 1.5, hp: 0.85 } },
@@ -539,6 +539,7 @@
     const d = s.dungeons[period];
     if (!cfg || !d) return { ok: false, reason: 'unknown' };
     if (d.used >= cfg.attempts) return { ok: false, reason: 'limit' };
+    if (s.bestStage < cfg.minStage) return { ok: false, reason: 'locked', minStage: cfg.minStage };
     if (sweep && !d.cleared) return { ok: false, reason: 'nosweep' };
     // 상점과 같이 보상 장비가 들어갈 자리를 먼저 확인한다. 예전엔 한도를 넘겨 넣었는데, 복원할 때 한도에서 잘려서 장비가 사라졌다.
     const need = dungeonBagNeed(s, period);
@@ -612,6 +613,7 @@
   // 결과: { ok, reason? | from, to, climbed, fights[{boss,hp,dealt,killed,floor,drop}], drops[], crystals, tokens, budget, more }
   function climbTower(s) {
     if (s.tower.best >= Tw.maxFloor) return { ok: false, reason: 'top' };
+    if (s.bestStage < Tw.minStage) return { ok: false, reason: 'locked', minStage: Tw.minStage };
     const n = towerForecast(s), need = towerBagNeed(s, n);
     if (s.bag.length + need > bagLimit(s)) return { ok: false, reason: 'bag', need };
     const budget = towerBudget(s), from = s.tower.best, fights = [], drops = [];
@@ -1315,8 +1317,11 @@
   const buffV = (s, kind) => (s.buffs[kind] ? s.buffs[kind].v : 0);   // 스킬 효과의 위력 (없으면 0)
   const baseDmg = (s) => 3 + 1.5 * (s.level - 1);
   const maxHp = (s) => (50 + 12 * (s.level - 1)) * (1 + 0.25 * s.upgrades.armor) * mile(s.upgrades.armor) * statMult(s, 'hp') * (1 + 0.1 * perkLv(s, 'vitality')) * gearMult(s, 'hp') * tokenHpMult(s) * (1 + 0.03 * perkLv(s, 'titanbody'));
+  // 투지: 직업의 체력 배율이 1보다 크면 그 0.8제곱만큼 공격력도 오른다. 몬스터 공격에는 '내 최대 체력의 6%' 상한이 있어서
+  // 체력이 높아도 이득이 거의 없는데, 전사 계열은 체력을 얻는 대신 공격력을 잃어 다른 계열보다 3배쯤 약했다 (2026-09-24 실측).
+  const gritMult = (s) => Math.pow(Math.max(1, statMult(s, 'hp')), 0.8);
   const hitDmg = (s) =>
-    baseDmg(s) * (1 + 0.25 * s.upgrades.weapon) * mile(s.upgrades.weapon) * tokenMult(s) * masteryMult(s) * achieveMult(s) * statMult(s, 'dmg') * (1 + 0.1 * perkLv(s, 'might')) * kinglyMult(s) * transcendMult(s) * ascendMult(s) * gearMult(s, 'dmg') * (1 + buffV(s, 'might') + potionV(s, 'might'));
+    baseDmg(s) * gritMult(s) * (1 + 0.25 * s.upgrades.weapon) * mile(s.upgrades.weapon) * tokenMult(s) * masteryMult(s) * achieveMult(s) * statMult(s, 'dmg') * (1 + 0.1 * perkLv(s, 'might')) * kinglyMult(s) * transcendMult(s) * ascendMult(s) * gearMult(s, 'dmg') * (1 + buffV(s, 'might') + potionV(s, 'might'));
   const attacksPerSec = (s) => (1 + SPEED_PER_LV * s.upgrades.speed) * statMult(s, 'aps') * gearMult(s, 'aps') * (1 + buffV(s, 'haste') + potionV(s, 'haste')) * (1 + 0.03 * perkLv(s, 'swift'));
   // 직업의 공격 속도 배율은 동료에게도 절반만큼 적용된다 (동료가 전체 피해의 대부분이라, 연사 직업이 내 공격만 빨라져서는 다른 직업보다 한참 약했다)
   const partySpeed = (s) => 1 + 0.5 * (statMult(s, 'aps') - 1);
@@ -1324,15 +1329,18 @@
   const goldMult = (s) =>
     (1 + 0.15 * s.upgrades.loot) * mile(s.upgrades.loot) * tokenMult(s) * masteryMult(s) * achieveMult(s) * statMult(s, 'gold') * (1 + 0.1 * perkLv(s, 'greed')) * kinglyMult(s) * transcendMult(s) * ascendMult(s) * gearMult(s, 'gold') * (1 + potionV(s, 'gold')) * (1 + specialV(s, 'gold'));
   const totalDps = (s) => hitDmg(s) * attacksPerSec(s) + companionDps(s);
-  const expNeeded = (s) => Math.ceil(15 * Math.pow(1.3, s.level - 1));
+  // 레벨 60부터는 필요 경험치가 레벨마다 8%씩 더 는다 (5차 전직이 첫날 1.5시간 만에 열리던 것을 둘째 날쯤으로)
+  const expNeeded = (s) => Math.ceil(15 * Math.pow(1.3, s.level - 1) * Math.pow(1.08, Math.max(0, s.level - 60)));
 
   const isBossStage = (stage) => stage % BOSS_EVERY === 0;
   // 몬스터의 성장: 체력은 스테이지마다 ×1.25, 공격력은 ×1.19. 보스는 체력·공격력이 더 크다.
   // 스테이지 50부터는 성장이 완만해진다 (체력 ×1.22, 공격력 ×1.15). 예전에는 끝까지 ×1.25·×1.19라서 스테이지 80 근처에서 몬스터가 강화한 고블린보다 훨씬 빨리 세져 벽이 되었다.
   // 값은 tools/simulate.js로 비교해 정했다 (같은 조건에서 3판째 80 → 90, 8판째 97 → 114).
+  // 스테이지 120부터는 체력이 ×1.18씩만 는다 (2026-09-24 tools/balance.js 실측: ×1.22 그대로면 첫날 이후 며칠 동안 하루 +5~10 스테이지로 거의 멈췄다)
+  const LATE_FROM = 120, HP_LATE_GROWTH = 1.18;
   const BOSS_HP = 6, BOSS_ATK = 1.5, HP_GROWTH = 1.25, ATK_GROWTH = 1.19, SOFT_FROM = 50, HP_SOFT_GROWTH = 1.22, ATK_SOFT_GROWTH = 1.15;
   const monsterMaxHp = (stage) =>
-    Math.round(24 * Math.pow(HP_GROWTH, Math.min(stage, SOFT_FROM) - 1) * Math.pow(HP_SOFT_GROWTH, Math.max(0, stage - SOFT_FROM))) * (isBossStage(stage) ? BOSS_HP : 1);
+    Math.round(24 * Math.pow(HP_GROWTH, Math.min(stage, SOFT_FROM) - 1) * Math.pow(HP_SOFT_GROWTH, Math.max(0, Math.min(stage, LATE_FROM) - SOFT_FROM)) * Math.pow(HP_LATE_GROWTH, Math.max(0, stage - LATE_FROM))) * (isBossStage(stage) ? BOSS_HP : 1);
   const monsterAtk = (stage) =>
     2 * Math.pow(ATK_GROWTH, Math.min(stage, SOFT_FROM) - 1) * Math.pow(ATK_SOFT_GROWTH, Math.max(0, stage - SOFT_FROM)) * (isBossStage(stage) ? BOSS_ATK : 1);
   const monsterGold = (stage) =>
@@ -1722,7 +1730,9 @@
   const PRESTIGE_FULL_SEC = 600;
   const prestigeInfo = (s) => {
     if (s.runBest < PRESTIGE_MIN_STAGE) return { base: 0, timeF: 0, gain: 0, secsLeft: 0 };
-    const base = Math.floor(s.runBest / 5), timeF = Math.min(1, s.runT / PRESTIGE_FULL_SEC);
+    // 판 최고 스테이지의 1.3제곱 ÷ 50: 초반 환생은 조금 적게(54 → 4개, 예전 10개), 멀리 갈수록 더 많이(250 → 26개).
+    // 예전(÷5)은 첫 환생 직후 공격력이 5배로 뛰어 첫날 스테이지 160까지 치솟고 그 뒤로는 거의 멈췄다 (tools/balance.js).
+    const base = Math.floor(Math.pow(s.runBest, 1.3) / 50), timeF = Math.min(1, s.runT / PRESTIGE_FULL_SEC);
     return { base, timeF, gain: Math.max(1, Math.floor(base * timeF * (1 + specialV(s, 'token')))), secsLeft: Math.max(0, Math.ceil(PRESTIGE_FULL_SEC - s.runT)) };
   };
   const prestigeGain = (s) => prestigeInfo(s).gain;
@@ -1875,7 +1885,9 @@
       if (it && it.slot === slot) s.equip[slot] = it;
     }
     const bagExtraSaved = Math.min(St.BAG_EXTRA_MAX, Math.floor(clamp(Math.floor(num(o.bagExtra, 0)), 0, St.BAG_EXTRA_MAX) / St.BAG_STEP) * St.BAG_STEP);
-    if (Array.isArray(o.bag)) for (const x of o.bag.slice(0, BAG_MAX + bagExtraSaved)) { const it = fresh(x); if (it) s.bag.push(it); }
+    // 가방은 '지금 한도'가 아니라 '늘릴 수 있는 최대 한도'까지 복원한다. 증표 상점 '큰 가방'을 초기화하면 한도가 줄어드는데,
+    // 지금 한도로 자르면 넘친 장비가 사라졌다 (tools/fuzz.js가 찾음). 넘친 동안은 새 장비가 가방에 안 들어갈 뿐이다.
+    if (Array.isArray(o.bag)) for (const x of o.bag.slice(0, BAG_MAX + bagExtraSaved + 3 * PERKS.bigbag.max)) { const it = fresh(x); if (it) s.bag.push(it); }
     let maxId = 0;
     for (const it of [...s.bag, ...SLOT_KEYS.map((k) => s.equip[k]).filter(Boolean)]) maxId = Math.max(maxId, it.id);
     s.itemSeq = Math.max(maxId, clamp(Math.floor(num(o.itemSeq, 0)), 0, 1e12));

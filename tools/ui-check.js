@@ -743,7 +743,11 @@ const FAKE_CLOUD = `(() => {
     await send('Page.removeScriptToEvaluateOnNewDocument', { identifier: injS });
 
     console.log('일일·주간·월간 던전');
-    const dg = mk(60, ['mage', 'necromancer', 'lich', 'lichking']);
+    const lockSt = mk(20, ['warrior']);
+    await reopen(lockSt);
+    await click('[data-go="dungeon"]'); await sleep(400);
+    check('최고 스테이지가 모자라면 던전·탑이 잠기고 열리는 스테이지를 알려 준다', (await txt('#dungeonList')).includes('최고 스테이지 20부터') && (await ev(`document.querySelector('[data-dchallenge="monthly"]').disabled`)) && (await txt('#towerCard')).includes('스테이지 30부터'));
+    const dg = mk(60, ['mage', 'necromancer', 'lich', 'lichking']); dg.runBest = dg.bestStage = 120;   // 모든 던전(월간 100부터)이 열린 상태
     for (const k of G.UPGRADE_KEYS) dg.upgrades[k] = 200;   // 어떤 던전도 여유 있게 물리칠 초당 피해
     dg.hp = G.maxHp(dg);
     await reopen(dg);

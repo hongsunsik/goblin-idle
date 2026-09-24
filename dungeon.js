@@ -7,9 +7,10 @@
 // 보스 체력은 그 캐릭터의 최고 스테이지(bestStage) 기준 몬스터 체력에 비례해서, 어느 진행 단계에서도 도전할 만하다.
 (function (root) {
   const DUNGEON_PERIODS = ['daily', 'weekly', 'monthly'];
+  // minStage: 최고 스테이지가 이만큼 되어야 열린다 (예전엔 10분 차에도 월간까지 완주해 크리스탈 550·증표 16·신화 45% 상자를 받아 초반이 폭주했다)
   const DUNGEONS = {
     daily: {
-      id: 'daily', name: '일일 던전', period: 'daily', attempts: 3, waves: 1,
+      id: 'daily', name: '일일 던전', period: 'daily', attempts: 3, waves: 1, minStage: 20,
       hpMult: 6.2, hpStep: 1, budgetSec: 20,   // 2026-09-24 실측(환생 10분 주기 봇) 예산/체력 중앙값 1.26 → 약 1.1: 미니게임이 의미 있게
       boss: ['고블린 우두머리', '노략질 오크', '동굴 트롤', '늪지 히드라'],
       odds: { 2: 60, 3: 32, 4: 7, 5: 1 },                        // 파동 하나를 물리칠 때마다 주는 장비 등급 확률 (희귀 위주)
@@ -17,7 +18,7 @@
       clear: { crystals: 30, gold: 5, boxOdds: { 3: 72, 4: 25, 5: 3 } },
     },
     weekly: {
-      id: 'weekly', name: '주간 던전', period: 'weekly', attempts: 1, waves: 3,
+      id: 'weekly', name: '주간 던전', period: 'weekly', attempts: 1, waves: 3, minStage: 60,
       hpMult: 4.2, hpStep: 1.5, budgetSec: 55,   // 중앙값 1.08 → 약 0.95: 타이밍 게이지를 조금은 해야 완주
       boss: ['서리 거인', '용암 군주', '심연의 파수꾼', '뇌운의 화신'],
       odds: { 3: 55, 4: 38, 5: 6, 6: 1 },                        // 영웅 위주
@@ -25,7 +26,7 @@
       clear: { crystals: 160, tokens: 4, gold: 18, boxOdds: { 4: 62, 5: 32, 6: 6 } },
     },
     monthly: {
-      id: 'monthly', name: '월간 던전', period: 'monthly', attempts: 1, waves: 5,
+      id: 'monthly', name: '월간 던전', period: 'monthly', attempts: 1, waves: 5, minStage: 100,
       hpMult: 3.6, hpStep: 1.45, budgetSec: 110,
       boss: ['천 개의 눈 리치', '태초의 화룡', '왕좌를 삼킨 그림자', '종말의 문지기'],
       odds: { 4: 55, 5: 35, 6: 10 },                             // 전설 위주
@@ -44,7 +45,7 @@
   // '최고 층'이 곧 내 전투력의 기록이 된다. 층마다 피해 예산(초당 피해 × budgetSec)을 새로 받는다.
   // 보상: 새 층을 처음 넘을 때만. 5층마다 장비, 10층마다 증표. 하루 한 번 최고 층에 비례한 크리스탈.
   const TOWER = {
-    stageBase: 10, stagePerFloor: 3, hpMult: 6, budgetSec: 25, maxClimb: 10, maxFloor: 300,
+    stageBase: 10, stagePerFloor: 3, hpMult: 6, budgetSec: 25, maxClimb: 10, maxFloor: 300, minStage: 30,
     crystals: (f) => 5 + Math.floor(f / 2),
     itemEvery: 5, itemOdds: { 2: 60, 3: 34, 4: 6 },
     tokenEvery: 10, tokens: 2, bigOdds: { 3: 58, 4: 34, 5: 7, 6: 1 },   // 10층마다: 장비 등급이 더 높고 증표도 준다

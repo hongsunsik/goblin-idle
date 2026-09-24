@@ -532,7 +532,7 @@
   function arcFx(style, strong, delay) {
     const p = targetPos();
     if (style === 'hammer') {
-      if (!calm() || strong) sprite('explosion_fire', p.x, p.y + 8, { size: strong ? 190 : 130, delay, dur: 420, from: 0.4, to: 1.1, screen: true, opacity: 0.6 });
+      if (!calm() || strong) sprite('explosion_fire', p.x, p.y + 8, { size: strong ? 190 : 130, delay, dur: 420, from: 0.4, to: 1.1, screen: true, opacity: 0.8 });
       const ring = addFx('fx-ring', p.x, p.y + 12);
       playFx(ring, [{ transform: 'scale(0.3, 0.15)', opacity: 1 }, { transform: `scale(${strong ? 2.4 : 1.7}, ${strong ? 1.1 : 0.8})`, opacity: 0 }], { duration: 380, delay, easing: 'ease-out' });
       return;
@@ -540,7 +540,7 @@
     // 화려하게: 궤적 그림을 크게 그린다 (그림이 없으면 아래 CSS 궤적)
     const ARC_SPRITE = { slash: 'slash_white', axe: 'slash_fire', holy: 'slash_gold', dagger: 'claw_slash' };
     if (!calm() || strong) {
-      const sp = sprite(ARC_SPRITE[style] || 'slash_white', p.x, p.y, { size: strong ? 190 : 130, delay, dur: 320, from: 0.5, to: 1.15, screen: style !== 'dagger', opacity: 0.65 });
+      const sp = sprite(ARC_SPRITE[style] || 'slash_white', p.x, p.y, { size: strong ? 190 : 130, delay, dur: 320, from: 0.5, to: 1.15, screen: style !== 'dagger', opacity: 0.8 });
       if (sp) return;
     }
     const strokes = style === 'dagger' ? 2 : 1;
@@ -668,7 +668,7 @@
   const HIT_RING = { slash: '#e8f0ff', axe: '#ff9a3a', hammer: '#ffb066', holy: '#ffe27a', dagger: '#ff5a5a', arrow: '#7be86a', bolt: '#c9d3e0',
     bullet: '#fff2d0', shuriken: '#c07aff', coin: '#ffc93a', orb: '#5ad8ff', fire: '#ff7a2a', dark: '#9a6aff' };
   const heroTier = () => G.classPath(state).length;   // 0 견습 ~ 5 (5차)
-  const HIT_ALPHA = 0.45;   // 타격 이펙트 불투명도 (속성 그림은 이보다 더 옅게). 연속 타격으로 2~3장이 겹쳐도 몬스터가 비쳐 보이게
+  const HIT_ALPHA = 0.7;   // 타격 이펙트 불투명도 (속성 그림은 이보다 조금 옅게). 0.45는 너무 투명하다는 의견으로 올렸다
   function hitSpriteName(style, ex) {
     const n = (ex ? 'hitx_' : 'hit_') + style;
     return A.vfx(n) ? n : (IMPACT_SPRITE[style] || 'impact_burst');
@@ -683,7 +683,7 @@
     // 공격 모양이 먼저 조금 작게 번쩍이고, 곧바로 직업 속성이 그 위로 크게 피어난다 (속성이 직업 차이를 가장 잘 보여 준다)
     // 반투명: 타격 그림이 몬스터 모습을 가리지 않게 (몬스터가 비쳐 보인다)
     sprite(hitSpriteName(style, ex), x, y, { size: size * (el ? 0.8 : 1), delay, dur: ex ? 420 : 360, from: 0.3, to: strong ? 1.3 : 1.0, opacity: HIT_ALPHA });
-    if (el) sprite('el_' + el, x + rand(-6, 6), y + rand(-6, 6), { size: size * (1.1 + 0.05 * tier), delay: delay + 45, dur: ex ? 360 : 300, from: 0.35, to: strong ? 1.35 : 1.1, rot: rand(-25, 25), opacity: HIT_ALPHA * 0.6 });
+    if (el) sprite('el_' + el, x + rand(-6, 6), y + rand(-6, 6), { size: size * (1.1 + 0.05 * tier), delay: delay + 45, dur: ex ? 360 : 300, from: 0.35, to: strong ? 1.35 : 1.1, rot: rand(-25, 25), opacity: HIT_ALPHA * 0.75 });
     if (tier >= 5 && (!calm() || strong)) sprite(hitSpriteName(style, false), x + rand(-14, 14), y + rand(-12, 12), { size: size * 0.6, delay: delay + 70, dur: 320, from: 0.4, to: 1.1, opacity: HIT_ALPHA });
     if (ex && strong) ringFx(x, y, HIT_RING[style] || '#fff', 2.6 + 0.3 * (tier - 4), 480, delay);
   }
@@ -989,7 +989,7 @@
         const land = bigHit();
         if (e.kind === 'execute') { if (!sprite('slash_dark', t.x, t.y, { size: 210, delay: land, dur: 380, rot: -35, rot2: -12 })) ringFx(t.x, t.y, color, 2.6, 500, land); }
         if (e.kind === 'bossbane') { if (!sprite('lightning', t.x, t.y - 30, { size: 220, delay: land - 40, dur: 420, from: 0.7, to: 1.1, rot: 0, rot2: 0, screen: true })) ringFx(t.x, t.y, color, 3, 520, land); }
-        const boom = sprite(e.kind === 'strike' ? hitSpriteName(style, true) : 'explosion_fire', t.x, t.y, { size: 200 * (1 + 0.06 * heroTier()), delay: land, dur: 460, from: 0.4, to: 1.25, screen: e.kind !== 'strike', opacity: HIT_ALPHA + 0.1 });
+        const boom = sprite(e.kind === 'strike' ? hitSpriteName(style, true) : 'explosion_fire', t.x, t.y, { size: 200 * (1 + 0.06 * heroTier()), delay: land, dur: 460, from: 0.4, to: 1.25, screen: e.kind !== 'strike', opacity: Math.min(1, HIT_ALPHA + 0.1) });
         if (!boom) ringFx(t.x, t.y, color, 2.8, 520, land);
         monsterHit(true, land, false);
         impactFx(true, land);
@@ -2632,7 +2632,7 @@
     for (const p of G.DUNGEON_PERIODS) infos[p] = G.dungeonInfo(s, p);
     const key = G.DUNGEON_PERIODS.map((p) => { const d = s.dungeons[p], i = infos[p]; return `${d.key}:${d.used}:${d.bestWaves}:${d.bonusClaimed ? 1 : 0}:${i.forecast}:${i.forecastMax}`; }).join('|') + '#' + G.DUNGEON_PERIODS.map((p) => (left[p] === null ? 'x' : Math.floor(left[p] / 60))).join(',');
     const tw = G.towerInfo(s, today());
-    const fullKey = key + '#t' + [tw.best, tw.forecast, tw.dailyReady ? 1 : 0].join(':');
+    const fullKey = key + '#t' + [tw.best, tw.forecast, tw.dailyReady ? 1 : 0, [20, 30, 60, 100].filter((m) => s.bestStage >= m).length].join(':');
     if (!force && fullKey === dungeonKey) return;
     dungeonKey = fullKey;
     renderTower(tw);
@@ -2640,13 +2640,14 @@
       const info = infos[p], secLeft = left[p];
       const dots = Array.from({ length: info.waves }, (_, i) => `<i class="dwave ${i < info.bestWaves ? 'is-on' : ''}"></i>`).join('');
       const clearNote = info.bonusClaimed ? `<span class="dclear">${A.icon('chest')}완주 보상 받음</span>` : '';
-      const label = info.left <= 0 ? '오늘 끝' : info.canSweep ? '도전·소탕' : '도전';
-      const btn = `<button class="btn ${info.left > 0 ? 'btn--gold' : 'btn--gray'} prod__btn" type="button" data-dchallenge="${p}" ${info.left > 0 ? '' : 'disabled'}><span>${label}</span><small>${A.icon('ticket')}${info.left}/${info.attempts}</small></button>`;
+      const minSt = G.DUNGEONS[p].minStage || 0, locked = s.bestStage < minSt;
+      const label = locked ? '잠김' : info.left <= 0 ? '오늘 끝' : info.canSweep ? '도전·소탕' : '도전';
+      const btn = `<button class="btn ${info.left > 0 && !locked ? 'btn--gold' : 'btn--gray'} prod__btn" type="button" data-dchallenge="${p}" ${info.left > 0 && !locked ? '' : 'disabled'}><span>${label}</span><small>${locked ? `스테이지 ${minSt}` : `${A.icon('ticket')}${info.left}/${info.attempts}`}</small></button>`;
       return `<div class="card prod dungeon"><div class="prod__tile prod__tile--boss" style="--tone:#7a4aff99">${A.bossArt(G.BOSS_ART[info.boss])}</div>` +
         `<div><div class="prod__name">${info.name} <span class="prod__chip">${info.boss}</span></div>` +
         `<div class="prod__desc">파동 ${info.waves > 1 ? `${info.bestWaves}/${info.waves} 최고 기록` : (info.cleared ? '처치' : '미처치')} ${clearNote}</div>` +
         `<div class="dwaves">${dots}</div>` +
-        `<div class="prod__desc">${dungeonForecastHtml(info)}</div>` +
+        `<div class="prod__desc">${locked ? `<span class="dfc dfc--hard">${A.icon('lock')}최고 스테이지 ${minSt}부터 열려요 (지금 ${s.bestStage})</span>` : dungeonForecastHtml(info)}</div>` +
         `<div class="prod__desc">초기화까지 ${secLeft === null ? '서버 시각을 확인하지 못했어요' : clockText(secLeft)}</div></div>${btn}</div>`;
     }).join('');
   }
@@ -2654,10 +2655,11 @@
   function renderTower(tw) {
     const T = G.TOWER;
     const nextItem = Math.ceil(tw.next / T.itemEvery) * T.itemEvery, nextToken = Math.ceil(tw.next / T.tokenEvery) * T.tokenEvery;
-    const status = tw.top ? `<span class="dfc dfc--ok">꼭대기에 올랐어요!</span>`
+    const twLocked = state.bestStage < T.minStage;
+    const status = twLocked ? `<span class="dfc dfc--hard">${A.icon('lock')}최고 스테이지 ${T.minStage}부터 열려요 (지금 ${state.bestStage})</span>` : tw.top ? `<span class="dfc dfc--ok">꼭대기에 올랐어요!</span>`
       : tw.forecast > 0 ? `<span class="dfc dfc--ok">${A.icon('check')}지금 ${tw.forecast}층${tw.forecast >= T.maxClimb ? ' 이상' : ''} 오를 수 있어요</span>`
       : `<span class="dfc dfc--hard">${tw.next}층 ${tw.nextBoss}: 체력 ${G.fmt(tw.nextHp)} · 내 예산 ${G.fmt(tw.budget)}</span>`;
-    const climbBtn = `<button class="btn ${tw.forecast > 0 ? 'btn--gold' : 'btn--gray'} prod__btn" type="button" data-tclimb ${tw.top ? 'disabled' : ''}><span>오르기</span><small>${tw.forecast > 0 ? `+${tw.forecast}층` : '막힘'}</small></button>`;
+    const climbBtn = `<button class="btn ${tw.forecast > 0 && !twLocked ? 'btn--gold' : 'btn--gray'} prod__btn" type="button" data-tclimb ${tw.top || twLocked ? 'disabled' : ''}><span>${twLocked ? '잠김' : '오르기'}</span><small>${twLocked ? `스테이지 ${T.minStage}` : tw.forecast > 0 ? `+${tw.forecast}층` : '막힘'}</small></button>`;
     const daily = tw.best > 0 ? `<button class="btn ${tw.dailyReady ? 'btn--gold' : 'btn--gray'} tower__daily" type="button" data-tdaily ${tw.dailyReady ? '' : 'disabled'}>${GEM}${tw.dailyReady ? `오늘의 탑 보상 ${tw.daily}` : '오늘 보상 받음'}</button>` : '';
     $('towerCard').innerHTML = `<div class="card prod dungeon tower"><div class="prod__tile prod__tile--boss" style="--tone:#2a7aff99">${A.bossArt(G.BOSS_ART[tw.nextBoss])}</div>` +
       `<div><div class="prod__name">무한의 탑 <span class="prod__chip">최고 ${tw.best}층</span></div>` +
@@ -2708,7 +2710,7 @@
   // 도전 결과를 먼저 확정·저장하고(중간에 앱을 꺼도 보상은 남는다), 보스 체력이 깎이는 전투 연출을 보여 준 뒤 결과 창을 띄운다.
   function resolveDungeonChallenge(period, info, mgBonus, sweep) {
     const r = G.challengeDungeon(state, period, mgBonus, sweep);
-    if (!r.ok) { $('mgModal').hidden = true; openModal('도전할 수 없어요', r.reason === 'limit' ? '오늘 도전 횟수를 다 썼어요' : r.reason === 'nosweep' ? '먼저 한 번 완주해야 소탕할 수 있어요' : r.reason === 'bag' ? `가방에 자리가 ${r.need}칸 필요해요. 장비를 팔거나 가방을 넓혀 주세요` : '다시 시도해 주세요', [{ text: '확인' }]); return; }
+    if (!r.ok) { $('mgModal').hidden = true; openModal('도전할 수 없어요', r.reason === 'limit' ? '오늘 도전 횟수를 다 썼어요' : r.reason === 'nosweep' ? '먼저 한 번 완주해야 소탕할 수 있어요' : r.reason === 'bag' ? `가방에 자리가 ${r.need}칸 필요해요. 장비를 팔거나 가방을 넓혀 주세요` : r.reason === 'locked' ? `최고 스테이지 ${r.minStage}부터 열려요` : '다시 시도해 주세요', [{ text: '확인' }]); return; }
     for (const it of r.drops) gearNew.add(it.id);
     if (r.bonus) gearNew.add(r.bonus.item.id);
     addLog(`${info.name}${r.sweep ? ' 소탕' : ''}: 파동 ${r.wavesCleared}/${r.waves}${r.fullClear ? ' 완주!' : ''}`, r.fullClear ? 'is-gold' : '', 'gate');
@@ -2732,7 +2734,7 @@
   }
   function doDungeonChallenge(period) {
     const info = G.dungeonInfo(state, period);
-    if (!info || info.left <= 0) return;
+    if (!info || info.left <= 0 || state.bestStage < (G.DUNGEONS[period].minStage || 0)) return;
     const need = G.dungeonBagNeed(state, period), free = G.bagLimit(state) - state.bag.length;
     if (free < need) {   // 미니게임을 다 하고 나서 거절당하지 않게 먼저 알려 준다
       openModal('가방 자리가 모자라요', `보상 장비를 받으려면 가방에 <b>${need}칸</b>이 비어 있어야 해요 (지금 ${Math.max(0, free)}칸).<br><small>장비 탭에서 안 쓰는 장비를 팔아 주세요.</small>`,

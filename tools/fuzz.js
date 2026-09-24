@@ -34,7 +34,7 @@ function invariants(s, step, last) {
 }
 // 키 순서만 다른 것은 같은 것으로 본다
 // 순간 값(공격 타이머·표시용 피해·타격 수·스킬 효과·쿨타임·쓰러짐·지속 피해)은 다시 켜면 초기화하는 설계이고, 장비의 enh 0은 없는 것과 같다
-const TRANSIENT = new Set(['atkT', 'hits', 'dealt', 'buffs', 'skillCd', 'downT', 'rescueT', 'dot', 'hp']);   // hp: 쓰러진 채 저장하면 1로 되살려 복원한다
+const TRANSIENT = new Set(['atkT', 'hits', 'dealt', 'buffs', 'skillCd', 'downT', 'rescueT', 'dot', 'hp', 'monsterHp']);   // hp: 쓰러진 채 저장하면 1로 되살려 복원한다
 const canon = (v, top) => (Array.isArray(v) ? v.map((x) => canon(x)) : v && typeof v === 'object'
   ? Object.fromEntries(Object.keys(v).filter((k) => !(top && TRANSIENT.has(k)) && !(k === 'enh' && !v[k])).sort().map((k) => [k, canon(v[k])])) : v);
 function roundTrip(s, step, last) {

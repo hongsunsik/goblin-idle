@@ -192,7 +192,8 @@ test('5차까지 순서대로 전직하고, 자식이 아닌 직업이나 건너
 test('3차·4차 직업의 배율이 이전 단계 배율에 모두 곱해진다', () => {
   const s = G.createState(0);
   walkPath(s, ['mage', 'pyromancer', 'infernomage', 'flameemperor']);
-  const expectDmg = 1.35 * 1.5 * 1.35 * 2.5, expectClick = 2 * 1.5 * 1.5;
+  const path = ['mage', 'pyromancer', 'infernomage', 'flameemperor'];
+  const expectDmg = path.reduce((a, id) => a * (G.NODES[id].mult.dmg || 1), 1), expectClick = 2 * 1.5 * 1.5;   // 배율 값은 밸런스 보정으로 바뀔 수 있어서 데이터에서 곱한다
   assert.ok(Math.abs(G.statMult(s, 'dmg') - expectDmg) < 1e-9, G.statMult(s, 'dmg') + ' vs ' + expectDmg);
   assert.ok(Math.abs(G.statMult(s, 'click') - expectClick) < 1e-9);
   assert.ok(Math.abs(G.statMult(s, 'hp') - 0.85) < 1e-9);
@@ -2075,17 +2076,19 @@ test('강화 정보는 저장·복원되고, 범위를 넘는 값은 걸러진�
 });
 
 section('환생 보상과 전직·증표');
-test('환생 보상은 스테이지 5개당 증표 1개에 판을 키운 시간(10분 = 100%)을 곱한다', () => {
+test('환생 보상은 판 최고 스테이지의 1.3제곱 ÷ 50에 판을 키운 시간(10분 = 100%)을 곱한다', () => {
   const s = G.createState(0);
-  s.runBest = 50;
+  s.runBest = 150;   // 150^1.3 / 50 = 13.5 → 13
   const at = (sec) => { s.runT = sec; return G.prestigeGain(s); };
-  assert.deepStrictEqual([at(0), at(120), at(300), at(600), at(5000)], [1, 2, 5, 10, 10]);
+  assert.deepStrictEqual([at(0), at(120), at(300), at(600), at(5000)], [1, 2, 6, 13, 13]);
+  s.runBest = 250; s.runT = 600;
+  assert.strictEqual(G.prestigeGain(s), 26, '멀리 갈수록 스테이지보다 빠르게 는다');
   s.runBest = 9; s.runT = 9999;
   assert.strictEqual(G.prestigeGain(s), 0, '스테이지 10 미만은 환생 불가');
 });
 test('왕의 인장: 환생 증표 +15%', () => {
-  const s = relicOwner(['relic_seal']); s.runBest = 50; s.runT = 600;
-  assert.strictEqual(G.prestigeGain(s), 11);
+  const s = relicOwner(['relic_seal']); s.runBest = 150; s.runT = 600;
+  assert.strictEqual(G.prestigeGain(s), 14);   // 기본 13개 × 1.15 = 14.95 → 14
 });
 test('환생하면 이번 판 시간이 0으로 돌아가고, 게임을 켜 둔 시간은 판 시간에 쌓인다', () => {
   const s = G.createState(0);
@@ -2578,7 +2581,7 @@ test('같은 기간에는 다시 동기화해도 진행이 그대로고, 날이 
   assert.strictEqual(s.dungeons.weekly.key, weeklyKey, '같은 주 안에서는 주간이 그대로다');
 });
 test('도전은 기간의 한도(attempts) 안에서만 되고, 넘으면 reason:limit이다', () => {
-  const s = G.createState(0);
+  const s = G.createState(0); s.bestStage = 100;
   G.dungeonSync(s, '2026-09-22');
   for (let i = 0; i < G.DUNGEONS.weekly.attempts; i++) assert.strictEqual(G.challengeDungeon(s, 'weekly').ok, true);
   const r = G.challengeDungeon(s, 'weekly');
@@ -2586,7 +2589,7 @@ test('도전은 기간의 한도(attempts) 안에서만 되고, 넘으면 reason
   assert.strictEqual(r.reason, 'limit');
 });
 test('피해 예산이 충분하면 모든 파동을 물리치고, 처음 완주할 때만 완주 보너스를 준다', () => {
-  const s = G.createState(0); s.bestStage = 5; s.level = 60;
+  const s = G.createState(0); s.bestStage = 100; s.level = 60;
   for (const k of G.UPGRADE_KEYS) s.upgrades[k] = 200;
   G.promote(s, 'mage'); G.promote(s, 'necromancer'); G.promote(s, 'lich'); G.promote(s, 'lichking');
   G.dungeonSync(s, '2026-09-22');
@@ -2601,7 +2604,7 @@ test('피해 예산이 충분하면 모든 파동을 물리치고, 처음 완주
   assert.strictEqual(s.dungeons.weekly.bonusClaimed, true);
 });
 test('피해 예산이 모자라면 그 자리에서 멈추고, 도전은 소모되지만 완주 보상은 없다', () => {
-  const s = G.createState(0); s.bestStage = 90;   // 갓 시작한 고블린이 스테이지 90 던전에 도전
+  const s = G.createState(0); s.bestStage = 150;   // 갓 시작한 고블린이 스테이지 150 던전에 도전
   G.dungeonSync(s, '2026-09-22');
   const r = G.challengeDungeon(s, 'monthly');
   assert.strictEqual(r.ok, true);
@@ -2611,7 +2614,7 @@ test('피해 예산이 모자라면 그 자리에서 멈추고, 도전은 소모
   assert.strictEqual(s.dungeons.monthly.used, 1, '실패해도 도전 횟수는 줄어든다');
 });
 test('저장·복원: 그대로 돌아오고, 조작된 값(없는 이름표·한도를 넘는 횟수·가짜 보스)은 걸러진다', () => {
-  const s = G.createState(0); s.bestStage = 5; s.level = 60;
+  const s = G.createState(0); s.bestStage = 100; s.level = 60;
   for (const k of G.UPGRADE_KEYS) s.upgrades[k] = 200;
   G.promote(s, 'mage'); G.promote(s, 'necromancer'); G.promote(s, 'lich'); G.promote(s, 'lichking');
   G.dungeonSync(s, '2026-09-22');
@@ -2630,7 +2633,7 @@ test('저장·복원: 그대로 돌아오고, 조작된 값(없는 이름표·�
   assert.deepStrictEqual(G.deserialize(JSON.stringify(old)).dungeons, { daily: null, weekly: null, monthly: null });
 });
 test('던전 보상 크리스탈이 상한(10억)을 넘지 않는다', () => {
-  const s = G.createState(0); s.bestStage = 5; s.level = 60;
+  const s = G.createState(0); s.bestStage = 100; s.level = 60;
   for (const k of G.UPGRADE_KEYS) s.upgrades[k] = 200;
   G.promote(s, 'mage'); G.promote(s, 'necromancer'); G.promote(s, 'lich'); G.promote(s, 'lichking');
   G.dungeonSync(s, '2026-09-22'); s.crystals = 1e9 - 1;
@@ -2657,7 +2660,7 @@ test('패턴 반격: 연속 성공(콤보)일수록 한 번의 성공 가치가 
   assert.ok(G.parryBonus(Array(30).fill(true)) <= 0.5);
 });
 test('미니게임 보너스만큼 도전 한 번의 피해 예산(=처치 가능한 파동)이 늘어난다', () => {
-  const s = G.createState(0); s.bestStage = 5; s.level = 60;
+  const s = G.createState(0); s.bestStage = 100; s.level = 60;
   for (const k of G.UPGRADE_KEYS) s.upgrades[k] = 40;
   G.dungeonSync(s, '2026-09-22');
   const s2 = JSON.parse(G.serialize(s, 1));
@@ -2666,7 +2669,7 @@ test('미니게임 보너스만큼 도전 한 번의 피해 예산(=처치 가�
   assert.ok(withBonus.wavesCleared >= without.wavesCleared, '보너스가 있으면 적어도 같거나 더 많이 처치한다');
 });
 test('미니게임 보너스는 0~50%로 잘린다(음수·과도한 값 방어)', () => {
-  const base = () => { const s = G.createState(0); s.bestStage = 5; s.level = 60; for (const k of G.UPGRADE_KEYS) s.upgrades[k] = 40; G.dungeonSync(s, '2026-09-22'); return s; };
+  const base = () => { const s = G.createState(0); s.bestStage = 100; s.level = 60; for (const k of G.UPGRADE_KEYS) s.upgrades[k] = 40; G.dungeonSync(s, '2026-09-22'); return s; };
   const rNeg = G.challengeDungeon(base(), 'monthly', -1);
   const rHalf = G.challengeDungeon(base(), 'monthly', 0.5);
   const rHuge = G.challengeDungeon(base(), 'monthly', 999);
@@ -2674,8 +2677,19 @@ test('미니게임 보너스는 0~50%로 잘린다(음수·과도한 값 방어)
   assert.deepStrictEqual(rHuge.wavesCleared, rHalf.wavesCleared, '50%를 넘겨도 더 늘어나지 않는다');
 });
 
+test('던전·탑은 최고 스테이지가 입장 조건(일일 20·탑 30·주간 60·월간 100)에 닿아야 열리고, 막히면 횟수를 안 쓴다', () => {
+  const s = G.createState(0); s.bestStage = 59; for (const k of G.UPGRADE_KEYS) s.upgrades[k] = 200;
+  G.dungeonSync(s, '2026-09-22');
+  assert.strictEqual(G.challengeDungeon(s, 'daily').ok, true);
+  const w = G.challengeDungeon(s, 'weekly');
+  assert.strictEqual(w.reason, 'locked'); assert.strictEqual(w.minStage, 60);
+  assert.strictEqual(s.dungeons.weekly.used, 0);
+  assert.strictEqual(G.challengeDungeon(s, 'monthly').reason, 'locked');
+  s.bestStage = 29; assert.strictEqual(G.climbTower(s).reason, 'locked');
+  s.bestStage = 30; assert.strictEqual(G.climbTower(s).ok, true);
+});
 section('던전 개선 (예상·파동별 보스·전투 기록·소탕·위로 보상)');
-const dgBase = (lv = 40) => { const s = G.createState(0); s.bestStage = 5; s.level = 60; for (const k of G.UPGRADE_KEYS) s.upgrades[k] = lv; G.dungeonSync(s, '2026-09-22'); return s; };
+const dgBase = (lv = 40) => { const s = G.createState(0); s.bestStage = 100; s.level = 60; for (const k of G.UPGRADE_KEYS) s.upgrades[k] = lv; G.dungeonSync(s, '2026-09-22'); return s; };
 test('파동별 보스: 마지막 파동은 대표 보스이고, 파동 수만큼 모두 그 던전의 보스 목록 안에서 나온다', () => {
   const s = dgBase();
   for (const p of G.DUNGEON_PERIODS) {
@@ -2694,7 +2708,7 @@ test('예상 파동 수는 실제 도전 결과와 같다 (보너스 0과 상한
   }
 });
 test('전투 기록: 물리친 파동은 체력만큼, 막힌 파동은 남은 예산만큼 피해를 기록하고 합이 시작 예산을 넘지 않는다', () => {
-  const s = dgBase(5); s.bestStage = 25;
+  const s = dgBase(100);   // 스테이지 100에서 월간 5파동 중 1파동만 잡는 세기
   const r = G.challengeDungeon(s, 'monthly', 0);
   assert.strictEqual(r.fights.filter((f) => f.killed).length, r.wavesCleared);
   for (const f of r.fights) assert.ok(f.dealt <= f.hp + 1e-6);
@@ -2702,7 +2716,7 @@ test('전투 기록: 물리친 파동은 체력만큼, 막힌 파동은 남은 �
   if (!r.fullClear) assert.strictEqual(r.fights[r.fights.length - 1].killed, false);
 });
 test('못 물리친 파동은 깎은 비율만큼 위로 골드를 주고, 완주하면 위로 골드는 0이다', () => {
-  const s = dgBase(5); s.bestStage = 25; const g0 = s.gold;   // 월간 5파동 중 1파동만 잡는 세기
+  const s = dgBase(100); const g0 = s.gold;   // 스테이지 100에서 월간 5파동 중 1파동만 잡는 세기
   const r = G.challengeDungeon(s, 'monthly', 0);
   assert.ok(!r.fullClear, '이 설정에서는 월간을 다 못 깬다');
   assert.ok(r.partialGold > 0 && s.gold >= g0 + r.partialGold);
@@ -2935,6 +2949,15 @@ test('모든 직업에 속성이 있고, 부모·자식과 형제 직업끼리�
   }
 });
 
+test('큰 가방을 초기화해 한도가 줄어도, 넘친 장비는 복원할 때 사라지지 않는다', () => {
+  const s = G.createState(0); s.tokens = 1000; s.perks.greed = 3; s.perks.bigbag = 5;
+  while (s.bag.length < G.bagLimit(s)) s.bag.push(G.rollItem(s, 10, false, 1));
+  const n = s.bag.length;
+  G.respecPerks(s);
+  assert.ok(s.bag.length > G.bagLimit(s));
+  assert.strictEqual(G.deserialize(G.serialize(s, 1)).bag.length, n);
+});
+
 section('장비 잠금');
 const lkBase = () => { const s = G.createState(0); s.bestStage = 50; s.autoEquip = false; const a = G.rollItem(s, 20, false, 1, 'weapon'), b = G.rollItem(s, 20, false, 1, 'weapon'); s.bag.push(a, b); return { s, a, b }; };
 test('잠근 장비는 하나씩·골라서·등급별로 팔거나 분해해도 남는다', () => {
@@ -2964,7 +2987,7 @@ test('잠금은 언제든 풀 수 있고, 저장·복원된다', () => {
 });
 
 section('무한의 탑');
-const twBase = (lv) => { const s = G.createState(0); s.bestStage = 5; s.level = 60; for (const k of G.UPGRADE_KEYS) s.upgrades[k] = lv; return s; };
+const twBase = (lv) => { const s = G.createState(0); s.bestStage = 100; s.level = 60; for (const k of G.UPGRADE_KEYS) s.upgrades[k] = lv; return s; };
 test('층이 오를수록 보스 체력이 늘고, 보스 스테이지 배율 때문에 튀지 않는다', () => {
   for (let f = 1; f < 100; f++) {
     assert.ok(G.towerHp(f + 1) > G.towerHp(f), `층 ${f}`);
@@ -2982,7 +3005,7 @@ test('오르기: 예상한 층 수만큼 오르고, 한 번에 최대 10층, 막
   if (f < G.TOWER.maxClimb) assert.strictEqual(r.fights[r.fights.length - 1].killed, false);
 });
 test('못 오르면 잃는 것 없이 0층 오르기로 끝난다', () => {
-  const s = G.createState(0); s.bestStage = 5; s.tower.best = 200; const c = s.crystals;
+  const s = G.createState(0); s.bestStage = 100; s.tower.best = 200; const c = s.crystals;
   const r = G.climbTower(s);
   assert.strictEqual(r.ok, true); assert.strictEqual(r.climbed, 0);
   assert.strictEqual(s.crystals, c); assert.strictEqual(s.tower.best, 200);
