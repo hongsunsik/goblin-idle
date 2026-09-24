@@ -1033,3 +1033,21 @@ svg { display: block; }
 .mg__resline b { color: var(--gold); font-size: 20px; }
 .mg__resdetail { margin: 6px 0 12px; font-size: 13px; color: var(--muted); }
 .mg__resdetail b { color: var(--ink); }
+
+/* ---- 옆으로 흐르는 배경 (레전드 오브 슬라임처럼 달려가는 느낌) ----
+   배경 그림을 원본·반전본 번갈아 4장 이어 붙이고 -50%(2장 = 한 주기)만큼 끝없이 민다. 앞쪽 풀 띠는 더 빠르게. */
+.stage__scroll { position: absolute; top: 0; bottom: 0; left: 0; width: 400%; display: none; will-change: transform; }
+.stage__scroll i { flex: 0 0 25%; height: 100%; background: center bottom / cover no-repeat; }
+.stage__scroll i:nth-child(even) { transform: scaleX(-1); }
+.stage__ground { position: absolute; left: 0; bottom: 0; width: 200%; height: 64px; z-index: 1; pointer-events: none; will-change: transform;
+  background-color: var(--strip, rgba(18, 40, 16, 0.5));
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='64'%3E%3Cpath d='M0 40 L4 22 L8 40 L12 16 L16 40 L20 28 L24 40 Z M70 44 L73 30 L76 44 L80 24 L84 44 Z M150 42 L154 20 L158 42 L162 30 L166 42 Z M210 46 L213 34 L216 46 L220 26 L224 46 Z' /%3E%3Cellipse cx='110' cy='50' rx='7' ry='3'/%3E%3Cellipse cx='36' cy='56' rx='5' ry='2.4'/%3E%3Cellipse cx='190' cy='56' rx='8' ry='3'/%3E%3Crect x='0' y='58' width='260' height='6'/%3E%3C/svg%3E") repeat-x left bottom / 260px 64px;
+          mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='64'%3E%3Cpath d='M0 40 L4 22 L8 40 L12 16 L16 40 L20 28 L24 40 Z M70 44 L73 30 L76 44 L80 24 L84 44 Z M150 42 L154 20 L158 42 L162 30 L166 42 Z M210 46 L213 34 L216 46 L220 26 L224 46 Z' /%3E%3Cellipse cx='110' cy='50' rx='7' ry='3'/%3E%3Cellipse cx='36' cy='56' rx='5' ry='2.4'/%3E%3Cellipse cx='190' cy='56' rx='8' ry='3'/%3E%3Crect x='0' y='58' width='260' height='6'/%3E%3C/svg%3E") repeat-x left bottom / 260px 64px; }
+.stage[data-biome='1'] { --strip: rgba(40, 24, 80, 0.55); }
+.stage[data-biome='2'] { --strip: rgba(120, 80, 30, 0.45); }
+.stage[data-biome='3'] { --strip: rgba(230, 245, 255, 0.55); }
+.stage[data-biome='4'] { --strip: rgba(60, 14, 8, 0.6); }
+.stage[data-biome='5'] { --strip: rgba(30, 14, 50, 0.6); }
+/* 달리는 동안: 고블린이 통통 뛴다 (숨쉬기 대신) */
+.actor--hero.is-running .actor__sprite { animation: runBob 0.34s ease-in-out infinite; }
+@keyframes runBob { 0%, 100% { transform: translateY(0) rotate(0deg); } 25% { transform: translateY(-7px) rotate(-3deg); } 50% { transform: translateY(0) rotate(0deg); } 75% { transform: translateY(-5px) rotate(2deg); } }

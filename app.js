@@ -208,6 +208,33 @@
   }
 
   // ---- 몬스터가 쓰러질 때: 복제본이 튕겨 날아가며 사라지고, 새 몬스터가 통통 튀며 등장한다 ----
+  // ---- 옆으로 달리기: 몬스터를 잡으면 잠깐 배경이 흐르고, 고블린이 달리고, 다음 몬스터가 오른쪽에서 걸어 들어온다 ----
+  const WALK_MS = 700, SCROLL_IDLE = 0.04;   // 싸우는 동안에도 배경이 아주 천천히 흐른다 (바람 느낌)
+  let walkUntil = 0, lastEnter = 0, scrollRate = SCROLL_IDLE;
+  const scrollAnims = [];
+  (function setupScroll() {
+    const bg = $('bgScroll'), gr = $('groundScroll');
+    if (bg && bg.animate) scrollAnims.push(bg.animate([{ transform: 'translateX(0)' }, { transform: 'translateX(-50%)' }], { duration: 36000, iterations: Infinity }));
+    if (gr && gr.animate) scrollAnims.push(gr.animate([{ transform: 'translateX(0)' }, { transform: 'translateX(-50%)' }], { duration: 5200, iterations: Infinity }));
+    for (const a of scrollAnims) a.playbackRate = SCROLL_IDLE;
+  })();
+  function startWalk(boss) {
+    const now = performance.now();
+    walkUntil = Math.max(walkUntil, now + (boss ? WALK_MS * 1.4 : WALK_MS));
+    if (now - lastEnter < 350) return;   // 연달아 빨리 잡으면 들어오는 동작을 다시 걸지 않고 계속 달린다
+    lastEnter = now;
+    const box = $('enemyBox');
+    if (box && box.animate) box.animate([{ transform: 'translateX(170px)', opacity: 0 }, { transform: 'translateX(60px)', opacity: 1, offset: 0.35 }, { transform: 'translateX(0)' }],
+      { duration: boss ? WALK_MS * 1.4 : WALK_MS, easing: 'cubic-bezier(0.2, 0.6, 0.3, 1)' });
+  }
+  // 매 프레임: 달리는 중이면 빨리, 아니면 천천히 (갑자기 멈추지 않게 부드럽게 바꾼다)
+  function updateWalk() {
+    const walking = performance.now() < walkUntil;
+    const target = walking ? 1 : SCROLL_IDLE;
+    scrollRate += (target - scrollRate) * (walking ? 0.5 : 0.25);
+    for (const a of scrollAnims) a.playbackRate = scrollRate;
+    $('heroBox').classList.toggle('is-running', walking);
+  }
   function killFx(boss) {
     const mSprite = $('monsterSprite');
     const p = spot(mSprite, 0.5, 0.5);
@@ -2162,6 +2189,7 @@
         if (!killShown) {   // 한 프레임에 여러 마리를 잡아도 처치 연출은 한 번만
           killShown = true;
           killFx(e.boss);
+          startWalk(e.boss);
           if (window.GoblinAudio) window.GoblinAudio.sfxEvent('kill', e.boss);
           if (!calm() || e.boss) floatText('+' + G.fmt(e.gold), 'float--gold', 'gold');
         }
@@ -3144,7 +3172,7 @@
       const comp = G.companionDps(state) * 0.5;
       if (comp > 0 && state.downT <= 0 && !calm()) floatText('-' + G.fmt(comp), 'float--comp', 'comp');
     }
-    if (!document.hidden) render();   // 백그라운드에서는 계산만 하고 화면은 안 그린다 (돌아오면 다음 프레임에 바로 그린다)
+    if (!document.hidden) { updateWalk(); render(); }   // 백그라운드에서는 계산만 하고 화면은 안 그린다 (돌아오면 다음 프레임에 바로 그린다)
   }
   setInterval(frame, 100);
 

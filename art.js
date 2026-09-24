@@ -607,7 +607,8 @@
     for (let b = 0; b < 6; b++) {
       const f = has('backgrounds', 'biome' + b);
       if (!f) continue;
-      css += `.stage[data-biome='${b}'] .stage__sky { background: url('${src(f)}') center bottom / cover no-repeat; }\n` +
+      // 옆으로 흐르는 배경: 같은 그림을 원본·좌우 반전본으로 번갈아 이어 붙여(.stage__scroll i) 이음새 없이 끝없이 이어진다
+      css += `.stage[data-biome='${b}'] .stage__scroll i { background-image: url('${src(f)}'); }\n.stage[data-biome='${b}'] .stage__scroll { display: flex; }\n` +
              `.stage[data-biome='${b}'] :is(.stage__art, .stage__sun, .stage__rays) { display: none; }\n`;
     }
     if (css) { const st = doc.createElement('style'); st.textContent = css; doc.head.appendChild(st); }
