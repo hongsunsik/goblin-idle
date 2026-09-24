@@ -456,7 +456,11 @@
     }
     return waves;
   }
-  const dungeonBossHp = (s, period, wave) => Math.round(monsterMaxHp(s.bestStage) * Dg.DUNGEONS[period].hpMult * Math.pow(Dg.DUNGEONS[period].hpStep, wave));
+  // 던전은 '최고 스테이지의 일반 몬스터' 기준이다. 보스 스테이지(10의 배수) 배율까지 따라가면
+  // 최고 기록이 110·120처럼 딱 보스 스테이지일 때만 던전이 체력 6배·골드 5배로 튀었다.
+  const dgBaseHp = (s) => monsterMaxHp(s.bestStage) / (isBossStage(s.bestStage) ? BOSS_HP : 1);
+  const dgBaseGold = (s) => monsterGold(s.bestStage) / (isBossStage(s.bestStage) ? BOSS_GOLD : 1);
+  const dungeonBossHp = (s, period, wave) => Math.round(dgBaseHp(s) * Dg.DUNGEONS[period].hpMult * Math.pow(Dg.DUNGEONS[period].hpStep, wave));
   // 화면 표시용 현황
   function dungeonInfo(s, period) {
     const d = s.dungeons[period], cfg = Dg.DUNGEONS[period];
@@ -510,7 +514,7 @@
       const need = dungeonBossHp(s, period, w);
       if (budget < need) {
         const frac = budget / need;
-        partialGold = Math.floor(monsterGold(s.bestStage) * cfg.reward.gold * goldMult(s) * frac * PARTIAL_GOLD);
+        partialGold = Math.floor(dgBaseGold(s) * cfg.reward.gold * goldMult(s) * frac * PARTIAL_GOLD);
         s.gold += partialGold;
         fights.push({ boss: bosses[w], hp: need, dealt: budget, killed: false });
         break;
@@ -522,7 +526,7 @@
       giveItem(s, it);
       tallyRarity(s, it);
       drops.push(it);
-      s.gold += Math.ceil(monsterGold(s.bestStage) * cfg.reward.gold * goldMult(s));
+      s.gold += Math.ceil(dgBaseGold(s) * cfg.reward.gold * goldMult(s));
       s.crystals = Math.min(1e9, s.crystals + cfg.reward.crystals);
     }
     if (wavesCleared > d.bestWaves) d.bestWaves = wavesCleared;
@@ -532,7 +536,7 @@
     if (fullClear && !d.bonusClaimed) {
       d.bonusClaimed = true;
       s.crystals = Math.min(1e9, s.crystals + cfg.clear.crystals);
-      s.gold += Math.ceil(monsterGold(s.bestStage) * cfg.clear.gold * goldMult(s));
+      s.gold += Math.ceil(dgBaseGold(s) * cfg.clear.gold * goldMult(s));
       if (cfg.clear.tokens) s.tokens += cfg.clear.tokens;
       const it = rollItem(s, s.bestStage, true, rollFromOdds(cfg.clear.boxOdds));
       giveItem(s, it);
@@ -1124,7 +1128,8 @@
   const monsterAtk = (stage) =>
     2 * Math.pow(ATK_GROWTH, Math.min(stage, SOFT_FROM) - 1) * Math.pow(ATK_SOFT_GROWTH, Math.max(0, stage - SOFT_FROM)) * (isBossStage(stage) ? BOSS_ATK : 1);
   const monsterGold = (stage) =>
-    Math.ceil(4 * Math.pow(1.21, stage - 1)) * (isBossStage(stage) ? 5 : 1);
+    Math.ceil(4 * Math.pow(1.21, stage - 1)) * (isBossStage(stage) ? BOSS_GOLD : 1);
+  const BOSS_GOLD = 5;
   const monsterExp = (stage) =>
     Math.ceil(3 * Math.pow(1.15, stage - 1)) * (isBossStage(stage) ? 4 : 1);
 

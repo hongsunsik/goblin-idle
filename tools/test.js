@@ -2688,7 +2688,7 @@ test('예상 파동 수는 실제 도전 결과와 같다 (보너스 0과 상한
   }
 });
 test('전투 기록: 물리친 파동은 체력만큼, 막힌 파동은 남은 예산만큼 피해를 기록하고 합이 시작 예산을 넘지 않는다', () => {
-  const s = dgBase(5); s.bestStage = 20;
+  const s = dgBase(5); s.bestStage = 25;
   const r = G.challengeDungeon(s, 'monthly', 0);
   assert.strictEqual(r.fights.filter((f) => f.killed).length, r.wavesCleared);
   for (const f of r.fights) assert.ok(f.dealt <= f.hp + 1e-6);
@@ -2696,7 +2696,7 @@ test('전투 기록: 물리친 파동은 체력만큼, 막힌 파동은 남은 �
   if (!r.fullClear) assert.strictEqual(r.fights[r.fights.length - 1].killed, false);
 });
 test('못 물리친 파동은 깎은 비율만큼 위로 골드를 주고, 완주하면 위로 골드는 0이다', () => {
-  const s = dgBase(5); s.bestStage = 20; const g0 = s.gold;   // 월간 5파동 중 1파동만 잡는 세기
+  const s = dgBase(5); s.bestStage = 25; const g0 = s.gold;   // 월간 5파동 중 1파동만 잡는 세기
   const r = G.challengeDungeon(s, 'monthly', 0);
   assert.ok(!r.fullClear, '이 설정에서는 월간을 다 못 깬다');
   assert.ok(r.partialGold > 0 && s.gold >= g0 + r.partialGold);
@@ -2721,6 +2721,11 @@ test('소탕: 완주한 적이 없으면 거절하고, 완주 뒤엔 최고 보�
   assert.strictEqual(r.ok, true); assert.strictEqual(r.sweep, true);
   assert.ok(Math.abs(r.mgBonus - 0.2) < 1e-9);
   assert.strictEqual(s.dungeons.daily.used, 2);
+});
+test('던전 보스 체력·골드는 최고 스테이지가 보스 스테이지(10의 배수)여도 튀지 않고 스테이지에 따라 매끄럽게 는다', () => {
+  const at = (st) => { const s = dgBase(); s.bestStage = st; return G.dungeonBossHp(s, 'monthly', 0); };
+  assert.ok(at(109) < at(110) && at(110) < at(111), '109 < 110 < 111');
+  assert.ok(at(110) / at(109) < 1.5, '보스 스테이지 배율(6배)이 끼지 않는다');
 });
 test('최고 보너스 기록은 저장·복원되고, 상한을 넘게 조작하면 잘린다', () => {
   const s = dgBase(); G.challengeDungeon(s, 'weekly', 0.3);

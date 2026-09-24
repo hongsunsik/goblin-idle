@@ -10,7 +10,7 @@
   const DUNGEONS = {
     daily: {
       id: 'daily', name: '일일 던전', period: 'daily', attempts: 3, waves: 1,
-      hpMult: 5.5, hpStep: 1, budgetSec: 20,
+      hpMult: 6.2, hpStep: 1, budgetSec: 20,   // 2026-09-24 실측(환생 10분 주기 봇) 예산/체력 중앙값 1.26 → 약 1.1: 미니게임이 의미 있게
       boss: ['고블린 우두머리', '노략질 오크', '동굴 트롤', '늪지 히드라'],
       odds: { 2: 60, 3: 32, 4: 7, 5: 1 },                        // 파동 하나를 물리칠 때마다 주는 장비 등급 확률 (희귀 위주)
       reward: { crystals: 8, gold: 2.5 },
@@ -18,7 +18,7 @@
     },
     weekly: {
       id: 'weekly', name: '주간 던전', period: 'weekly', attempts: 1, waves: 3,
-      hpMult: 3.7, hpStep: 1.5, budgetSec: 55,
+      hpMult: 4.2, hpStep: 1.5, budgetSec: 55,   // 중앙값 1.08 → 약 0.95: 타이밍 게이지를 조금은 해야 완주
       boss: ['서리 거인', '용암 군주', '심연의 파수꾼', '뇌운의 화신'],
       odds: { 3: 55, 4: 38, 5: 6, 6: 1 },                        // 영웅 위주
       reward: { crystals: 22, gold: 6 },
