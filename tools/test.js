@@ -613,7 +613,7 @@ test('조작된 장비(없는 종류·등급, 과한 수치, 겹치는 번호, �
   assert.strictEqual(back.equip.accessory, null, '무기를 액세서리 칸에 넣을 수 없다');
   assert.strictEqual(back.bag.filter((x) => x.id === 1).length, 1, '같은 번호는 한 번만');
   assert.ok(back.bag.every((x) => x.id !== 4 && x.id !== 5));
-  assert.ok(back.bag.length <= G.BAG_MAX);
+  assert.ok(back.bag.length <= G.BAG_MAX + 3 * G.PERKS.bigbag.max)   // 넘치는 가방은 늘릴 수 있는 최대 한도에서 자른다;
 });
 
 test("직업 이름이 'constructor' 같은 이상한 저장 데이터도 오류 없이 불러온다", () => {
