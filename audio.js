@@ -233,7 +233,7 @@
   }
 
   // ---- 효과음: 고블린이 몬스터를 때릴 때. 공격 방식마다 다른 소리를 합성한다 ----
-  function sfx(style, strong, boss) {
+  function sfx(style, strong, boss, monster) {
     if (!sfxOn || !ctx || ctx.state !== 'running') return;
     const now = ctx.currentTime;
     if (now - lastSfx < 0.07) return;   // 너무 잦으면 소리가 뭉개져서 간격을 둔다
@@ -258,10 +258,28 @@
       case 'dark': T('sawtooth', 110, 0.22, 0.05, { slide: 70 }); T('sawtooth', 116, 0.22, 0.04, { slide: 72 }); break;   // 암흑: 낮게 웅
       default: N(0.07, 0.2, 1500, 'bandpass');
     }
-    // 몬스터가 맞는 소리 '퍽': 무기 소리 바로 뒤에 몸통에 맞는 둔탁한 소리 (보스는 더 낮고 묵직하게, 조금씩 음높이를 흔든다)
-    const base = (boss ? 95 : 150) * (0.9 + Math.random() * 0.2);
-    T('sine', base, 0.1, boss ? 0.32 : 0.24, { slide: base * 0.55, at: 0.025 });
-    N(0.07, 0.14, boss ? 500 : 800, 'lowpass', 0.025);
+    hurt(monster, boss, strong, t + 0.03);
+  }
+
+  // 몬스터가 맞는 소리. 폰 스피커는 약 300Hz 아래를 거의 못 내서, 예전 150Hz '퍽'은 폰에서 안 들렸다
+  // → 400~2000Hz 중간 음역에 몸체를 두고, 몬스터 종류마다 다르게 (물컹·딱딱·동물). 같은 소리가 반복되지 않게 음높이를 조금씩 흔든다.
+  const SOFT = ['slime', 'ghost'], HARD = ['golem', 'skeleton', 'scorpion'];
+  function hurt(kind, boss, strong, t) {
+    const g = G, b = G.sfxBus, k = (strong ? 1.35 : 1) * (boss ? 1.25 : 1), j = 0.9 + Math.random() * 0.2, low = boss ? 0.75 : 1;
+    const T = (wave, f, dur, gain, o) => tone(g, wave, f, t + ((o && o.at) || 0), dur, gain * k, Object.assign({ bus: b, rev: false, release: dur * 0.5 }, o));
+    const N = (dur, gain, freq, type, at) => hit(g, t + (at || 0), dur, gain * k, freq, b, type);
+    if (SOFT.includes(kind)) {          // 물컹 '뿌직'
+      N(0.09, 0.3, 900 * j * low, 'bandpass');
+      T('triangle', 640 * j * low, 0.12, 0.16, { slide: 400 * j * low });
+    } else if (HARD.includes(kind)) {   // 딱딱 '딱'
+      N(0.05, 0.5, 2400 * j, 'bandpass');
+      T('square', 900 * j * low, 0.06, 0.12, { slide: 600 * j * low });
+      N(0.07, 0.25, 1200 * j, 'bandpass', 0.02);
+    } else {                            // 동물형 '퍽' + 짧은 비명
+      N(0.07, 0.34, 1300 * j * low, 'bandpass');
+      T('triangle', 520 * j * low, 0.08, 0.18, { slide: 360 * j * low });
+      T('square', 980 * j * low, 0.07, 0.045, { slide: 640 * j * low, at: 0.04 });
+    }
   }
 
   // ---- 사건 효과음: 처치·레벨업·장비·쓰러짐·보스 등장 ----
@@ -293,6 +311,21 @@
     }
   }
 
+  // 점검용: 몬스터 맞는 소리를 소리 없이 그려서, 폰 스피커가 거의 못 내는 300Hz 아래 저음 비중을 잰다 (0~1, 낮을수록 폰에서 잘 들림)
+  async function measureHurt(kind) {
+    const OAC = root.OfflineAudioContext || root.webkitOfflineAudioContext;
+    if (!OAC) return null;
+    const c = new OAC(1, 44100 * 0.4, 44100), g = buildGraph(c, c.destination);
+    g.sfxBus = c.createGain(); g.sfxBus.connect(c.destination);
+    const saveG = G; G = g; hurt(kind, false, false, 0.01); G = saveG;
+    const d = (await c.startRendering()).getChannelData(0);
+    // 1차 저역 통과(300Hz)로 저음만 걸러 에너지 비교
+    const a = Math.exp(-2 * Math.PI * 300 / 44100);
+    let y = 0, lowE = 0, allE = 0;
+    for (let i = 0; i < d.length; i++) { y = (1 - a) * d[i] + a * y; lowE += y * y; allE += d[i] * d[i]; }
+    return { lowShare: lowE / (allE || 1), rms: Math.sqrt(allE / d.length) };
+  }
+
   // 점검용: 곡 하나를 sec초 동안 소리 없이 그려서 크기(최고·평균)를 잰다. tools/ui-check.js가 쓴다.
   async function measure(name, sec) {
     const OAC = root.OfflineAudioContext || root.webkitOfflineAudioContext;
@@ -322,6 +355,7 @@
     setOn(v) { on = !!v; save(); if (on) { start(); if (out) out.gain.value = vol * 0.9; } else { if (out) out.gain.value = 0; stop(); } },
     sfx,
     sfxEvent,
+    hurt: (kind, boss, strong) => { if (sfxOn && ctx && ctx.state === 'running') { sfxCount += 1; hurt(kind, boss, strong, ctx.currentTime + 0.005); } },
     get sfxOn() { return sfxOn; },
     get sfxVolume() { return sfxVol; },
     setSfxOn(v) { sfxOn = !!v; saveSfx(); if (G && G.sfxBus) G.sfxBus.gain.value = sfxOn ? sfxVol * 0.8 : 0; if (sfxOn && ensure() && ctx.state === 'suspended') ctx.resume(); },
@@ -332,5 +366,6 @@
     get song() { return song; },
     SONGS: Object.keys(SONGS),
     measure,
+    measureHurt,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

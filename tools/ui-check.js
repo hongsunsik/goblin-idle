@@ -901,6 +901,9 @@ const FAKE_CLOUD = `(() => {
     check('보스 스테이지를 지나도 곡이 들쭉날쭉 바뀌지 않는다 (숲 곡 유지)', !bossSwitched);
     const hits0 = await ev(`window.GoblinAudio.sfxCount`); await sleep(2000);
     check('고블린이 공격하면 효과음이 난다', (await ev(`window.GoblinAudio.sfxCount`)) > hits0);
+    const hurtM = await ev(`Promise.all(['slime', 'golem', 'wolf'].map((k) => window.GoblinAudio.measureHurt(k).then((m) => [k, m])))`);
+    console.log('    몬스터 맞는 소리 300Hz 아래 저음 비중: ' + hurtM.map(([k, m]) => `${k} ${(m.lowShare * 100).toFixed(0)}% (크기 ${m.rms.toFixed(3)})`).join(' · '));
+    check('몬스터 맞는 소리는 폰 스피커가 내는 음역(300Hz 이상)이 대부분이고 충분히 크다', hurtM.every(([, m]) => m.lowShare < 0.25 && m.rms > 0.01));
     const ev0 = await ev(`window.GoblinAudio.sfxCount`);
     await ev(`['kill', 'levelup', 'drop', 'down', 'boss'].forEach((n) => window.GoblinAudio.sfxEvent(n, 5))`);
     check('처치·레벨업·장비·쓰러짐·보스 등장 효과음이 오류 없이 난다', (await ev(`window.GoblinAudio.sfxCount`)) >= ev0 + 5);

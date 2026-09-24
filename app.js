@@ -660,7 +660,7 @@
     else { const rel = shootBody(style, soft); land = rel + projectile(style, rel, strong); }
     monsterHit(strong, land, soft);
     if (!calm() || strong) impactSprite(style, strong, land);   // 화려하게: 맞는 순간 폭발
-    if (window.GoblinAudio) { const boss = G.isBossStage(state.stage); setTimeout(() => window.GoblinAudio.sfx(style, strong, boss), land); }   // 맞는 순간 효과음 (무기 소리 + 몬스터 맞는 소리)
+    if (window.GoblinAudio) { const boss = G.isBossStage(state.stage), kind = G.monsterInfo(state.stage).kind; setTimeout(() => window.GoblinAudio.sfx(style, strong, boss, kind), land); }   // 맞는 순간 효과음 (무기 소리 + 몬스터 종류별 맞는 소리)
     return land;
   }
   const IMPACT_SPRITE = { axe: 'explosion_fire', hammer: 'explosion_fire', fire: 'explosion_fire', orb: 'explosion_magic', dark: 'explosion_magic', coin: 'coin_burst' };
