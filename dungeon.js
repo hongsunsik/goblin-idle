@@ -45,7 +45,7 @@
   // '최고 층'이 곧 내 전투력의 기록이 된다. 층마다 피해 예산(초당 피해 × budgetSec)을 새로 받는다.
   // 보상: 새 층을 처음 넘을 때만. 5층마다 장비, 10층마다 증표. 하루 한 번 최고 층에 비례한 크리스탈.
   const TOWER = {
-    stageBase: 10, stagePerFloor: 3, hpMult: 6, budgetSec: 25, maxClimb: 10, maxFloor: 300, minStage: 30,
+    stageBase: 10, stagePerFloor: 3, hpMult: 6, budgetSec: 25, maxClimb: 10, maxFloor: 9999, minStage: 30,
     crystals: (f) => 5 + Math.floor(f / 2),
     itemEvery: 5, itemOdds: { 2: 60, 3: 34, 4: 6 },
     tokenEvery: 10, tokens: 2, bigOdds: { 3: 58, 4: 34, 5: 7, 6: 1 },   // 10층마다: 장비 등급이 더 높고 증표도 준다

@@ -12,6 +12,8 @@
   const KILLS_PER_STAGE = 5;      // 일반 스테이지는 몬스터 5마리를 잡으면 클리어
   const BOSS_EVERY = 5;           // 5의 배수 스테이지는 보스 1마리
   const DOWN_TIME = 3;            // 쓰러진 뒤 부활까지 걸리는 시간(초)
+  // 몇 년 플레이해도 저장 복원에서 잘리지 않게 넉넉히 잡은 상한 (예전 스테이지 999·증표 99,999·골드 1e60은 1~2년이면 닿았다)
+  const STAGE_CAP = 99999, LEVEL_CAP = 99999, TOKEN_CAP = 1e12, BIG_CAP = 1e300;
   const PRESTIGE_MIN_STAGE = 10;  // 환생 가능한 최소 스테이지
   const CLICK_MULT = 3;           // 직접 때리기는 한 번에 공격력의 3배
 
@@ -900,12 +902,12 @@
   // 분해: 가방 장비를 가루로 바꾼다. 등급·레벨·강화 단계가 높을수록 많이 나온다.
   // 레벨 올리기: 가루로 장비 레벨(ilvl)을 1씩 올린다. 수치는 레벨 비율만큼 오르고, 처음 굴린 무작위 편차(±5%)는 그대로 남는다.
   // 상한은 내 최고 스테이지라서, 예전에 얻은 좋은 장비를 지금 진행도까지 끌어올려 계속 쓸 수 있다.
-  const DUST_CAP = 1e12;
+  const DUST_CAP = 1e15;
   const DUST_R = [1, 2, 5, 12, 30, 80, 200];        // 등급별 기본 가루
   const LV_COST_R = [0.5, 0.6, 0.8, 1, 1.3, 1.7, 2.2];   // 등급별 레벨 올리기 비용 배율
   const dustValue = (it) => Math.ceil(DUST_R[it.r] * (1 + it.ilvl / 50) * (1 + 0.5 * (it.enh || 0)) + 0.6 * 1500 * [0.5, 0.6, 0.8, 1, 1.3, 1.7, 2.2][it.r] * ((it.star || 0) * ((it.star || 0) + 1)) / 2);   // 초월에 쓴 가루(starDust 누적)는 60% 돌려받는다
-  // 장비 레벨 상한: 최고 스테이지 + 100, 초월 한 단계마다 +100 더 (최대 999)
-  const ITEM_LV_MAX = 999, ITEM_LV_BONUS = 100;
+  // 장비 레벨 상한: 최고 스테이지 + 100, 초월 한 단계마다 +100 더
+  const ITEM_LV_MAX = 99999, ITEM_LV_BONUS = 100;
   const dustGain = (s, it) => Math.ceil(dustValue(it) * (1 + 0.1 * perkLv(s, 'alchemy')));   // 실제로 받는 가루 (증표 상점 '가루 연금술')
   const itemLevelCap = (s, it) => Math.min(ITEM_LV_MAX, Math.max(1, s.bestStage) + ITEM_LV_BONUS + STAR_LV * ((it && it.star) || 0));
   const lvStepCost = (r, lv) => Math.ceil((2 + lv / 10) * LV_COST_R[r]);   // lv → lv+1
@@ -1787,15 +1789,15 @@
     if (!o || typeof o !== 'object') return null;
     const s = createState(num(o.savedAt, 0));
     s.gold = clamp(num(o.gold, 0), 0, GOLD_CAP);
-    s.level = clamp(Math.floor(num(o.level, 1)), 1, 9999);
-    s.exp = clamp(num(o.exp, 0), 0, 1e60);
-    s.stage = clamp(Math.floor(num(o.stage, 1)), 1, 999);
+    s.level = clamp(Math.floor(num(o.level, 1)), 1, LEVEL_CAP);
+    s.exp = clamp(num(o.exp, 0), 0, BIG_CAP);
+    s.stage = clamp(Math.floor(num(o.stage, 1)), 1, STAGE_CAP);
     s.killsInStage = clamp(Math.floor(num(o.killsInStage, 0)), 0, KILLS_PER_STAGE);
-    s.runBest = clamp(Math.floor(num(o.runBest, s.stage)), s.stage, 999);
-    s.bestStage = clamp(Math.floor(num(o.bestStage, s.runBest)), s.runBest, 999);
+    s.runBest = clamp(Math.floor(num(o.runBest, s.stage)), s.stage, STAGE_CAP);
+    s.bestStage = clamp(Math.floor(num(o.bestStage, s.runBest)), s.runBest, STAGE_CAP);
     s.totalKills = clamp(Math.floor(num(o.totalKills, 0)), 0, 1e15);
-    s.tokens = clamp(Math.floor(num(o.tokens, 0)), 0, 99999);
-    s.prestiges = clamp(Math.floor(num(o.prestiges, 0)), 0, 99999);
+    s.tokens = clamp(Math.floor(num(o.tokens, 0)), 0, TOKEN_CAP);
+    s.prestiges = clamp(Math.floor(num(o.prestiges, 0)), 0, 1e9);
     for (const k of UPGRADE_KEYS) {
       const lv = clamp(Math.floor(num(o.upgrades && o.upgrades[k], 0)), 0, 9999);
       s.upgrades[k] = Math.min(lv, UPGRADES[k].max);
@@ -1855,7 +1857,7 @@
     for (const k of ADV_IDS) {
       const d = o.dex && o.dex[k];
       if (d && typeof d === 'object') {
-        s.dex[k] = { best: clamp(Math.floor(num(d.best, 0)), 0, 999), kills: clamp(Math.floor(num(d.kills, 0)), 0, 1e15), runs: clamp(Math.floor(num(d.runs, 0)), 0, 99999) };
+        s.dex[k] = { best: clamp(Math.floor(num(d.best, 0)), 0, STAGE_CAP), kills: clamp(Math.floor(num(d.kills, 0)), 0, 1e15), runs: clamp(Math.floor(num(d.runs, 0)), 0, 99999) };
       }
     }
     for (const id of PERK_KEYS) {
@@ -1867,7 +1869,7 @@
       if (!x || typeof x !== 'object' || !has(GEAR, x.slot) || !has(GEAR[x.slot].kinds, x.kind)) return null;
       const r = Math.floor(num(x.r, -1));
       if (r < 0 || r >= RARITIES.length) return null;
-      const ilvl = clamp(Math.floor(num(x.ilvl, 1)), 1, 999);
+      const ilvl = clamp(Math.floor(num(x.ilvl, 1)), 1, ITEM_LV_MAX);
       const it = { id: clamp(Math.floor(num(x.id, 0)), 1, 1e12), slot: x.slot, kind: x.kind, r, ilvl,
                    val: clamp(num(x.val, 0), 0, maxItemVal(x.slot, x.kind, r, ilvl)), n: clamp(Math.floor(num(x.n, 0)), 0, 99),
                    enh: clamp(Math.floor(num(x.enh, 0)), 0, ENH_MAX) };
@@ -1907,7 +1909,7 @@
     for (const r of St.RELICS) if (o.relics && o.relics[r.id] === true) s.relics[r.id] = true;
     if (o.shop && typeof o.shop === 'object') {
       const sh = o.shop, GS = St.GEAR_SHOP;
-      s.shop = { win: clamp(Math.floor(num(sh.win, 0)), 0, 1e7), reroll: clamp(Math.floor(num(sh.reroll, 0)), 0, GS.rerollMax), lvl: clamp(Math.floor(num(sh.lvl, 0)), 0, 999),
+      s.shop = { win: clamp(Math.floor(num(sh.win, 0)), 0, 1e7), reroll: clamp(Math.floor(num(sh.reroll, 0)), 0, GS.rerollMax), lvl: clamp(Math.floor(num(sh.lvl, 0)), 0, STAGE_CAP),
                  bought: Array.isArray(sh.bought) ? [...new Set(sh.bought.filter((i) => Number.isInteger(i) && i >= 0 && i < GS.count))] : [] };
     }
     if (Array.isArray(o.relicEq)) for (const id of o.relicEq) if (s.relics[id] && !s.relicEq.includes(id) && s.relicEq.length < St.RELIC_SLOTS) s.relicEq.push(id);
@@ -1942,8 +1944,8 @@
   const GM_EMAILS = ['hongsunsik1@gmail.com'];
   const isGM = (email) => !!email && GM_EMAILS.includes(email);
   function gmAddCrystals(s, n) { s.crystals = clamp(Math.floor(s.crystals + n), 0, 1e9); }
-  function gmAddTokens(s, n) { s.tokens = clamp(Math.floor(s.tokens + n), 0, 99999); }
-  const GOLD_CAP = 1e60;   // 저장 복원이 허용하는 골드 상한 (deserialize와 같다)
+  function gmAddTokens(s, n) { s.tokens = clamp(Math.floor(s.tokens + n), 0, TOKEN_CAP); }
+  const GOLD_CAP = BIG_CAP;   // 저장 복원이 허용하는 골드 상한 (deserialize와 같다)
   function gmAddGold(s, n) { s.gold = clamp(s.gold + n, 0, GOLD_CAP); }
   function gmMaxGold(s) { s.gold = GOLD_CAP; }
   function gmAddDust(s, n) { s.dust = clamp(Math.floor(s.dust + n), 0, DUST_CAP); }
@@ -1952,9 +1954,9 @@
     for (const p of Dg.DUNGEON_PERIODS) { const d = s.dungeons[p]; if (d) Object.assign(d, { used: 0, cleared: false, bonusClaimed: false, bestWaves: 0, bestBonus: 0 }); }
     s.tower.day = '';
   }
-  function gmSetLevel(s, lv) { s.level = clamp(Math.floor(lv), 1, 9999); s.hp = maxHp(s); }
+  function gmSetLevel(s, lv) { s.level = clamp(Math.floor(lv), 1, LEVEL_CAP); s.hp = maxHp(s); }
   function gmSetStage(s, stage) {
-    const st = clamp(Math.floor(stage), 1, 999);
+    const st = clamp(Math.floor(stage), 1, STAGE_CAP);
     s.stage = st; s.killsInStage = 0;
     s.runBest = Math.max(s.runBest, st); s.bestStage = Math.max(s.bestStage, st);
     s.hp = maxHp(s);
@@ -1989,7 +1991,7 @@
     moleBonus, gaugeBonus, parryBonus,
     PERKS, PERK_KEYS, HEADSTART_LV, perkLv, perkCost, perkSpent, tokenBalance, perkMissing, perkUnlocked, canBuyPerk, buyPerk, respecPerks, offlineCap,
     fmt, fmtTime,
-    isGM, gmAddCrystals, gmAddTokens, gmAddGold, gmMaxGold, gmAddDust, gmResetDungeons, GOLD_CAP, gmSetLevel, gmSetStage, gmMaxUpgrades, gmUnlockRelics,
+    isGM, gmAddCrystals, gmAddTokens, gmAddGold, gmMaxGold, gmAddDust, gmResetDungeons, GOLD_CAP, STAGE_CAP, LEVEL_CAP, TOKEN_CAP, DUST_CAP, ITEM_LV_MAX, gmSetLevel, gmSetStage, gmMaxUpgrades, gmUnlockRelics,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Game = api;

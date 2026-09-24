@@ -2855,11 +2855,11 @@ test('초월은 15강 장비만, 같은 칸·같은 등급 이상 재료 1개와
   assert.ok(!s.bag.includes(mat));
   assert.ok(Math.abs(G.enhVal(it) / before - (1 + G.STAR_STEP)) < 1e-9, '효과 +25%');
 });
-test('초월 한 단계마다 레벨 상한이 100 오르고, 최대 5단계, 상한 999를 넘지 않는다', () => {
+test('초월 한 단계마다 레벨 상한이 100 오르고, 최대 5단계, 장비 레벨 상한(ITEM_LV_MAX)을 넘지 않는다', () => {
   const s = stBase(); const it = G.rollItem(s, 50, false, 4, 'weapon'); it.enh = G.ENH_MAX; s.bag.push(it);
   assert.strictEqual(G.itemLevelCap(s, it), 200);
   it.star = 3; assert.strictEqual(G.itemLevelCap(s, it), 500);
-  s.bestStage = 900; assert.strictEqual(G.itemLevelCap(s, it), 999);
+  s.bestStage = G.ITEM_LV_MAX; assert.strictEqual(G.itemLevelCap(s, it), G.ITEM_LV_MAX);
   it.star = G.STAR_MAX; s.dust = 1e9; s.bag.push(G.rollItem(s, 50, false, 6, 'weapon'));
   assert.strictEqual(G.starItem(s, it.id, s.bag[1].id).reason, 'max');
 });
@@ -2956,6 +2956,13 @@ test('큰 가방을 초기화해 한도가 줄어도, 넘친 장비는 복원할
   G.respecPerks(s);
   assert.ok(s.bag.length > G.bagLimit(s));
   assert.strictEqual(G.deserialize(G.serialize(s, 1)).bag.length, n);
+});
+
+test('몇 년 플레이 값(스테이지 5,000·증표 1억·골드 1e200·레벨 3,000·장비 레벨 5,000)도 저장·복원에서 잘리지 않는다', () => {
+  const s = G.createState(0); s.stage = s.runBest = s.bestStage = 5000; s.tokens = 1e8; s.gold = 1e200; s.level = 3000; s.exp = 1e150;
+  const it = G.rollItem(s, 10, false, 4); it.ilvl = 5000; s.bag.push(it);
+  const b = G.deserialize(G.serialize(s, 1));
+  assert.deepStrictEqual([b.stage, b.bestStage, b.tokens, b.gold, b.level, b.exp, b.bag[0].ilvl], [5000, 5000, 1e8, 1e200, 3000, 1e150, 5000]);
 });
 
 section('장비 잠금');
@@ -3193,10 +3200,10 @@ test('TWA 초안과 assetlinks 견본이 올바른 JSON이고 주소·패키지 
 });
 
 section('GM 치트 (특정 계정 전용)');
-test('GM 가루 추가는 가루 상한(1조)을 넘지 않는다', () => {
+test('GM 가루 추가는 가루 상한(DUST_CAP)을 넘지 않는다', () => {
   const s = G.createState(0); G.gmAddDust(s, 1e10); assert.strictEqual(s.dust, 1e10);
-  for (let i = 0; i < 200; i++) G.gmAddDust(s, 1e10);
-  assert.strictEqual(s.dust, 1e12);
+  G.gmAddDust(s, G.DUST_CAP * 2);
+  assert.strictEqual(s.dust, G.DUST_CAP);
 });
 test('등록된 이메일만 GM으로 인정하고, 값 범위를 벗어나지 않게 자른다', () => {
   assert.strictEqual(G.isGM('hongsunsik1@gmail.com'), true);
@@ -3208,8 +3215,8 @@ test('등록된 이메일만 GM으로 인정하고, 값 범위를 벗어나지 �
   G.gmAddTokens(s, -999); assert.strictEqual(s.tokens, 0, '음수로 내려가지 않는다');
   G.gmSetLevel(s, -5); assert.strictEqual(s.level, 1);
   G.gmSetLevel(s, 50); assert.strictEqual(s.level, 50); assert.strictEqual(s.hp, G.maxHp(s), '레벨이 오르면 체력도 다시 계산된다');
-  G.gmSetStage(s, 9999); assert.strictEqual(s.stage, 999, '상한(999)을 넘지 않는다');
-  assert.strictEqual(s.runBest, 999); assert.strictEqual(s.bestStage, 999);
+  G.gmSetStage(s, 1e9); assert.strictEqual(s.stage, G.STAGE_CAP, '스테이지 상한을 넘지 않는다');
+  assert.strictEqual(s.runBest, G.STAGE_CAP); assert.strictEqual(s.bestStage, G.STAGE_CAP);
   const before = { ...s.upgrades };
   G.gmMaxUpgrades(s, 999); for (const k of G.UPGRADE_KEYS) assert.strictEqual(s.upgrades[k], Math.min(before[k] + 999, G.UPGRADES[k].max), k);
   G.gmMaxUpgrades(s, 999); assert.strictEqual(s.upgrades.speed, G.UPGRADES.speed.max, '유한한 상한(재빠른 손)은 넘지 않는다');
