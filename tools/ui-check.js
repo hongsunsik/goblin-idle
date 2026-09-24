@@ -897,8 +897,10 @@ const FAKE_CLOUD = `(() => {
     await ev(`document.getElementById('scene').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }))`); await sleep(600);
     check('화면을 한 번 누르면 배경음이 재생된다', await ev(`window.GoblinAudio.playing`));
     check('고블린 숲(지역 1)에서는 숲 곡이 나온다', (await ev(`window.GoblinAudio.song`)) === 'forest');
-    const bossSeen = await ev(`new Promise((res) => { const iv = setInterval(() => { if (window.GoblinAudio.song === 'boss') { clearInterval(iv); res(true); } }, 100); setTimeout(() => { clearInterval(iv); res(false); }, 25000); })`);
-    check('보스 스테이지에 가면 마디가 바뀔 때 보스 곡으로 바뀐다', bossSeen);
+    const bossSwitched = await ev(`new Promise((res) => { let seen = false; const iv = setInterval(() => { if (window.GoblinAudio.song !== 'forest') seen = true; }, 100); setTimeout(() => { clearInterval(iv); res(seen); }, 12000); })`);
+    check('보스 스테이지를 지나도 곡이 들쭉날쭉 바뀌지 않는다 (숲 곡 유지)', !bossSwitched);
+    const hits0 = await ev(`window.GoblinAudio.sfxCount`); await sleep(2000);
+    check('고블린이 공격하면 효과음이 난다', (await ev(`window.GoblinAudio.sfxCount`)) > hits0);
     const lv = await ev(`Promise.all(window.GoblinAudio.SONGS.map((n) => window.GoblinAudio.measure(n, 8).then((m) => [n, m])))`);
     console.log('    곡별 크기(8초, 음량 50%): ' + lv.map(([n, m]) => `${n} 최고 ${m.peak.toFixed(2)} 평균 ${m.rms.toFixed(3)}`).join(' · '));
     check('8곡 모두 소리가 나고 찢어지지 않는다 (최고 < 0.95, 평균 > 0.01)', lv.length === 8 && lv.every(([, m]) => m.peak < 0.95 && m.rms > 0.01));
@@ -909,6 +911,10 @@ const FAKE_CLOUD = `(() => {
     check('설정에서 끄면 멈추고 음량 막대가 잠긴다', !(await ev(`window.GoblinAudio.playing`)) && (await ev(`document.getElementById('bgmVol').disabled`)));
     await click('#bgmSeg [data-bgm="on"]'); await sleep(300);
     check('다시 켜면 다시 나온다', await ev(`window.GoblinAudio.playing`));
+    await click('#sfxSeg [data-sfx="off"]'); await sleep(200);
+    const s0 = await ev(`window.GoblinAudio.sfxCount`); await sleep(1500);
+    check('효과음을 끄면 공격해도 소리가 안 난다 (배경음은 그대로)', (await ev(`window.GoblinAudio.sfxCount`)) === s0 && (await ev(`window.GoblinAudio.playing`)));
+    await click('#sfxSeg [data-sfx="on"]'); await sleep(200);
     await click('#settingsClose'); await sleep(200);
 
     console.log('GM 모드 (관리자 계정에서만 보임)');

@@ -660,6 +660,7 @@
     else { const rel = shootBody(style, soft); land = rel + projectile(style, rel, strong); }
     monsterHit(strong, land, soft);
     if (!calm() || strong) impactSprite(style, strong, land);   // 화려하게: 맞는 순간 폭발
+    if (window.GoblinAudio) setTimeout(() => window.GoblinAudio.sfx(style, strong), land);   // 맞는 순간 효과음
     return land;
   }
   const IMPACT_SPRITE = { axe: 'explosion_fire', hammer: 'explosion_fire', fire: 'explosion_fire', orb: 'explosion_magic', dark: 'explosion_magic', coin: 'coin_burst' };
@@ -2775,8 +2776,13 @@
     document.querySelectorAll('#bgmSeg button').forEach((b) => b.classList.toggle('is-on', (b.dataset.bgm === 'on') === Bgm.on));
     $('bgmVol').value = String(Math.round(Bgm.volume * 100));
     $('bgmVol').disabled = !Bgm.on;
+    document.querySelectorAll('#sfxSeg button').forEach((b) => b.classList.toggle('is-on', (b.dataset.sfx === 'on') === Bgm.sfxOn));
+    $('sfxVol').value = String(Math.round(Bgm.sfxVolume * 100));
+    $('sfxVol').disabled = !Bgm.sfxOn;
   }
   if (Bgm) {
+    $('sfxSeg').addEventListener('click', (e) => { const b = e.target.closest('button[data-sfx]'); if (!b) return; Bgm.setSfxOn(b.dataset.sfx === 'on'); renderBgm(); });
+    $('sfxVol').addEventListener('input', (e) => Bgm.setSfxVolume(Number(e.target.value) / 100));
     $('bgmSeg').addEventListener('click', (e) => { const b = e.target.closest('button[data-bgm]'); if (!b) return; Bgm.setOn(b.dataset.bgm === 'on'); renderBgm(); });
     $('bgmVol').addEventListener('input', (e) => Bgm.setVolume(Number(e.target.value) / 100));
     renderBgm();

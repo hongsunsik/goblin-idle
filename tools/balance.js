@@ -10,6 +10,7 @@ const G = require(process.env.GAME || '../game.js');   // 실험용: GAME=변형
 const DAYS = Number(process.argv[2]) || 7, SEEDS = Number(process.argv[3]) || 4, JSON_OUT = process.argv.includes('--json');
 const ACTIVE_MIN = Number(process.env.ACTIVE_MIN || 120), PRESTIGE_MIN = Number(process.env.PRESTIGE_MIN || 10), STALL = Number(process.env.STALL || 90);
 const DAY_MS = 864e5, T0 = Date.UTC(2026, 8, 21, 3);   // 한국 시간 정오쯤
+const DT = Number(process.env.DT || 1);   // 몇 초씩 묶어 계산할지 (장기 시뮬레이션은 5~10으로 빠르게)
 
 function seeded(seed) { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 const BUY = ['weapon', 'armor', 'speed', 'companion', 'loot'];
@@ -53,9 +54,9 @@ function runSeed(seed, path) {
       G.claimTowerDaily(s, dayKey);
       while (!OFF.has('boxes') && s.crystals >= 900 && s.bag.length < G.bagLimit(s) - 2) G.buyProduct(s, 'box_legend');
     };
-    for (let t = 0; t < ACTIVE_MIN * 60; t++) {
-      G.simulate(s, 1);
-      playSec += 1;
+    for (let t = 0; t < ACTIVE_MIN * 60; t += DT) {
+      G.simulate(s, DT);
+      playSec += DT;
       spendGold(s);
       const st = G.promoStage(s);
       if (st) { const id = path[['base', 'adv', 'adv3', 'adv4', 'adv5'].indexOf(st)]; if (id) G.promote(s, id); }
@@ -64,11 +65,14 @@ function runSeed(seed, path) {
       for (const m of [50, 100, 150, 200, 250, 300]) if (s.bestStage >= m) mark('스테이지' + m, playSec);
       if (t % 60 === 0) { gearCare(s); if (t === 600 || t === ACTIVE_MIN * 60 - 60) content(); }
       const stalled = playSec - lastBestAt >= STALL;
-      if (stalled) walls[s.runBest] = (walls[s.runBest] || 0) + 1;
+      if (stalled) walls[s.runBest] = (walls[s.runBest] || 0) + DT;
       if (s.runT >= PRESTIGE_MIN * 60 && stalled && G.canPrestige(s)) { G.prestige(s); prestiges += 1; spendTokens(s); lastBest = 0; lastBestAt = playSec; }
     }
     crystalsIn += Math.max(0, s.crystals - c0);
-    days.push({ day: d + 1, best: s.bestStage, run: s.runBest, prestiges, tokens: s.tokens, crystals: Math.round(s.crystals), dust: s.dust, tower: s.tower.best,
+    const caps = [];   // 저장 상한에 닿은 값 (몇 년 플레이에서 진행이 잘리는지)
+    if (s.bestStage >= 999) caps.push('스테이지999'); if (s.tokens >= 99999) caps.push('증표99999'); if (s.gold >= 1e59) caps.push('골드1e60');
+    if (s.level >= 9999) caps.push('레벨'); if (s.tower.best >= G.TOWER.maxFloor) caps.push('탑꼭대기'); if (!Number.isFinite(G.totalDps(s))) caps.push('무한대');
+    days.push({ caps: caps.join(','), level: s.level, day: d + 1, best: s.bestStage, run: s.runBest, prestiges, tokens: s.tokens, crystals: Math.round(s.crystals), dust: s.dust, tower: s.tower.best,
                 dps: G.totalDps(s), gear: G.SLOT_KEYS.map((k) => (s.equip[k] ? `${G.RARITIES[s.equip[k].r].name[0]}${s.equip[k].ilvl}+${s.equip[k].enh || 0}${s.equip[k].star ? '✦' + s.equip[k].star : ''}` : '-')).join(' ') });
   }
   G.setRandom();
@@ -82,14 +86,16 @@ const PATHS = [
   ['rogue', 'pirate', 'buccaneer', 'treasureking', 'goldenlord'],
 ];
 const results = [];
-for (let i = 0; i < SEEDS; i++) results.push({ path: PATHS[i % PATHS.length], ...runSeed(1000 + i, PATHS[i % PATHS.length]) });
+const ONLY = process.env.ONLY !== undefined ? Number(process.env.ONLY) : null;   // 병렬로 나눠 돌릴 때: 이 번호의 씨앗만
+for (let i = 0; i < SEEDS; i++) if (ONLY === null || ONLY === i) results.push({ path: PATHS[i % PATHS.length], ...runSeed(1000 + i, PATHS[i % PATHS.length]) });
 if (JSON_OUT) { console.log(JSON.stringify(results)); process.exit(0); }
 const fmtT = (sec) => (sec === undefined ? '  -  ' : `${(sec / 3600).toFixed(1)}h`);
 console.log(`하루 ${ACTIVE_MIN}분 접속 × ${DAYS}일, 씨앗 ${SEEDS}개 (환생: 판 ${PRESTIGE_MIN}분 이상 + ${STALL}초 정체)`);
 for (const r of results) {
   console.log(`\n[${r.path.join('/')}]`);
   console.log('일  최고  환생  증표    크리스탈  가루      탑   초당피해   장비(무기 방어구 액세서리)');
-  for (const d of r.days) console.log(`${String(d.day).padStart(2)}  ${String(d.best).padStart(4)}  ${String(d.prestiges).padStart(4)}  ${String(d.tokens).padStart(5)}  ${String(d.crystals).padStart(8)}  ${G.fmt(d.dust).padStart(7)}  ${String(d.tower).padStart(4)}  ${G.fmt(d.dps).padStart(8)}   ${d.gear}`);
+  const SHOW = DAYS > 30 ? new Set([1, 2, 3, 7, 14, 30, 60, 90, 120, 180, 270, 365, 540, 730, 1095].filter((x) => x <= DAYS).concat([DAYS])) : null;
+  for (const d of r.days) if (!SHOW || SHOW.has(d.day)) console.log(`${String(d.day).padStart(2)}  ${String(d.best).padStart(4)}  ${String(d.prestiges).padStart(4)}  ${String(d.tokens).padStart(5)}  ${String(d.crystals).padStart(8)}  ${G.fmt(d.dust).padStart(7)}  ${String(d.tower).padStart(4)}  ${G.fmt(d.dps).padStart(8)}   ${d.gear} Lv${d.level}${d.caps ? ' ⚠' + d.caps : ''}`);
   console.log('처음 도달(접속 시간 기준): ' + ['5차', '스테이지50', '스테이지100', '스테이지150', '스테이지200', '스테이지250', '스테이지300'].map((k) => `${k} ${fmtT(r.first[k])}`).join(' · '));
   const w = Object.entries(r.walls).sort((a, b) => b[1] - a[1]).slice(0, 5);
   console.log('오래 막힌 스테이지(정체 초): ' + w.map(([st, n]) => `${st}(${n}s)`).join(' '));
