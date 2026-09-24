@@ -1934,6 +1934,7 @@
   const GOLD_CAP = 1e60;   // 저장 복원이 허용하는 골드 상한 (deserialize와 같다)
   function gmAddGold(s, n) { s.gold = clamp(s.gold + n, 0, GOLD_CAP); }
   function gmMaxGold(s) { s.gold = GOLD_CAP; }
+  function gmAddDust(s, n) { s.dust = clamp(Math.floor(s.dust + n), 0, DUST_CAP); }
   // 던전 초기화: 일일·주간·월간 도전 횟수·완주 보상·최고 기록을 처음 상태로, 탑 오늘 보상도 다시 받을 수 있게
   function gmResetDungeons(s) {
     for (const p of Dg.DUNGEON_PERIODS) { const d = s.dungeons[p]; if (d) Object.assign(d, { used: 0, cleared: false, bonusClaimed: false, bestWaves: 0, bestBonus: 0 }); }
@@ -1976,7 +1977,7 @@
     moleBonus, gaugeBonus, parryBonus,
     PERKS, PERK_KEYS, HEADSTART_LV, perkLv, perkCost, perkSpent, tokenBalance, perkMissing, perkUnlocked, canBuyPerk, buyPerk, respecPerks, offlineCap,
     fmt, fmtTime,
-    isGM, gmAddCrystals, gmAddTokens, gmAddGold, gmMaxGold, gmResetDungeons, GOLD_CAP, gmSetLevel, gmSetStage, gmMaxUpgrades, gmUnlockRelics,
+    isGM, gmAddCrystals, gmAddTokens, gmAddGold, gmMaxGold, gmAddDust, gmResetDungeons, GOLD_CAP, gmSetLevel, gmSetStage, gmMaxUpgrades, gmUnlockRelics,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Game = api;

@@ -3006,6 +3006,7 @@
     upgrade10: () => { G.gmMaxUpgrades(state, 10); return '강화 전부 +10'; },
     relics: () => { G.gmUnlockRelics(state); return '유물 전부 획득'; },
     dungeonreset: () => { G.gmResetDungeons(state); renderDungeon(true); return '던전 초기화'; },
+    dust10b: () => { G.gmAddDust(state, 1e10); renderGear(true); return '가루 +10B'; },
   };
   $('gmGrid').addEventListener('click', (e) => {
     const b = e.target.closest('button[data-gm]');

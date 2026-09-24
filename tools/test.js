@@ -3170,6 +3170,11 @@ test('TWA 초안과 assetlinks 견본이 올바른 JSON이고 주소·패키지 
 });
 
 section('GM 치트 (특정 계정 전용)');
+test('GM 가루 추가는 가루 상한(1조)을 넘지 않는다', () => {
+  const s = G.createState(0); G.gmAddDust(s, 1e10); assert.strictEqual(s.dust, 1e10);
+  for (let i = 0; i < 200; i++) G.gmAddDust(s, 1e10);
+  assert.strictEqual(s.dust, 1e12);
+});
 test('등록된 이메일만 GM으로 인정하고, 값 범위를 벗어나지 않게 자른다', () => {
   assert.strictEqual(G.isGM('hongsunsik1@gmail.com'), true);
   assert.strictEqual(G.isGM('other@example.com'), false);

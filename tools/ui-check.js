@@ -920,10 +920,18 @@ const FAKE_CLOUD = `(() => {
     check('쓸 수 있는 증표가 0으로 보인다 (점검 전제)', (await txt('#tokens')) === '0');
     await click('#gmGrid [data-gm="token50"]'); await sleep(300);
     check('GM 버튼(증표 +50)을 누르면 실제로 증표가 늘어난다', (await txt('#tokens')) === '50');
+    await click('#gmGrid [data-gm="dust10b"]'); await sleep(250);
+    await click('#settingsClose'); await sleep(150); await click('[data-go="gear"]'); await sleep(250);
+    check('GM 가루 +10B를 누르면 가방 옆 가루가 10B가 된다', (await txt('#dustBal')).includes(G.fmt(1e10)));
+    await click('#settingsBtn'); await sleep(250);
     await ev(`window.__authCb({ uid: 't1', name: '테스터', email: 't@example.com', photo: '', provider: 'google.com' })`); await sleep(400);
     check('다른 계정으로 바뀌면 GM 모드가 다시 숨는다', await ev(`document.getElementById('gmSection').hidden`));
 
-    check('GM 버튼: 골드 최대·레벨 +100·던전 초기화가 있다', !!(await ev(`document.querySelector('[data-gm="goldmax"]')`)) && !!(await ev(`document.querySelector('[data-gm="level100"]')`)) && !!(await ev(`document.querySelector('[data-gm="dungeonreset"]')`)));
+    check('GM 버튼: 골드 최대·레벨 +100·던전 초기화가 있다', !!(await ev(`document.querySelector('[data-gm="goldmax"]')`)) && !!(await ev(`document.querySelector('[data-gm="level100"]')`)) && !!(await ev(`document.querySelector('[data-gm="dungeonreset"]')`)) && !!(await ev(`document.querySelector('[data-gm="dust10b"]')`)));
+    await click('#settingsClose'); await sleep(150); await click('[data-go="gear"]'); await sleep(250);
+    const dustBefore = await txt('#dustBal');
+    await click('[data-gm="dust10b"]'); await sleep(250); await click('[data-go="upgrade"]'); await sleep(150); await click('[data-go="gear"]'); await sleep(250);
+    check('GM이 아닌 계정에서는 가루 버튼을 눌러도 아무 일도 없다', (await txt('#dustBal')) === dustBefore);
     console.log('오래 돌려도 안정적인가 (전투 10초)');
     await ev(`document.querySelector('[data-go="upgrade"]').click()`);
     await sleep(10000);
