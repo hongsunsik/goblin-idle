@@ -901,6 +901,9 @@ const FAKE_CLOUD = `(() => {
     check('보스 스테이지를 지나도 곡이 들쭉날쭉 바뀌지 않는다 (숲 곡 유지)', !bossSwitched);
     const hits0 = await ev(`window.GoblinAudio.sfxCount`); await sleep(2000);
     check('고블린이 공격하면 효과음이 난다', (await ev(`window.GoblinAudio.sfxCount`)) > hits0);
+    const ev0 = await ev(`window.GoblinAudio.sfxCount`);
+    await ev(`['kill', 'levelup', 'drop', 'down', 'boss'].forEach((n) => window.GoblinAudio.sfxEvent(n, 5))`);
+    check('처치·레벨업·장비·쓰러짐·보스 등장 효과음이 오류 없이 난다', (await ev(`window.GoblinAudio.sfxCount`)) >= ev0 + 5);
     const lv = await ev(`Promise.all(window.GoblinAudio.SONGS.map((n) => window.GoblinAudio.measure(n, 8).then((m) => [n, m])))`);
     console.log('    곡별 크기(8초, 음량 50%): ' + lv.map(([n, m]) => `${n} 최고 ${m.peak.toFixed(2)} 평균 ${m.rms.toFixed(3)}`).join(' · '));
     check('8곡 모두 소리가 나고 찢어지지 않는다 (최고 < 0.95, 평균 > 0.01)', lv.length === 8 && lv.every(([, m]) => m.peak < 0.95 && m.rms > 0.01));

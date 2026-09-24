@@ -233,7 +233,7 @@
   }
 
   // ---- 효과음: 고블린이 몬스터를 때릴 때. 공격 방식마다 다른 소리를 합성한다 ----
-  function sfx(style, strong) {
+  function sfx(style, strong, boss) {
     if (!sfxOn || !ctx || ctx.state !== 'running') return;
     const now = ctx.currentTime;
     if (now - lastSfx < 0.07) return;   // 너무 잦으면 소리가 뭉개져서 간격을 둔다
@@ -257,6 +257,39 @@
       case 'fire': N(0.22, 0.2, 700, 'lowpass'); T('triangle', 220, 0.16, 0.08, { slide: 110 }); break;   // 불: 화르륵
       case 'dark': T('sawtooth', 110, 0.22, 0.05, { slide: 70 }); T('sawtooth', 116, 0.22, 0.04, { slide: 72 }); break;   // 암흑: 낮게 웅
       default: N(0.07, 0.2, 1500, 'bandpass');
+    }
+    // 몬스터가 맞는 소리 '퍽': 무기 소리 바로 뒤에 몸통에 맞는 둔탁한 소리 (보스는 더 낮고 묵직하게, 조금씩 음높이를 흔든다)
+    const base = (boss ? 95 : 150) * (0.9 + Math.random() * 0.2);
+    T('sine', base, 0.1, boss ? 0.32 : 0.24, { slide: base * 0.55, at: 0.025 });
+    N(0.07, 0.14, boss ? 500 : 800, 'lowpass', 0.025);
+  }
+
+  // ---- 사건 효과음: 처치·레벨업·장비·쓰러짐·보스 등장 ----
+  const lastEv = {};
+  function sfxEvent(name, arg) {
+    if (!sfxOn || !ctx || ctx.state !== 'running') return;
+    const now = ctx.currentTime, gap = { kill: 0.12, levelup: 0.4, drop: 0.2, down: 1, boss: 1 }[name] || 0.2;
+    if (now - (lastEv[name] || 0) < gap) return;
+    lastEv[name] = now; sfxCount += 1;
+    const g = G, b = G.sfxBus, t = now + 0.005;
+    const T = (wave, f, dur, gain, o) => tone(g, wave, f, t + ((o && o.at) || 0), dur, gain, Object.assign({ bus: b, rev: false, release: dur * 0.6 }, o));
+    const N = (dur, gain, hp, type, at) => hit(g, t + (at || 0), dur, gain, hp, b, type);
+    const notes = (list, step, wave, gain) => list.forEach((f, i) => T(wave, f, step * 1.6, gain, { at: i * step }));
+    switch (name) {
+      case 'kill':   // 처치 '뿅' (보스는 쿵 + 짧은 팡파레)
+        if (arg) { T('sine', 70, 0.35, 0.4, { slide: 35 }); N(0.3, 0.2, 400, 'lowpass'); notes([523, 659, 784, 1047], 0.08, 'triangle', 0.09); }
+        else { T('square', 420, 0.08, 0.05, { slide: 900 }); N(0.05, 0.06, 3000); }
+        break;
+      case 'levelup': notes([523, 659, 784, 1047, 1319], 0.06, 'triangle', 0.08); break;   // 도미솔도미 올라가는 화음
+      case 'drop': {   // 영웅 이상 장비: 등급이 높을수록 음이 많고 높다
+        const r = arg || 3, base = [880, 1109, 1319, 1760, 2217, 2637];
+        notes(base.slice(0, Math.min(6, r)), 0.05, 'sine', 0.07);
+        if (r >= 5) T('sine', 2637, 0.6, 0.05, { at: 0.3, vib: true });
+        break;
+      }
+      case 'down': notes([392, 330, 262, 196], 0.12, 'triangle', 0.08); break;   // 쓰러짐: 내려가는 소리
+      case 'boss': T('sawtooth', 110, 0.5, 0.06, { slide: 82 }); T('sawtooth', 116, 0.5, 0.05, { slide: 87 }); N(0.4, 0.08, 300, 'lowpass'); break;   // 보스 등장 경고음
+      default: break;
     }
   }
 
@@ -288,6 +321,7 @@
     get volume() { return vol; },
     setOn(v) { on = !!v; save(); if (on) { start(); if (out) out.gain.value = vol * 0.9; } else { if (out) out.gain.value = 0; stop(); } },
     sfx,
+    sfxEvent,
     get sfxOn() { return sfxOn; },
     get sfxVolume() { return sfxVol; },
     setSfxOn(v) { sfxOn = !!v; saveSfx(); if (G && G.sfxBus) G.sfxBus.gain.value = sfxOn ? sfxVol * 0.8 : 0; if (sfxOn && ensure() && ctx.state === 'suspended') ctx.resume(); },

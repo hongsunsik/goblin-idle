@@ -660,7 +660,7 @@
     else { const rel = shootBody(style, soft); land = rel + projectile(style, rel, strong); }
     monsterHit(strong, land, soft);
     if (!calm() || strong) impactSprite(style, strong, land);   // 화려하게: 맞는 순간 폭발
-    if (window.GoblinAudio) setTimeout(() => window.GoblinAudio.sfx(style, strong), land);   // 맞는 순간 효과음
+    if (window.GoblinAudio) { const boss = G.isBossStage(state.stage); setTimeout(() => window.GoblinAudio.sfx(style, strong, boss), land); }   // 맞는 순간 효과음 (무기 소리 + 몬스터 맞는 소리)
     return land;
   }
   const IMPACT_SPRITE = { axe: 'explosion_fire', hammer: 'explosion_fire', fire: 'explosion_fire', orb: 'explosion_magic', dark: 'explosion_magic', coin: 'coin_burst' };
@@ -2162,16 +2162,18 @@
         if (!killShown) {   // 한 프레임에 여러 마리를 잡아도 처치 연출은 한 번만
           killShown = true;
           killFx(e.boss);
+          if (window.GoblinAudio) window.GoblinAudio.sfxEvent('kill', e.boss);
           if (!calm() || e.boss) floatText('+' + G.fmt(e.gold), 'float--gold', 'gold');
         }
         if (e.boss) addLog(`보스를 쓰러뜨렸다! +${G.fmt(e.gold)} 골드`, 'is-gold', 'skull');
       } else if (e.type === 'stage') {
         addLog(`스테이지 ${e.stage} 도전!`, 'is-good', 'star');
-        if (G.isBossStage(e.stage)) bossIntro();
+        if (G.isBossStage(e.stage)) { bossIntro(); if (window.GoblinAudio) window.GoblinAudio.sfxEvent('boss'); }
         else anim(document.querySelector('.ribbon__in'), [{ transform: 'scale(1)' }, { transform: 'scale(1.12)', offset: 0.3 }, { transform: 'scale(1)' }], { duration: 380, easing: 'ease-out' });
       } else if (e.type === 'levelup') {
         addLog(`레벨 ${e.level} 달성!`, 'is-good', 'arrowup');
         levelUpFx();
+        if (window.GoblinAudio) window.GoblinAudio.sfxEvent('levelup');
       } else if (e.type === 'skill') {
         skillFx(e);
       } else if (e.type === 'promoReady') {
@@ -2183,6 +2185,7 @@
       } else if (e.type === 'down') {
         addLog(`쓰러졌다... 스테이지 ${e.to}로 후퇴`, 'is-bad', 'skull');
         shakeScene(5);
+        if (window.GoblinAudio) window.GoblinAudio.sfxEvent('down');
       } else if (e.type === 'drop') {
         const it = e.item, R = G.RARITIES[it.r], name = G.itemName(it);
         if (!((e.action === 'sold' || e.action === 'dusted') && it.r === 0)) {   // 자동 판매된 노말까지 기록하면 너무 많다
@@ -2190,7 +2193,7 @@
           addLog(`[${R.name}] ${name} ${verb}`, it.r >= 2 ? 'is-gold' : 'is-good', G.GEAR[it.slot].icon);
         }
         if (calm() ? it.r >= 2 : ((e.action !== 'sold' && e.action !== 'dusted') || it.r >= 2)) floatText(`${R.name} ${name}`, 'float--drop', 'center', R.color);
-        if (it.r >= 3) rareDropFx(it.r);
+        if (it.r >= 3) { rareDropFx(it.r); if (window.GoblinAudio) window.GoblinAudio.sfxEvent('drop', it.r); }
         if (e.action !== 'sold') gearNew.add(it.id);
       } else if (e.type === 'achieve') {
         const a = G.ACHIEVEMENTS.find((x) => x.id === e.id);
