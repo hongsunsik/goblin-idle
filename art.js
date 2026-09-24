@@ -539,12 +539,23 @@
     id = resolveGoblin(id);
     // 얼굴 그림(knight_head.png)이 있으면 그걸, 없으면 전신 그림을 얼굴 부분만 잘라서 쓴다
     const full = has('goblins', id);
-    if (full && !o.head) return `<img class="gob-svg gob-img" src="${src(full)}" alt="" draggable="false">`;
+    // 그림마다 잰 머리 크기·얼굴 위치 (images/goblin-fit.js, tools/goblin-fit.py가 만든다). 없으면 예전처럼 그대로 쓴다.
+    const F = typeof root.GOBLIN_FIT === 'object' && root.GOBLIN_FIT ? root.GOBLIN_FIT[id] : null;
+    if (full && !o.head) {
+      // 머리가 모두 같은 크기로 보이게 발(b)을 기준으로 키우거나 줄인다 (날개·오라가 큰 그림은 고블린이 작게 그려져 있었다)
+      const fit = F && o.fit !== false ? ` style="transform:scale(${F.s});transform-origin:50% ${(F.b * 100).toFixed(1)}%"` : '';
+      return `<img class="gob-svg gob-img" src="${src(full)}" alt="" draggable="false"${fit}>`;
+    }
     if (full && o.head) {
       const hd = has('goblins', id + '_head');
-      return hd
-        ? `<img class="gob-svg gob-img" src="${src(hd)}" alt="" draggable="false">`
-        : `<span class="gob-svg gob-crop" style="background-image:url('${src(full)}')"></span>`;
+      if (hd) return `<img class="gob-svg gob-img" src="${src(hd)}" alt="" draggable="false">`;
+      if (F && F.fx) {
+        // 정사각형 칸에 얼굴(귀~귀 폭 fw)이 칸의 약 80%를 채우고 얼굴 가운데(fx, fy)가 칸 가운데에 오게 배경 크기·위치를 계산한다
+        const k = 1 / (F.fw * 1.25), ar = 616 / 512, kh = k * ar;
+        const px = ((0.5 - F.fx * k) / (1 - k)) * 100, py = ((0.5 - F.fy * kh) / (1 - kh)) * 100;
+        return `<span class="gob-svg gob-crop" style="background-image:url('${src(full)}');background-size:${(k * 100).toFixed(1)}% auto;background-position:${px.toFixed(1)}% ${py.toFixed(1)}%"></span>`;
+      }
+      return `<span class="gob-svg gob-crop" style="background-image:url('${src(full)}')"></span>`;
     }
     const view = o.head ? '14 -6 92 92' : '-4 -14 128 154';
     const ground = o.head ? '' : '<ellipse cx="60" cy="132" rx="32" ry="6" fill="rgba(0,0,0,.35)"/>';
