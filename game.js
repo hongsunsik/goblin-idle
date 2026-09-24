@@ -551,6 +551,67 @@
              budget: startBudget, mgBonus: b, fights, partialGold, sweep };
   }
 
+  // ---- 무한의 탑 ---- (수치는 dungeon.js의 TOWER)
+  const Tw = Dg.TOWER;
+  const TOWER_BOSSES = Object.keys(Dg.BOSS_ART);   // 12종이 층마다 돌아가며 나온다
+  const towerStage = (f) => Tw.stageBase + Tw.stagePerFloor * f;
+  const towerHp = (f) => { const st = towerStage(f); return Math.round((monsterMaxHp(st) / (isBossStage(st) ? BOSS_HP : 1)) * Tw.hpMult); };
+  const towerBoss = (f) => TOWER_BOSSES[(f - 1) % TOWER_BOSSES.length];
+  const towerBudget = (s) => totalDps(s) * Tw.budgetSec;
+  // 지금 한 번 오르면 몇 층을 넘나 (최대 maxClimb층, 맨 위 층까지)
+  function towerForecast(s) {
+    const b = towerBudget(s);
+    let n = 0;
+    while (n < Tw.maxClimb && s.tower.best + n < Tw.maxFloor && towerHp(s.tower.best + n + 1) <= b) n += 1;
+    return n;
+  }
+  const towerBagNeed = (s, n) => { let k = 0; for (let f = s.tower.best + 1; f <= s.tower.best + n; f++) if (f % Tw.itemEvery === 0) k += 1; return k; };
+  function towerInfo(s, day) {
+    const next = Math.min(Tw.maxFloor, s.tower.best + 1);
+    return { best: s.tower.best, next, nextBoss: towerBoss(next), nextHp: towerHp(next), budget: towerBudget(s), forecast: towerForecast(s),
+             top: s.tower.best >= Tw.maxFloor, dailyReady: s.tower.best > 0 && s.tower.day !== day, daily: Tw.daily(s.tower.best) };
+  }
+  // 오르기 한 번: 넘을 수 있는 층까지 오르고, 막히는 층에서 멈춘다 (져도 잃는 건 없다).
+  // 결과: { ok, reason? | from, to, climbed, fights[{boss,hp,dealt,killed,floor,drop}], drops[], crystals, tokens, budget, more }
+  function climbTower(s) {
+    if (s.tower.best >= Tw.maxFloor) return { ok: false, reason: 'top' };
+    const n = towerForecast(s), need = towerBagNeed(s, n);
+    if (s.bag.length + need > bagLimit(s)) return { ok: false, reason: 'bag', need };
+    const budget = towerBudget(s), from = s.tower.best, fights = [], drops = [];
+    let crystals = 0, tokens = 0;
+    for (let f = from + 1; f <= from + n; f++) {
+      const hp = towerHp(f);
+      let it = null;
+      if (f % Tw.itemEvery === 0) {
+        it = rollItem(s, towerStage(f), true, rollFromOdds(f % Tw.tokenEvery === 0 ? Tw.bigOdds : Tw.itemOdds));
+        giveItem(s, it);
+        drops.push(it);
+      }
+      if (f % Tw.tokenEvery === 0) tokens += Tw.tokens;
+      crystals += Tw.crystals(f);
+      fights.push({ boss: towerBoss(f), hp, dealt: hp, killed: true, floor: f, drop: it });
+    }
+    s.tower.best = from + n;
+    const stop = s.tower.best + 1;
+    if (n < Tw.maxClimb && stop <= Tw.maxFloor) {   // 막힌 층도 연출용으로 남긴다
+      const hp = towerHp(stop);
+      fights.push({ boss: towerBoss(stop), hp, dealt: Math.min(hp, budget), killed: false, floor: stop, drop: null });
+    }
+    s.crystals = Math.min(1e9, s.crystals + crystals);
+    s.tokens += tokens;
+    s.stats.drops += drops.length;
+    return { ok: true, from, to: s.tower.best, climbed: n, fights, drops, crystals, tokens, budget, more: n === Tw.maxClimb && towerForecast(s) > 0 };
+  }
+  // 하루 한 번: 최고 층에 비례한 크리스탈
+  function claimTowerDaily(s, day) {
+    if (s.tower.best <= 0) return { ok: false, reason: 'none' };
+    if (s.tower.day === day) return { ok: false, reason: 'claimed' };
+    s.tower.day = day;
+    const c = Tw.daily(s.tower.best);
+    s.crystals = Math.min(1e9, s.crystals + c);
+    return { ok: true, crystals: c };
+  }
+
   // ---- 장비 ----
   // 몬스터를 잡으면 확률로 떨어진다. 등급이 높을수록 확률이 낮고, 보스는 높은 등급이 훨씬 잘 나온다.
   // 수치는 드롭된 스테이지(아이템 레벨)가 높을수록 커진다.
@@ -997,6 +1058,7 @@
       achieved: {},      // 달성한 업적 (환생해도 유지)
       achClaimed: {},    // 크리스탈 보상을 받은 업적 (환생해도 유지)
       quests: { daily: null, weekly: null, monthly: null },   // 일일·주간·월간 퀘스트 { key 기간 이름표, list [{ id, goal, base }], claimed, bonus } (환생해도 유지)
+      tower: { best: 0, day: '' },   // 무한의 탑: 최고 층, 일일 보상을 받은 날짜 (환생해도 유지)
       dungeons: { daily: null, weekly: null, monthly: null },   // 일일·주간·월간 던전 { key, used, cleared, bonusClaimed, bestWaves, boss } (환생해도 유지)
       stats: { bossKills: 0, gold: 0, drops: 0, rares: 0, epics: 0, legends: 0, uniques: 0, myths: 0, sold: 0, casts: 0, downs: 0, taps: 0, ads: 0, potions: 0,
                stageUps: 0, levelUps: 0, shopBuys: 0, boxes: 0, spent: 0, days: 0, time: 0, away: 0, questClaims: 0, dailyClears: 0, weeklyClears: 0, monthlyClears: 0, dungeonRuns: 0 },   // 업적용 누적 기록 (환생해도 유지)
@@ -1618,6 +1680,10 @@
       for (const it of list) if (q.claimed && q.claimed[it.id] === true) claimed[it.id] = true;
       s.quests[p] = { key: q.key, list, claimed, bonus: q.bonus === true && list.length > 0 && list.every((x) => claimed[x.id]) };
     }   // 예전 저장에는 없으므로 손해 보지 않게 가득 찬 것으로 시작한다
+    if (o.tower && typeof o.tower === 'object') {   // 무한의 탑: 층은 범위 안으로, 날짜는 모양을 검사한다
+      s.tower.best = clamp(Math.floor(num(o.tower.best, 0)), 0, Tw.maxFloor);
+      s.tower.day = typeof o.tower.day === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(o.tower.day) ? o.tower.day : '';
+    }
     for (const p of Dg.DUNGEON_PERIODS) {   // 던전: 이름표를 검사하고, 도전 횟수·물리친 파동은 그 기간의 한도를 넘지 않게 자른다
       const d = o.dungeons && o.dungeons[p], cfg = Dg.DUNGEONS[p];
       const keyOk = d && typeof d.key === 'string' && (p === 'monthly' ? /^\d{4}-\d{2}$/ : /^\d{4}-\d{2}-\d{2}$/).test(d.key);
@@ -1749,6 +1815,7 @@
     ENH_MAX, ENH_STEP, enhVal, enhCost, enhChance, enhanceItem, findItem, equipPower,
     claimAttend, QUEST_PERIODS, QUEST_CFG, QUEST_DEFS, periodKeys, periodSecsLeft, questSync, questBoard, questClaimable, claimQuest, claimQuestBonus,
     DUNGEON_PERIODS: Dg.DUNGEON_PERIODS, DUNGEONS: Dg.DUNGEONS, BOSS_ART: Dg.BOSS_ART, dungeonSync, dungeonInfo, dungeonClaimable, dungeonBossHp, challengeDungeon, dungeonForecast, dungeonWaveBosses, dungeonBagNeed, MG_BONUS_CAP,
+    TOWER: Dg.TOWER, towerHp, towerBoss, towerForecast, towerInfo, climbTower, claimTowerDaily,
     moleBonus, gaugeBonus, parryBonus,
     PERKS, PERK_KEYS, HEADSTART_LV, perkLv, perkCost, perkSpent, tokenBalance, perkMissing, perkUnlocked, canBuyPerk, buyPerk, respecPerks, offlineCap,
     fmt, fmtTime,

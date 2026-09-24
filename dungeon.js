@@ -39,7 +39,18 @@
     '서리 거인': 'frost_giant', '용암 군주': 'lava_lord', '심연의 파수꾼': 'abyss_warden', '뇌운의 화신': 'storm_avatar',
     '천 개의 눈 리치': 'thousand_eye_lich', '태초의 화룡': 'primal_firedragon', '왕좌를 삼킨 그림자': 'throne_shadow', '종말의 문지기': 'doom_gatekeeper',
   };
-  const api = { DUNGEON_PERIODS, DUNGEONS, BOSS_ART };
+  // 무한의 탑: 횟수 제한 없이, 지금 전투력으로 뚫을 수 있는 층까지 한 번에 최대 maxClimb층씩 오른다.
+  // 층의 세기는 내 진행과 무관한 고정값(층 f = 스테이지 stageBase + stagePerFloor×f의 일반 몬스터 체력 × hpMult)이라
+  // '최고 층'이 곧 내 전투력의 기록이 된다. 층마다 피해 예산(초당 피해 × budgetSec)을 새로 받는다.
+  // 보상: 새 층을 처음 넘을 때만. 5층마다 장비, 10층마다 증표. 하루 한 번 최고 층에 비례한 크리스탈.
+  const TOWER = {
+    stageBase: 10, stagePerFloor: 3, hpMult: 6, budgetSec: 25, maxClimb: 10, maxFloor: 300,
+    crystals: (f) => 5 + Math.floor(f / 2),
+    itemEvery: 5, itemOdds: { 2: 60, 3: 34, 4: 6 },
+    tokenEvery: 10, tokens: 2, bigOdds: { 3: 58, 4: 34, 5: 7, 6: 1 },   // 10층마다: 장비 등급이 더 높고 증표도 준다
+    daily: (best) => 10 + best,   // 43층(스테이지 140 무렵)이면 하루 53개: 일일 던전 완주(38개)보다 조금 많게
+  };
+  const api = { DUNGEON_PERIODS, DUNGEONS, BOSS_ART, TOWER };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.GoblinDungeon = api;
 })(typeof window !== 'undefined' ? window : globalThis);

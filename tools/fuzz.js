@@ -89,6 +89,8 @@ for (let run = 0; run < RUNS; run++) {
     quest: () => { G.questSync(s, today()); const b = G.questBoard(s, today()); if (b) for (const p of Object.keys(b)) for (const q of (b[p].list || [])) G.claimQuest(s, p, q.id); },
     dungeon: () => { G.dungeonSync(s, today()); G.challengeDungeon(s, pick(G.DUNGEON_PERIODS), rnd() * 0.6, rnd() < 0.3); },
     ad: () => { G.claimAd(s, today()); },
+    tower: () => { G.climbTower(s); },
+    towerDaily: () => { G.claimTowerDaily(s, today()); },
     offline: () => { const now = 1e12 + day * 864e5; s.savedAt = now - rnd() * 864e5; G.applyOffline(s, now, now, 8 * 3600); },
     gm: () => { if (rnd() < 0.02) G.gmSetStage(s, Math.floor(rnd() * 200)); },
   };

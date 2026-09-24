@@ -786,6 +786,21 @@ const FAKE_CLOUD = `(() => {
     await click('#mgSkip'); await sleep(300); await click('#mgSkip'); await sleep(300);
     await click('#modalActions .btn'); await sleep(300);
 
+    console.log('무한의 탑');
+    check('던전 탭 아래에 무한의 탑 카드가 보이고 0층에서 시작한다', (await txt('#towerCard')).includes('무한의 탑') && (await txt('#towerCard')).includes('최고 0층'));
+    check('강하면 오를 수 있는 층 수가 표시된다', (await txt('#towerCard')).includes('+10층'));
+    await click('[data-tclimb]'); await sleep(300);
+    check('오르기를 누르면 층 전투 연출이 나온다', !(await ev(`document.getElementById('mgModal').hidden`)) && (await txt('#mgStage')).includes('층'));
+    await shot('tower-fight');
+    await click('#mgSkip'); await sleep(300);
+    check('돌파 결과 창에 층과 보상이 보인다', (await txt('#modalTitle')).includes('돌파') && (await txt('#modalBody')).includes('10층'));
+    await shot('tower-result');
+    await click('#modalActions .btn'); await sleep(300);
+    check('카드의 최고 층이 10층으로 바뀐다', (await txt('#towerCard')).includes('최고 10층'));
+    await click('[data-tdaily]'); await sleep(300);
+    check('오늘의 탑 보상은 한 번 받으면 잠긴다', (await txt('#towerCard')).includes('오늘 보상 받음'));
+    await ev(`document.getElementById('towerCard').scrollIntoView()`); await sleep(200); await shot('tower-card');
+
     console.log('GM 모드 (관리자 계정에서만 보임)');
     const FAKE_CLOUD_GM = FAKE_CLOUD.replace('cb = f; setTimeout', 'cb = f; window.__authCb = f; setTimeout')
       .replace("email: 't@example.com'", "email: 'hongsunsik1@gmail.com'");

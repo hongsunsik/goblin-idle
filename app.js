@@ -2167,7 +2167,7 @@
     G.dungeonSync(s, today());
     const want = [anyBuy && currentTab !== 'upgrade', gearNew.size > 0 && currentTab !== 'gear', (G.promoStage(s) !== null || G.transcendReady(s)) && currentTab !== 'class', gain > 0 && currentTab !== 'prestige',
       G.PERK_KEYS.some((id) => G.canBuyPerk(s, id)) && currentTab !== 'shop', G.adStatus(s, today()).left > 0 && adsMod.available && currentTab !== 'store',
-      G.dungeonClaimable(s) > 0 && currentTab !== 'dungeon', (G.unclaimedAchievements(s).length > 0 || G.questClaimable(s) > 0) && currentTab !== 'log'];
+      (G.dungeonClaimable(s) > 0 || G.towerInfo(s, today()).dailyReady) && currentTab !== 'dungeon', (G.unclaimedAchievements(s).length > 0 || G.questClaimable(s) > 0) && currentTab !== 'log'];
     dots.forEach((d, i) => { if (d.hidden === want[i]) d.hidden = !want[i]; });
   }
 
@@ -2434,8 +2434,11 @@
     const infos = {};
     for (const p of G.DUNGEON_PERIODS) infos[p] = G.dungeonInfo(s, p);
     const key = G.DUNGEON_PERIODS.map((p) => { const d = s.dungeons[p], i = infos[p]; return `${d.key}:${d.used}:${d.bestWaves}:${d.bonusClaimed ? 1 : 0}:${i.forecast}:${i.forecastMax}`; }).join('|') + '#' + G.DUNGEON_PERIODS.map((p) => (left[p] === null ? 'x' : Math.floor(left[p] / 60))).join(',');
-    if (!force && key === dungeonKey) return;
-    dungeonKey = key;
+    const tw = G.towerInfo(s, today());
+    const fullKey = key + '#t' + [tw.best, tw.forecast, tw.dailyReady ? 1 : 0].join(':');
+    if (!force && fullKey === dungeonKey) return;
+    dungeonKey = fullKey;
+    renderTower(tw);
     $('dungeonList').innerHTML = G.DUNGEON_PERIODS.map((p) => {
       const info = infos[p], secLeft = left[p];
       const dots = Array.from({ length: info.waves }, (_, i) => `<i class="dwave ${i < info.bestWaves ? 'is-on' : ''}"></i>`).join('');
@@ -2449,6 +2452,51 @@
         `<div class="prod__desc">${dungeonForecastHtml(info)}</div>` +
         `<div class="prod__desc">초기화까지 ${secLeft === null ? '서버 시각을 확인하지 못했어요' : clockText(secLeft)}</div></div>${btn}</div>`;
     }).join('');
+  }
+  // ---- 무한의 탑 ----
+  function renderTower(tw) {
+    const T = G.TOWER;
+    const nextItem = Math.ceil(tw.next / T.itemEvery) * T.itemEvery, nextToken = Math.ceil(tw.next / T.tokenEvery) * T.tokenEvery;
+    const status = tw.top ? `<span class="dfc dfc--ok">꼭대기에 올랐어요!</span>`
+      : tw.forecast > 0 ? `<span class="dfc dfc--ok">${A.icon('check')}지금 ${tw.forecast}층${tw.forecast >= T.maxClimb ? ' 이상' : ''} 오를 수 있어요</span>`
+      : `<span class="dfc dfc--hard">${tw.next}층 ${tw.nextBoss}: 체력 ${G.fmt(tw.nextHp)} · 내 예산 ${G.fmt(tw.budget)}</span>`;
+    const climbBtn = `<button class="btn ${tw.forecast > 0 ? 'btn--gold' : 'btn--gray'} prod__btn" type="button" data-tclimb ${tw.top ? 'disabled' : ''}><span>오르기</span><small>${tw.forecast > 0 ? `+${tw.forecast}층` : '막힘'}</small></button>`;
+    const daily = tw.best > 0 ? `<button class="btn ${tw.dailyReady ? 'btn--gold' : 'btn--gray'} tower__daily" type="button" data-tdaily ${tw.dailyReady ? '' : 'disabled'}>${GEM}${tw.dailyReady ? `오늘의 탑 보상 ${tw.daily}` : '오늘 보상 받음'}</button>` : '';
+    $('towerCard').innerHTML = `<div class="card prod dungeon tower"><div class="prod__tile prod__tile--boss" style="--tone:#2a7aff99">${A.bossArt(G.BOSS_ART[tw.nextBoss])}</div>` +
+      `<div><div class="prod__name">무한의 탑 <span class="prod__chip">최고 ${tw.best}층</span></div>` +
+      `<div class="prod__desc">횟수 제한 없이, 전투력만큼 한 번에 최대 ${T.maxClimb}층씩 올라가요. 새 층마다 ${GEM}, ${T.itemEvery}층마다 장비, ${T.tokenEvery}층마다 ${A.icon('crown')}증표.</div>` +
+      `<div class="prod__desc">${status}</div>` +
+      `<div class="prod__desc">다음 장비 ${nextItem}층 · 다음 증표 ${nextToken}층</div>${daily}</div>${climbBtn}</div>`;
+  }
+  function doTowerClimb() {
+    const info = G.towerInfo(state, today());
+    const r = G.climbTower(state);
+    if (!r.ok) {
+      if (r.reason === 'bag') openModal('가방 자리가 모자라요', `보상 장비를 받으려면 가방에 <b>${r.need}칸</b>이 비어 있어야 해요.<br><small>장비 탭에서 안 쓰는 장비를 팔아 주세요.</small>`, [{ text: '닫기' }, { text: '장비 탭으로', cls: 'btn--gold', onClick: () => goTab('gear') }]);
+      return;
+    }
+    for (const it of r.drops) gearNew.add(it.id);
+    if (r.climbed > 0) addLog(`무한의 탑: ${r.from + 1}~${r.to}층 돌파!`, 'is-gold', 'gate');
+    cloudSoon(); writeSave(); render(); renderDungeon(true); renderGear(true);
+    const fights = r.fights.map((f) => ({ name: `${f.floor}층 · ${f.boss}`, wave: f.floor, art: A.bossArt(G.BOSS_ART[f.boss]), hp: f.hp, dealt: f.dealt, killed: f.killed,
+      drop: f.drop ? { color: G.RARITIES[f.drop.r].color, label: `[${G.RARITIES[f.drop.r].name}] ${G.itemName(f.drop)}` } : null }));
+    $('mgTitle').textContent = '무한의 탑';
+    $('mgModal').hidden = false;
+    Mini.fight($('mgStage'), fights, r.budget, { label: '층', freshBudget: true, calm: calm(), fmt: G.fmt }, () => {
+      $('mgModal').hidden = true;
+      const body = r.climbed > 0
+        ? `<b>${r.from + 1}층 → ${r.to}층</b> 돌파!<div class="dres__partial">${GEM} +${r.crystals}${r.tokens ? ` · ${A.icon('crown')}증표 +${r.tokens}` : ''}</div>${r.drops.map(itemLine).join('')}` +
+          (r.more ? '<div class="dres__head">아직 더 오를 수 있어요. 한 번 더 눌러 보세요!</div>' : '')
+        : `${info.next}층 ${info.nextBoss}를 넘지 못했어요.<br><small>체력 ${G.fmt(info.nextHp)} · 내 예산 ${G.fmt(info.budget)} — 더 강해져서 다시 와요. 져도 잃는 건 없어요.</small>`;
+      openModal(r.climbed > 0 ? '무한의 탑 돌파' : '무한의 탑', body, [{ text: '확인', cls: 'btn--gold' }]);
+    });
+  }
+  function doTowerDaily() {
+    const r = G.claimTowerDaily(state, today());
+    if (!r.ok) return;
+    addLog(`무한의 탑 오늘의 보상: 크리스탈 +${r.crystals}`, 'is-gold', 'gem');
+    cloudSoon(); writeSave(); render(); renderDungeon(true); renderStore(true);
+    floatText(`+${r.crystals}`, 'float--gold', 'center');
   }
   const itemLine = (it) => { const R = G.RARITIES[it.r]; return `<div class="got" style="--rc:${R.color}">${gearArt(it)}<div><b>[${R.name}] ${G.itemName(it)}</b><small>${G.GEAR[it.slot].kinds[it.kind].label} +${fmtVal(it.val)}%</small></div></div>`; };
   function showDungeonResult(info, r) {
@@ -2517,6 +2565,8 @@
   document.querySelector('.tab[data-tab="dungeon"]').addEventListener('click', (e) => {
     const b = e.target.closest('button[data-dchallenge]');
     if (b && !b.disabled) doDungeonChallenge(b.dataset.dchallenge);
+    if (e.target.closest('button[data-tclimb]:not([disabled])')) doTowerClimb();
+    if (e.target.closest('button[data-tdaily]:not([disabled])')) doTowerDaily();
   });
 
   // ---- 공격 (화면 누르기) ----

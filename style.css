@@ -961,3 +961,8 @@ svg { display: block; }
 .dfight__row { padding: 3px 8px; border-radius: 6px; background: rgba(0, 0, 0, 0.25); }
 .dfight__row.is-win { border-left: 3px solid var(--green); }
 .dfight__row.is-lose { border-left: 3px solid var(--red); color: var(--muted); }
+
+/* 무한의 탑 */
+.tower { margin-top: 14px; border-color: rgba(90, 168, 255, 0.55); }
+.tower__daily { margin-top: 6px; padding: 5px 10px; font-size: 12px; display: inline-flex; align-items: center; gap: 4px; }
+.tower__daily .ic { width: 14px; height: 14px; }

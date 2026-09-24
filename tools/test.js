@@ -2752,6 +2752,68 @@ test('최고 보너스 기록은 저장·복원되고, 상한을 넘게 조작�
   assert.strictEqual(G.deserialize(JSON.stringify(o)).dungeons.weekly.bestBonus, G.MG_BONUS_CAP.weekly);
 });
 
+section('무한의 탑');
+const twBase = (lv) => { const s = G.createState(0); s.bestStage = 5; s.level = 60; for (const k of G.UPGRADE_KEYS) s.upgrades[k] = lv; return s; };
+test('층이 오를수록 보스 체력이 늘고, 보스 스테이지 배율 때문에 튀지 않는다', () => {
+  for (let f = 1; f < 100; f++) {
+    assert.ok(G.towerHp(f + 1) > G.towerHp(f), `층 ${f}`);
+    assert.ok(G.towerHp(f + 1) / G.towerHp(f) < 2, `층 ${f}→${f + 1} 급증`);
+  }
+});
+test('오르기: 예상한 층 수만큼 오르고, 한 번에 최대 10층, 막힌 층은 기록만 남긴다', () => {
+  const s = twBase(40);
+  const f = G.towerForecast(s);
+  const r = G.climbTower(s);
+  assert.strictEqual(r.climbed, f);
+  assert.ok(r.climbed <= G.TOWER.maxClimb);
+  assert.strictEqual(s.tower.best, f);
+  assert.strictEqual(r.fights.filter((x) => x.killed).length, f);
+  if (f < G.TOWER.maxClimb) assert.strictEqual(r.fights[r.fights.length - 1].killed, false);
+});
+test('못 오르면 잃는 것 없이 0층 오르기로 끝난다', () => {
+  const s = G.createState(0); s.bestStage = 5; s.tower.best = 200; const c = s.crystals;
+  const r = G.climbTower(s);
+  assert.strictEqual(r.ok, true); assert.strictEqual(r.climbed, 0);
+  assert.strictEqual(s.crystals, c); assert.strictEqual(s.tower.best, 200);
+});
+test('새 층 보상: 층마다 크리스탈, 5층마다 장비, 10층마다 증표를 준다', () => {
+  const s = twBase(200); s.autoEquip = false;
+  const r = G.climbTower(s);
+  assert.strictEqual(r.climbed, 10);
+  let c = 0; for (let f = 1; f <= 10; f++) c += G.TOWER.crystals(f);
+  assert.strictEqual(r.crystals, c);
+  assert.strictEqual(r.drops.length, 2);
+  assert.strictEqual(r.tokens, G.TOWER.tokens);
+  assert.ok(r.more, '더 오를 수 있으면 알려 준다');
+});
+test('가방 자리가 모자라면 오르지 않는다', () => {
+  const s = twBase(200); s.autoEquip = false;
+  while (s.bag.length < G.bagLimit(s)) s.bag.push(G.rollItem(s, 5, false, 0));
+  const r = G.climbTower(s);
+  assert.strictEqual(r.reason, 'bag'); assert.strictEqual(s.tower.best, 0);
+});
+test('일일 보상: 최고 층이 있어야 하고 하루 한 번만', () => {
+  const s = twBase(200);
+  assert.strictEqual(G.claimTowerDaily(s, '2026-09-24').reason, 'none');
+  G.climbTower(s);
+  const c = s.crystals;
+  assert.strictEqual(G.claimTowerDaily(s, '2026-09-24').crystals, G.TOWER.daily(10));
+  assert.strictEqual(s.crystals, c + G.TOWER.daily(10));
+  assert.strictEqual(G.claimTowerDaily(s, '2026-09-24').reason, 'claimed');
+  assert.strictEqual(G.claimTowerDaily(s, '2026-09-25').ok, true);
+});
+test('탑 기록은 환생해도 남고, 저장·복원되며, 조작된 값은 걸러진다', () => {
+  const s = twBase(200); G.climbTower(s); G.claimTowerDaily(s, '2026-09-24');
+  s.stage = s.runBest = s.bestStage = 60; G.prestige(s);
+  assert.strictEqual(s.tower.best, 10);
+  const o = JSON.parse(G.serialize(s, 1));
+  assert.deepStrictEqual(G.deserialize(JSON.stringify(o)).tower, { best: 10, day: '2026-09-24' });
+  o.tower = { best: 1e9, day: '<script>' };
+  assert.deepStrictEqual(G.deserialize(JSON.stringify(o)).tower, { best: G.TOWER.maxFloor, day: '' });
+  delete o.tower;
+  assert.deepStrictEqual(G.deserialize(JSON.stringify(o)).tower, { best: 0, day: '' }, '예전 저장은 0층부터');
+});
+
 section('친선 랭킹 · 서버 출석');
 const Social = require('../social.js');
 test('한국 시간 기준 날짜 번호: 자정(한국 시간)에 바뀐다', () => {

@@ -223,7 +223,7 @@
     const fmt = opts.fmt || ((n) => String(Math.round(n)));
     container.innerHTML =
       `<div class="dfight">
-        <div class="mg__round">파동 <b id="dfWave">1</b>/${opts.waves}</div>
+        <div class="mg__round">${opts.label || '파동'} <b id="dfWave">1</b>${opts.waves ? '/' + opts.waves : ''}</div>
         <div class="dfight__arena" id="dfArena"><div class="dfight__boss" id="dfBoss"></div><div class="dfight__fx" id="dfFx"></div></div>
         <div class="dfight__name" id="dfName"></div>
         <div class="dfight__bar"><i id="dfHp"></i><span id="dfHpTxt"></span></div>
@@ -256,7 +256,8 @@
     function runWave(i) {
       if (i >= fights.length) return later(finish, AFTER + 200);
       const f = fights[i];
-      $('dfWave').textContent = i + 1;
+      if (opts.freshBudget) { spent = 0; meEl.style.width = '100%'; }   // 무한의 탑: 층마다 예산을 새로 받는다
+      $('dfWave').textContent = f.wave || i + 1;
       $('dfName').textContent = f.name;
       bossEl.innerHTML = f.art;
       bossEl.className = 'dfight__boss';
