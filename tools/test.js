@@ -2727,6 +2727,23 @@ test('던전 보스 체력·골드는 최고 스테이지가 보스 스테이지
   assert.ok(at(109) < at(110) && at(110) < at(111), '109 < 110 < 111');
   assert.ok(at(110) / at(109) < 1.5, '보스 스테이지 배율(6배)이 끼지 않는다');
 });
+test('던전 장비는 등급 기록(업적용)을 한 번만 센다', () => {
+  const s = dgBase(200); const before = { ...s.stats };
+  const r = G.challengeDungeon(s, 'weekly', 0);
+  const got = [...r.drops, r.bonus.item];
+  assert.strictEqual(s.stats.rares - before.rares, got.filter((it) => it.r >= 2).length);
+  assert.strictEqual(s.stats.epics - before.epics, got.filter((it) => it.r >= 3).length);
+});
+test('가방 자리가 모자라면 도전하지 않고(횟수도 안 씀), 한도를 넘겨 장비를 넣지 않는다', () => {
+  const s = dgBase(200); s.autoEquip = false;
+  while (s.bag.length < G.bagLimit(s) - 1) s.bag.push(G.rollItem(s, 5, false, 0));
+  const r = G.challengeDungeon(s, 'monthly', 0);
+  assert.strictEqual(r.ok, false); assert.strictEqual(r.reason, 'bag');
+  assert.strictEqual(s.dungeons.monthly.used, 0);
+  s.bag.length = G.bagLimit(s) - G.dungeonBagNeed(s, 'monthly');
+  assert.strictEqual(G.challengeDungeon(s, 'monthly', 0).ok, true);
+  assert.ok(s.bag.length <= G.bagLimit(s));
+});
 test('최고 보너스 기록은 저장·복원되고, 상한을 넘게 조작하면 잘린다', () => {
   const s = dgBase(); G.challengeDungeon(s, 'weekly', 0.3);
   const o = JSON.parse(G.serialize(s, 1));

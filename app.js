@@ -64,6 +64,12 @@
     cache['t' + id] = v;
     $(id).textContent = v;
   }
+  // innerHTML도 바뀔 때만 쓴다 (매 프레임 같은 HTML을 다시 쓰면 매번 파싱·스타일 계산을 새로 한다)
+  function setHtml(id, v) {
+    if (cache['h' + id] === v) return;
+    cache['h' + id] = v;
+    $(id).innerHTML = v;
+  }
   function setWidth(id, pct) {
     const v = Math.max(0, Math.min(100, pct)).toFixed(1) + '%';
     if (cache['w' + id] === v) return;
@@ -98,7 +104,12 @@
   // 전투 효과 강도: 'full'(기본, 화려하게) / 'calm'(차분하게: 꼭 필요한 움직임만). 설정 창에서 바꾸고 기기에 기억한다.
   const FX_KEY = 'goblin-idle-fx-v1';
   let fxMode = 'full';
-  try { if (localStorage.getItem(FX_KEY) === 'calm') fxMode = 'calm'; } catch (e) { /* 저장소를 못 써도 기본값 */ }
+  try {
+    const saved = localStorage.getItem(FX_KEY);
+    if (saved === 'calm') fxMode = 'calm';
+    // 직접 고른 적이 없으면 저사양 기기(코어 4개 이하 또는 메모리 3GB 이하)는 차분하게로 시작한다 — 화려하게는 CPU를 약 2배 쓴다 (tools/perf.js 실측)
+    else if (saved === null && ((navigator.hardwareConcurrency || 8) <= 4 || (navigator.deviceMemory || 8) <= 3)) fxMode = 'calm';
+  } catch (e) { /* 저장소를 못 써도 기본값 */ }
   const calm = () => fxMode === 'calm';
   const MAX_FX = 110;   // 화면에 한꺼번에 떠 있는 이펙트 수 제한 (빠르게 싸울 때 과부하 방지)
 
@@ -2141,13 +2152,13 @@
     const timeNote = gain <= 0 ? '' : info.timeF < 1
       ? `이번 판은 <b>${runMin}분</b> 키웠어요. 증표는 판을 <b>10분</b> 키우면 100%이고 지금은 ${Math.round(info.timeF * 100)}%예요 (${Math.ceil(info.secsLeft / 60)}분 더 키우면 +${fullGain}).`
       : `이번 판을 10분 넘게 키워서 증표를 100% 받아요.`;
-    $('prestigeHint').innerHTML = gain > 0
+    setHtml('prestigeHint', gain > 0
       ? `지금 환생하면 왕의 증표 <b>${gain}개</b>를 얻어요. ${timeNote}<br>골드·레벨·강화·스테이지·직업은 처음부터 다시 시작하고, 직업 도감은 그대로 남아요.`
-      : `스테이지 ${G.PRESTIGE_MIN_STAGE}에 도달하면 환생할 수 있어요. 환생하면 왕의 증표를 얻어 영구히 강해지고, 다른 직업으로 다시 시작해 볼 수 있어요.`;
-    $('prestigeNote').innerHTML =
+      : `스테이지 ${G.PRESTIGE_MIN_STAGE}에 도달하면 환생할 수 있어요. 환생하면 왕의 증표를 얻어 영구히 강해지고, 다른 직업으로 다시 시작해 볼 수 있어요.`);
+    setHtml('prestigeNote',
       `증표 1개당 공격력·골드 <b>+${perTok}%</b>, 체력도 조금 늘어요.<br>` +
       `<b>전직할 때마다 증표의 힘이 ${Math.round(G.RESONANCE * 100)}%씩 더 깨어나요.</b> 지금 ${G.classPath(s).length}단계 → 5차 직업이면 증표 1개당 +${maxTok}%까지 올라요.<br>` +
-      `증표는 <b>증표 탭</b>에서 영구 강화를 사는 데 쓰고, 4단계의 <b>직업 각성·도감 공명</b>은 전직과 이어진 강화예요.`;
+      `증표는 <b>증표 탭</b>에서 영구 강화를 사는 데 쓰고, 4단계의 <b>직업 각성·도감 공명</b>은 전직과 이어진 강화예요.`);
 
     setText('awayNote', `자리를 비워도 최대 ${Math.round(G.offlineCap(s) / 3600)}시간까지 보상을 받아요. 비운 시간은 ${serverNow() === null ? '기기 시계' : '서버 시각'} 기준으로 재고, 창을 닫아도 백그라운드에 두어도 같은 규칙이에요.`);
 
@@ -2452,7 +2463,7 @@
   // 도전 결과를 먼저 확정·저장하고(중간에 앱을 꺼도 보상은 남는다), 보스 체력이 깎이는 전투 연출을 보여 준 뒤 결과 창을 띄운다.
   function resolveDungeonChallenge(period, info, mgBonus, sweep) {
     const r = G.challengeDungeon(state, period, mgBonus, sweep);
-    if (!r.ok) { $('mgModal').hidden = true; openModal('도전할 수 없어요', r.reason === 'limit' ? '오늘 도전 횟수를 다 썼어요' : r.reason === 'nosweep' ? '먼저 한 번 완주해야 소탕할 수 있어요' : '다시 시도해 주세요', [{ text: '확인' }]); return; }
+    if (!r.ok) { $('mgModal').hidden = true; openModal('도전할 수 없어요', r.reason === 'limit' ? '오늘 도전 횟수를 다 썼어요' : r.reason === 'nosweep' ? '먼저 한 번 완주해야 소탕할 수 있어요' : r.reason === 'bag' ? `가방에 자리가 ${r.need}칸 필요해요. 장비를 팔거나 가방을 넓혀 주세요` : '다시 시도해 주세요', [{ text: '확인' }]); return; }
     for (const it of r.drops) gearNew.add(it.id);
     if (r.bonus) gearNew.add(r.bonus.item.id);
     addLog(`${info.name}${r.sweep ? ' 소탕' : ''}: 파동 ${r.wavesCleared}/${r.waves}${r.fullClear ? ' 완주!' : ''}`, r.fullClear ? 'is-gold' : '', 'gate');
@@ -2477,6 +2488,12 @@
   function doDungeonChallenge(period) {
     const info = G.dungeonInfo(state, period);
     if (!info || info.left <= 0) return;
+    const need = G.dungeonBagNeed(state, period), free = G.bagLimit(state) - state.bag.length;
+    if (free < need) {   // 미니게임을 다 하고 나서 거절당하지 않게 먼저 알려 준다
+      openModal('가방 자리가 모자라요', `보상 장비를 받으려면 가방에 <b>${need}칸</b>이 비어 있어야 해요 (지금 ${Math.max(0, free)}칸).<br><small>장비 탭에서 안 쓰는 장비를 팔아 주세요.</small>`,
+        [{ text: '닫기' }, { text: '장비 탭으로', cls: 'btn--gold', onClick: () => goTab('gear') }]);
+      return;
+    }
     // 파동별 보스와 체력, 내 피해 예산이 어디까지 닿는지 한눈에 (누적 체력 기준)
     let acc = 0;
     const rows = info.waveBosses.map((name, i) => {
@@ -2853,7 +2870,7 @@
       const comp = G.companionDps(state) * 0.5;
       if (comp > 0 && state.downT <= 0 && !calm()) floatText('-' + G.fmt(comp), 'float--comp', 'comp');
     }
-    render();
+    if (!document.hidden) render();   // 백그라운드에서는 계산만 하고 화면은 안 그린다 (돌아오면 다음 프레임에 바로 그린다)
   }
   setInterval(frame, 100);
 

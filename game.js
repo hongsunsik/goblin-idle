@@ -474,6 +474,8 @@
              forecast: dungeonForecast(s, period, 0), forecastMax: dungeonForecast(s, period, cap),
              canSweep: d.cleared && cfg.attempts - d.used > 0 };
   }
+  // 도전 한 번에 필요한 가방 자리: 파동마다 1개 + 아직 안 받은 완주 보상 1개 (자동 장착으로 밀려난 장비도 가방에 들어가므로 넉넉히 센다)
+  const dungeonBagNeed = (s, period) => Dg.DUNGEONS[period].waves + (s.dungeons[period] && s.dungeons[period].bonusClaimed ? 0 : 1);
   const dungeonClaimable = (s) => Dg.DUNGEON_PERIODS.filter((p) => s.dungeons[p] && s.dungeons[p].used < Dg.DUNGEONS[p].attempts).length;
   // 도전 전 미니게임 결과 → 피해 예산 보너스 (0~상한). 미니게임은 minigame.js가 화면에서 진행하고, 결과 수치만 여기서 점수로 바꾼다.
   const MOLE_BONUS_CAP = 0.35, MOLE_BONUS_PER_HIT = 0.035;
@@ -501,6 +503,9 @@
     if (!cfg || !d) return { ok: false, reason: 'unknown' };
     if (d.used >= cfg.attempts) return { ok: false, reason: 'limit' };
     if (sweep && !d.cleared) return { ok: false, reason: 'nosweep' };
+    // 상점과 같이 보상 장비가 들어갈 자리를 먼저 확인한다. 예전엔 한도를 넘겨 넣었는데, 복원할 때 한도에서 잘려서 장비가 사라졌다.
+    const need = dungeonBagNeed(s, period);
+    if (s.bag.length + need > bagLimit(s)) return { ok: false, reason: 'bag', need };
     const cap = MG_BONUS_CAP[period] || 0;
     const b = sweep ? (d.bestBonus || 0) : Math.max(0, Math.min(cap, num(mgBonus, 0)));
     if (!sweep && b > (d.bestBonus || 0)) d.bestBonus = b;
@@ -523,8 +528,7 @@
       wavesCleared += 1;
       fights.push({ boss: bosses[w], hp: need, dealt: need, killed: true });
       const it = rollItem(s, s.bestStage, true, rollFromOdds(cfg.odds));
-      giveItem(s, it);
-      tallyRarity(s, it);
+      giveItem(s, it);   // 등급 기록(tallyRarity)은 giveItem 안에서 한다 — 예전엔 여기서 한 번 더 세서 업적이 두 배로 올랐다
       drops.push(it);
       s.gold += Math.ceil(dgBaseGold(s) * cfg.reward.gold * goldMult(s));
       s.crystals = Math.min(1e9, s.crystals + cfg.reward.crystals);
@@ -540,7 +544,6 @@
       if (cfg.clear.tokens) s.tokens += cfg.clear.tokens;
       const it = rollItem(s, s.bestStage, true, rollFromOdds(cfg.clear.boxOdds));
       giveItem(s, it);
-      tallyRarity(s, it);
       bonus = { crystals: cfg.clear.crystals, gold: cfg.clear.gold, tokens: cfg.clear.tokens || 0, item: it };
     }
     s.stats.drops += drops.length;
@@ -1745,7 +1748,7 @@
     GEAR_DESIGNS, itemDesign, setRandom, itemName, sellValue, rollItem, dropChance, isUpgrade, receiveItem, equipItem, unequipItem, sellBagItem, sellBagUpTo, sellBagItems, isWeaker, bagWeaker, gearMult,
     ENH_MAX, ENH_STEP, enhVal, enhCost, enhChance, enhanceItem, findItem, equipPower,
     claimAttend, QUEST_PERIODS, QUEST_CFG, QUEST_DEFS, periodKeys, periodSecsLeft, questSync, questBoard, questClaimable, claimQuest, claimQuestBonus,
-    DUNGEON_PERIODS: Dg.DUNGEON_PERIODS, DUNGEONS: Dg.DUNGEONS, BOSS_ART: Dg.BOSS_ART, dungeonSync, dungeonInfo, dungeonClaimable, dungeonBossHp, challengeDungeon, dungeonForecast, dungeonWaveBosses, MG_BONUS_CAP,
+    DUNGEON_PERIODS: Dg.DUNGEON_PERIODS, DUNGEONS: Dg.DUNGEONS, BOSS_ART: Dg.BOSS_ART, dungeonSync, dungeonInfo, dungeonClaimable, dungeonBossHp, challengeDungeon, dungeonForecast, dungeonWaveBosses, dungeonBagNeed, MG_BONUS_CAP,
     moleBonus, gaugeBonus, parryBonus,
     PERKS, PERK_KEYS, HEADSTART_LV, perkLv, perkCost, perkSpent, tokenBalance, perkMissing, perkUnlocked, canBuyPerk, buyPerk, respecPerks, offlineCap,
     fmt, fmtTime,
