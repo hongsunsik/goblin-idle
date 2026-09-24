@@ -61,6 +61,39 @@ OVERRIDES = {
 }
 
 
+def find_eyes(path, d):
+    """얼굴 영역에서 주황·호박색 눈동자 덩어리를 찾아 큰 것 두 개를 눈으로 본다. [[x, y, r], ...] (그림 크기 대비 비율)"""
+    im = Image.open(path).convert('RGBA')
+    a = np.asarray(im).astype(np.float32) / 255
+    h, w = a.shape[:2]
+    x0, x1 = int(max(0, (d['fx'] - d['fw'] * 0.6) * w)), int(min(w, (d['fx'] + d['fw'] * 0.6) * w))
+    y0, y1 = int(max(0, (d['fy'] - d['fw'] * 0.45) * h)), int(min(h, (d['fy'] + d['fw'] * 0.5) * h))
+    sub = a[y0:y1, x0:x1]
+    r, g, b, al = sub[..., 0], sub[..., 1], sub[..., 2], sub[..., 3]
+    eye = (al > 0.5) & (r > 0.75) & (g > 0.35) & (g < 0.8) & (b < 0.35) & (r - b > 0.45)   # 주황·호박색
+    hh, ww = eye.shape
+    seen = np.zeros_like(eye)
+    blobs = []
+    for yy in range(hh):
+        for xx in range(ww):
+            if eye[yy, xx] and not seen[yy, xx]:
+                q = [(yy, xx)]; seen[yy, xx] = True; pts = []
+                while q:
+                    cy, cx = q.pop(); pts.append((cy, cx))
+                    for dy, dx in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                        ny, nx = cy + dy, cx + dx
+                        if 0 <= ny < hh and 0 <= nx < ww and eye[ny, nx] and not seen[ny, nx]:
+                            seen[ny, nx] = True; q.append((ny, nx))
+                if len(pts) >= 12:
+                    ys, xs = zip(*pts)
+                    blobs.append((len(pts), (np.mean(xs) + x0) / w, (np.mean(ys) + y0) / h, np.sqrt(len(pts) / np.pi) / w))
+    blobs.sort(reverse=True)
+    eyes = [[round(bx, 4), round(by, 4), round(br, 4)] for _, bx, by, br in blobs[:2]]
+    # 두 눈은 비슷한 높이에 있어야 한다 (횃불·보석 같은 다른 주황색을 걸러낸다)
+    if len(eyes) == 2 and abs(eyes[0][1] - eyes[1][1]) > d['fw'] * 0.18: eyes = eyes[:1]
+    return sorted(eyes)
+
+
 def main():
     names = sorted(f[:-5] for f in os.listdir(DIR) if f.endswith('.webp') and not f.endswith('_head.webp'))
     data = {n: measure(os.path.join(DIR, n + '.webp')) for n in names}
@@ -79,6 +112,8 @@ def main():
         s = max(0.75, min(1.3, s))
         s = min(s, 1.12 / max(0.3, d['bottom'] - d['top']), 1.25 / max(0.3, d['wide']))   # 날개가 넓은 그림이 옆으로 너무 삐져나가지 않게
         out[n] = {'s': round(s, 3), 'b': round(d['bottom'], 4), 'fx': round(d['fx'], 4), 'fy': round(d['fy'], 4), 'fw': round(d['fw'], 4)}
+        e = find_eyes(os.path.join(DIR, n + '.webp'), d)
+        if e: out[n]['e'] = e   # 눈 위치 (눈빛 연출용)
     js = ('// tools/goblin-fit.py가 만든 파일 (직접 고치지 말 것). 고블린 그림마다 머리 크기 맞춤 배율(s), 발 위치(b), 얼굴 가운데(fx, fy)와 폭(fw) — 그림 크기 대비 비율\n'
           f'window.GOBLIN_FIT = {json.dumps(out, separators=(",", ":"))};\n')
     open(os.path.join(ROOT, 'images', 'goblin-fit.js'), 'w').write(js)

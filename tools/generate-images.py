@@ -472,6 +472,15 @@ VFX = {
     'swing_holy': 'a single golden holy sword swing trail arc sweeping from upper left down to lower right, radiant leading edge with light sparkles, tapering tail',
     'swing_hammer': 'a heavy smash motion trail only, a thick curved white and grey arc swooshing down from the top right to the bottom, no weapon, no blade, a round dust cloud burst with flying rocks at the bottom',
     'thrust_dagger': 'two short parallel horizontal white stab streaks pointing right with a small bright star flash at the tips, thin speed lines, no arrow heads, no weapon',
+    # 감정 아이콘: 캐릭터·몬스터 머리 위에 잠깐 떠오른다 (만화 말풍선 기호)
+    'emo_alert': 'a bold red exclamation mark with a white outline, manga emotion symbol',
+    'emo_angry': 'a red cross-shaped anger vein symbol, manga angry emotion mark',
+    'emo_sweat': 'a single big light blue sweat drop, manga nervous emotion symbol',
+    'emo_sparkle': 'three shining yellow four-pointed sparkle stars, manga excited emotion symbol',
+    'emo_heart': 'a cute glossy pink heart with a small shine, manga love emotion symbol',
+    'emo_dizzy': 'a spiral swirl with small yellow stars around it, manga dizzy emotion symbol',
+    'emo_note': 'two cheerful musical notes, happy humming emotion symbol',
+    'emo_fire': 'a small burning flame with determined fiery energy, manga fighting spirit symbol',
 }
 # 몬스터에 맞는 순간 터지는 타격 이펙트: 공격 방식 13종 × (기본 hit_: 1~3차, 화려한 hitx_: 4~5차)
 HIT_STYLES = {

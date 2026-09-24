@@ -546,8 +546,13 @@
     const F = typeof root.GOBLIN_FIT === 'object' && root.GOBLIN_FIT ? root.GOBLIN_FIT[id] : null;
     if (full && !o.head) {
       // 머리가 모두 같은 크기로 보이게 발(b)을 기준으로 키우거나 줄인다 (날개·오라가 큰 그림은 고블린이 작게 그려져 있었다)
-      const fit = F && o.fit !== false ? ` style="transform:scale(${F.s});transform-origin:50% ${(F.b * 100).toFixed(1)}%"` : '';
-      return `<img class="gob-svg gob-img" src="${src(full)}" alt="" draggable="false"${fit}>`;
+      const fitT = F && o.fit !== false ? `transform:scale(${F.s});transform-origin:50% ${(F.b * 100).toFixed(1)}%` : '';
+      if (!o.live) return `<img class="gob-svg gob-img" src="${src(full)}" alt="" draggable="false"${fitT ? ` style="${fitT}"` : ''}>`;
+      // 전투 화면용: 그림을 한 겹 감싸서 눈빛(.gob-eye, tools/goblin-fit.py가 찾은 주황 눈동자 위치)과 감정 아이콘 자리(.gob-emote)를 얹는다.
+      // 바깥(.gob-svg)은 레벨 배율(--s), 안쪽(.gob-live)은 머리 크기 맞춤 배율 — 예전엔 맞춤 배율이 레벨 배율을 덮어써 레벨 효과가 사라졌었다.
+      const eyes = (F && F.e ? F.e : []).map(([x, y, r]) => `<i class="gob-eye" style="left:${(x * 100).toFixed(1)}%;top:${(y * 100).toFixed(1)}%;--r:${(r * 200).toFixed(2)}%"></i>`).join('');
+      const em = F ? `left:${((F.fx + F.fw * 0.28) * 100).toFixed(1)}%;top:${((F.fy - F.fw * 0.62) * 100).toFixed(1)}%` : 'left:62%;top:4%';
+      return `<span class="gob-svg gob-livebox"><span class="gob-live"${fitT ? ` style="${fitT}"` : ''}><img class="gob-img" src="${src(full)}" alt="" draggable="false">${eyes}<i class="gob-emote" style="${em}"></i></span></span>`;
     }
     if (full && o.head) {
       const hd = has('goblins', id + '_head');

@@ -208,6 +208,41 @@
   }
 
   // ---- 몬스터가 쓰러질 때: 복제본이 튕겨 날아가며 사라지고, 새 몬스터가 통통 튀며 등장한다 ----
+  // ---- 캐릭터 생동감: 눈빛과 감정 아이콘 ----
+  // 눈빛: 평소엔 가끔 반짝, 보스전·강타 때는 붉게 번뜩, 기쁠 때는 금빛. 감정 아이콘은 머리 위에 잠깐 떠오른다(images/vfx/emo_*).
+  let emoteUntil = 0;
+  function emote(name, ms, force) {
+    const el = document.querySelector('#hero .gob-emote');
+    const url = A.vfx('emo_' + name);
+    if (!el || !url) return;
+    const now = performance.now();
+    if (!force && now < emoteUntil) return;   // 이미 떠 있으면 덮지 않는다 (중요한 것만 force)
+    emoteUntil = now + (ms || 1400);
+    el.style.backgroundImage = `url("${url}")`;
+    el.getAnimations().forEach((a) => a.cancel());
+    el.animate([{ transform: 'translate(-50%, 0) scale(0)', opacity: 0 }, { transform: 'translate(-50%, -6px) scale(1.2)', opacity: 1, offset: 0.15 },
+      { transform: 'translate(-50%, -8px) scale(1)', opacity: 1, offset: 0.8 }, { transform: 'translate(-50%, -14px) scale(0.9)', opacity: 0 }], { duration: ms || 1400, easing: 'ease-out', fill: 'both' });
+  }
+  function eyeFlash(kind, ms) {   // kind: 'angry' 붉게 | 'happy' 금빛
+    const box = $('heroBox');
+    box.classList.add('eyes-' + kind);
+    clearTimeout(box['_eye' + kind]);
+    box['_eye' + kind] = setTimeout(() => box.classList.remove('eyes-' + kind), ms || 600);
+  }
+  let streak = [], lastLowHp = 0, lastIdleEmote = performance.now();
+  function liveTick() {   // 매 프레임: 체력이 낮으면 땀, 보스전이면 눈빛이 계속 붉게, 오래 평화로우면 흥얼거림
+    const s = state, now = performance.now(), boss = G.isBossStage(s.stage);
+    $('heroBox').classList.toggle('eyes-boss', boss && s.downT <= 0);
+    if (s.hp / G.maxHp(s) < 0.3 && s.downT <= 0 && now - lastLowHp > 5000) { lastLowHp = now; emote('sweat', 1600); }
+    if (!boss && now - lastIdleEmote > 26000) { lastIdleEmote = now; if (Math.random() < 0.6) emote(Math.random() < 0.5 ? 'note' : 'fire', 1500); }
+  }
+  function onKillLive(boss) {
+    const now = performance.now();
+    streak = streak.filter((t) => now - t < 3000); streak.push(now);
+    if (boss) { emote('sparkle', 1500, true); eyeFlash('happy', 900); }
+    else if (streak.length >= 6) { streak = []; emote('heart', 1300); }
+  }
+
   // ---- 옆으로 달리기: 몬스터를 잡으면 잠깐 배경이 흐르고, 고블린이 달리고, 다음 몬스터가 오른쪽에서 걸어 들어온다 ----
   const WALK_MS = 700, SCROLL_IDLE = 0.04;   // 싸우는 동안에도 배경이 아주 천천히 흐른다 (바람 느낌)
   let walkUntil = 0, lastEnter = 0, scrollRate = SCROLL_IDLE;
@@ -689,6 +724,7 @@
     if (G.MELEE_STYLES.includes(style)) { land = swingBody(style, soft); arcFx(style, strong, land); }
     else { const rel = shootBody(style, soft); land = rel + projectile(style, rel, strong); }
     monsterHit(strong, land, soft);
+    if (strong) eyeFlash('angry', 500);
     if (!calm() || strong) impactSprite(style, strong, land);   // 화려하게: 맞는 순간 폭발
     if (window.GoblinAudio) { const boss = G.isBossStage(state.stage), kind = G.monsterInfo(state.stage).kind; setTimeout(() => window.GoblinAudio.sfx(style, strong, boss, kind), land); }   // 맞는 순간 효과음 (무기 소리 + 몬스터 종류별 맞는 소리)
     return land;
@@ -2193,17 +2229,19 @@
           killShown = true;
           killFx(e.boss);
           startWalk(e.boss);
+          onKillLive(e.boss);
           if (window.GoblinAudio) window.GoblinAudio.sfxEvent('kill', e.boss);
           if (!calm() || e.boss) floatText('+' + G.fmt(e.gold), 'float--gold', 'gold');
         }
         if (e.boss) addLog(`보스를 쓰러뜨렸다! +${G.fmt(e.gold)} 골드`, 'is-gold', 'skull');
       } else if (e.type === 'stage') {
         addLog(`스테이지 ${e.stage} 도전!`, 'is-good', 'star');
-        if (G.isBossStage(e.stage)) { bossIntro(); if (window.GoblinAudio) window.GoblinAudio.sfxEvent('boss'); }
+        if (G.isBossStage(e.stage)) { bossIntro(); if (window.GoblinAudio) window.GoblinAudio.sfxEvent('boss'); emote('alert', 1200, true); }
         else anim(document.querySelector('.ribbon__in'), [{ transform: 'scale(1)' }, { transform: 'scale(1.12)', offset: 0.3 }, { transform: 'scale(1)' }], { duration: 380, easing: 'ease-out' });
       } else if (e.type === 'levelup') {
         addLog(`레벨 ${e.level} 달성!`, 'is-good', 'arrowup');
         levelUpFx();
+        emote('sparkle', 1300); eyeFlash('happy', 700);
         if (window.GoblinAudio) window.GoblinAudio.sfxEvent('levelup');
       } else if (e.type === 'skill') {
         skillFx(e);
@@ -2217,6 +2255,7 @@
         addLog(`쓰러졌다... 스테이지 ${e.to}로 후퇴`, 'is-bad', 'skull');
         shakeScene(5);
         if (window.GoblinAudio) window.GoblinAudio.sfxEvent('down');
+        emote('dizzy', 2200, true);
       } else if (e.type === 'drop') {
         const it = e.item, R = G.RARITIES[it.r], name = G.itemName(it);
         if (!((e.action === 'sold' || e.action === 'dusted') && it.r === 0)) {   // 자동 판매된 노말까지 기록하면 너무 많다
@@ -2224,7 +2263,7 @@
           addLog(`[${R.name}] ${name} ${verb}`, it.r >= 2 ? 'is-gold' : 'is-good', G.GEAR[it.slot].icon);
         }
         if (calm() ? it.r >= 2 : ((e.action !== 'sold' && e.action !== 'dusted') || it.r >= 2)) floatText(`${R.name} ${name}`, 'float--drop', 'center', R.color);
-        if (it.r >= 3) { rareDropFx(it.r); if (window.GoblinAudio) window.GoblinAudio.sfxEvent('drop', it.r); }
+        if (it.r >= 3) { rareDropFx(it.r); if (window.GoblinAudio) window.GoblinAudio.sfxEvent('drop', it.r); emote('sparkle', 1300, it.r >= 5); eyeFlash('happy', 700); }
         if (e.action !== 'sold') gearNew.add(it.id);
       } else if (e.type === 'achieve') {
         const a = G.ACHIEVEMENTS.find((x) => x.id === e.id);
@@ -2271,7 +2310,7 @@
     const look = G.lookId(s);
     if (look !== lastLook) {
       lastLook = look;
-      $('hero').innerHTML = A.goblin(look) + '<i class="hero-weapon" id="heroWeapon"></i>';
+      $('hero').innerHTML = A.goblin(look, { live: true }) + '<i class="hero-weapon" id="heroWeapon"></i>';
       $('avatar').innerHTML = A.goblin(look, { head: true });
       setupHeroWeapon();
     }
@@ -3175,7 +3214,7 @@
       const comp = G.companionDps(state) * 0.5;
       if (comp > 0 && state.downT <= 0 && !calm()) floatText('-' + G.fmt(comp), 'float--comp', 'comp');
     }
-    if (!document.hidden) { updateWalk(); render(); }   // 백그라운드에서는 계산만 하고 화면은 안 그린다 (돌아오면 다음 프레임에 바로 그린다)
+    if (!document.hidden) { updateWalk(); render(); liveTick(); }   // 백그라운드에서는 계산만 하고 화면은 안 그린다 (돌아오면 다음 프레임에 바로 그린다)
   }
   setInterval(frame, 100);
 

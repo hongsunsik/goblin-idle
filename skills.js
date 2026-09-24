@@ -150,6 +150,7 @@
   const VFX_NAMES = ['slash_white', 'slash_gold', 'slash_fire', 'slash_dark', 'claw_slash', 'impact_burst', 'explosion_fire', 'explosion_magic', 'lightning',
     'heal_light', 'shield_bubble', 'magic_circle', 'summon_circle', 'coin_burst', 'poison_cloud', 'stun_stars', 'wind_swirl', 'rage_aura',
     'swing_sword', 'swing_axe', 'swing_holy', 'swing_hammer', 'thrust_dagger',
+    'emo_alert', 'emo_angry', 'emo_sweat', 'emo_sparkle', 'emo_heart', 'emo_dizzy', 'emo_note', 'emo_fire',   // 감정 아이콘
     ...['slash', 'axe', 'hammer', 'holy', 'dagger', 'arrow', 'bolt', 'bullet', 'shuriken', 'coin', 'orb', 'fire', 'dark'].flatMap((k) => ['hit_' + k, 'hitx_' + k]),   // 타격 이펙트 (기본 / 4차 이상)
     ...ELEMENTS.map((e) => 'el_' + e)];   // 직업 속성 이펙트
 

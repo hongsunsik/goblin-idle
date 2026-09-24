@@ -937,6 +937,16 @@ const FAKE_CLOUD = `(() => {
       return Math.abs(x('near') - a.near) > Math.abs(x('far') - a.far);
     })()`));
 
+    console.log('캐릭터 생동감 (눈빛·감정 아이콘)');
+    const liveSt = mk(20, ['warrior']); liveSt.stage = 9; liveSt.killsInStage = G.KILLS_PER_STAGE - 1; liveSt.monsterHp = 1;   // 곧 보스 스테이지(10)로 넘어가는 상태
+    await reopen(liveSt);
+    check('캐릭터 그림 위에 눈빛(눈 위치)과 감정 아이콘 자리가 있다', (await ev(`document.querySelectorAll('#hero .gob-eye').length`)) >= 1 && !!(await ev(`document.querySelector('#hero .gob-emote')`)));
+    check('레벨 배율(--s)이 머리 크기 맞춤 배율과 함께 적용된다 (맞춤 배율이 레벨 효과를 덮지 않는다)', (await ev(`getComputedStyle(document.querySelector('#hero .gob-livebox')).transform`)) !== 'none');
+    await ev(`document.getElementById('scene').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }))`);
+    const emoSeen = await ev(`new Promise((res) => { let seen = false; const iv = setInterval(() => { const e = document.querySelector('#hero .gob-emote'); if (e && parseFloat(getComputedStyle(e).opacity) > 0.5) seen = true; }, 30); setTimeout(() => { clearInterval(iv); res(seen); }, 9000); })`);
+    check('보스 스테이지에 들어서면 머리 위에 감정 아이콘(느낌표)이 떠오른다', emoSeen);
+    check('보스전에는 눈빛이 붉게 타오른다', await ev(`document.getElementById('heroBox').classList.contains('eyes-boss')`));
+
     console.log('GM 모드 (관리자 계정에서만 보임)');
     const FAKE_CLOUD_GM = FAKE_CLOUD.replace('cb = f; setTimeout', 'cb = f; window.__authCb = f; setTimeout')
       .replace("email: 't@example.com'", "email: 'hongsunsik1@gmail.com'");

@@ -1061,3 +1061,21 @@ svg { display: block; }
 .plx--far { bottom: 26%; height: 62%; filter: saturate(0.85) brightness(1.03); }
 .plx--mid { bottom: 9%; height: 58%; }
 .plx--near { bottom: -2%; height: 46%; }
+
+/* ---- 캐릭터 생동감: 눈빛·감정 아이콘 (art.js goblin({ live: true })) ---- */
+.gob-livebox { display: flex; justify-content: center; align-items: flex-end; }
+.gob-live { position: relative; display: block; height: 100%; aspect-ratio: 512 / 616; }
+.gob-live .gob-img { position: absolute; inset: 0; width: 100%; height: 100%; }
+.gob-eye { position: absolute; width: var(--r); aspect-ratio: 1; transform: translate(-50%, -50%); border-radius: 50%; pointer-events: none; }
+/* 평소: 눈동자에 작은 빛이 가끔 반짝 */
+.gob-eye::after { content: ''; position: absolute; left: 58%; top: 18%; width: 34%; height: 34%; border-radius: 50%; background: #fff; box-shadow: 0 0 4px 2px rgba(255, 255, 255, 0.9); opacity: 0; animation: eyeGlint 3.4s ease-in-out infinite; }
+.gob-eye + .gob-eye::after { animation-delay: 0.08s; }
+@keyframes eyeGlint { 0%, 78%, 100% { opacity: 0; transform: scale(0.4); } 84% { opacity: 1; transform: scale(1.2); } 90% { opacity: 0.6; transform: scale(0.9); } }
+/* 보스전: 눈이 계속 붉게 타오르고, 강타할 때 더 번뜩 */
+.actor--hero.eyes-boss .gob-eye { box-shadow: 0 0 9px 3px rgba(255, 50, 30, 0.85); background: radial-gradient(circle, rgba(255, 80, 50, 0.7), transparent 72%); animation: bossEyes 1.2s ease-in-out infinite; }
+@keyframes bossEyes { 50% { box-shadow: 0 0 13px 5px rgba(255, 40, 20, 0.95); } }
+.actor--hero.eyes-angry .gob-eye { box-shadow: 0 0 10px 4px rgba(255, 40, 20, 0.95); background: radial-gradient(circle, rgba(255, 60, 30, 0.8), transparent 70%); }
+.actor--hero.eyes-happy .gob-eye { box-shadow: 0 0 12px 5px rgba(255, 215, 70, 1); background: radial-gradient(circle, rgba(255, 245, 170, 0.9), rgba(255, 210, 60, 0.4) 55%, transparent 75%); }
+.actor--hero.eyes-angry .gob-eye::after, .actor--hero.eyes-happy .gob-eye::after { animation: none; opacity: 1; }
+/* 감정 아이콘: 머리 위 오른쪽에 잠깐 떠오른다 */
+.gob-emote { position: absolute; width: 26%; aspect-ratio: 1; background: center / contain no-repeat; opacity: 0; pointer-events: none; filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.4)); z-index: 3; }
