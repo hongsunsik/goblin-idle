@@ -489,34 +489,42 @@
     heroTrail(style, dur, hit, soft);
     return dur * hit;
   }
-  // 근접 궤적: 몸 앞쪽(몬스터 쪽)에서 무기가 지나가는 자리를 초승달 모양으로 그린다. 무기를 어느 손에 들었든 자연스럽다.
+  // 근접 궤적: 몸 앞쪽(몬스터 쪽)에 휘두름 궤적 그림(images/vfx/swing_*)을 고정 방향으로 놓고,
+  // 무기가 지나가는 방향(위→아래, 단검은 뒤→앞)으로 '그려지듯' 드러났다가 사라지게 한다.
+  // 예전에는 초승달 테두리를 빙글 돌려서 로딩 스피너처럼 보였다 — 절대 회전시키지 않는다.
+  const TRAIL = {
+    slash:  { img: 'swing_sword',   fx: 0.96, fy: 0.4,  size: 118, wipe: 'down' },
+    holy:   { img: 'swing_holy',    fx: 0.96, fy: 0.4,  size: 124, wipe: 'down' },
+    axe:    { img: 'swing_axe',     fx: 1.02, fy: 0.4,  size: 124, wipe: 'down' },
+    hammer: { img: 'swing_hammer',  fx: 1.0,  fy: 0.62, size: 128, wipe: 'down', flip: true },   // 그림이 오른쪽 위→왼쪽 아래라 좌우를 뒤집어 쓴다
+    dagger: { img: 'thrust_dagger', fx: 0.95, fy: 0.5,  size: 92,  wipe: 'right' },
+  };
   function heroTrail(style, dur, hit, soft) {
-    const hero = $('heroSprite');
-    if (!hero) return;
-    const t0 = dur * (hit - 0.28), len = dur * 0.34, sc = soft ? 0.8 : 1;
-    if (style === 'dagger') {   // 단검: 앞으로 짧게 두 번 찌르는 선
-      for (const [i, at] of [[0, 0.1], [1, 0.52]]) {
-        const p = spot(hero, 0.84, 0.46 + i * 0.08);
-        playFx(addFx('fx-trail trail--dagger', p.x, p.y), [
-          { transform: 'translateX(-6px) scaleX(0.3)', opacity: 0 }, { transform: 'translateX(10px) scaleX(1)', opacity: 1, offset: 0.4 }, { transform: 'translateX(22px) scaleX(0.6)', opacity: 0 },
-        ], { duration: dur * 0.3, delay: dur * at, easing: 'ease-out' });
-      }
-      return;
-    }
-    if (style === 'hammer') {   // 망치: 머리 위에서 앞쪽 바닥으로 크게 내려찍는 호 + 바닥 먼지
-      const p = spot(hero, 0.8, 0.5);
-      playFx(addFx('fx-trail trail--hammer', p.x, p.y), [
-        { transform: `rotate(-150deg) scale(${0.8 * sc})`, opacity: 0 }, { transform: `rotate(-80deg) scale(${sc})`, opacity: 1, offset: 0.35 }, { transform: `rotate(-10deg) scale(${1.05 * sc})`, opacity: 0 },
-      ], { duration: len * 1.2, delay: t0, easing: 'cubic-bezier(0.5, 0, 1, 1)' });
-      const g = spot(hero, 0.98, 0.94);
-      playFx(addFx('fx-ring trail-dust', g.x, g.y), [{ transform: 'scale(0.3, 0.12)', opacity: 0.9 }, { transform: `scale(${1.6 * sc}, ${0.45 * sc})`, opacity: 0 }], { duration: 360, delay: dur * hit, easing: 'ease-out' });
-      return;
-    }
-    // 칼·도끼·성검: 위에서 앞으로 휘두르는 초승달
-    const p = spot(hero, 0.82, 0.44);
-    playFx(addFx('fx-trail trail--' + style, p.x, p.y), [
-      { transform: `rotate(-110deg) scale(${0.75 * sc})`, opacity: 0 }, { transform: `rotate(-40deg) scale(${sc})`, opacity: 1, offset: 0.4 }, { transform: `rotate(25deg) scale(${1.08 * sc})`, opacity: 0 },
-    ], { duration: len, delay: t0, easing: 'ease-out' });
+    const hero = $('heroSprite'), t = TRAIL[style];
+    if (!hero || !t) return;
+    const url = A.vfx(t.img);
+    if (!url) return;
+    const sc = soft ? 0.85 : 1, size = t.size * sc;
+    const p = spot(hero, t.fx, t.fy);
+    const hidden = t.wipe === 'right' ? 'inset(0 100% 0 0)' : 'inset(0 0 100% 0)';
+    const shown = 'inset(0 0 0 0)';
+    const flip = t.flip ? ' scaleX(-1)' : '';
+    const play = (delay, span) => {
+      const el = addFx('fx-sprite fx-swing', p.x, p.y);
+      if (!el) return;
+      el.style.width = el.style.height = size + 'px';
+      el.style.margin = `${-size / 2}px 0 0 ${-size / 2}px`;
+      el.style.backgroundImage = `url("${url}")`;
+      const dx = t.wipe === 'right' ? 14 : 4;
+      playFx(el, [
+        { clipPath: hidden, transform: `translate(0, 0)${flip}`, opacity: 1 },
+        { clipPath: shown, transform: `translate(${dx * 0.6}px, 0)${flip}`, opacity: 1, offset: 0.45 },
+        { clipPath: shown, transform: `translate(${dx}px, 0)${flip}`, opacity: 0 },
+      ], { duration: span, delay, easing: 'cubic-bezier(0.3, 0, 0.3, 1)' });
+    };
+    if (style === 'dagger') { play(dur * 0.12, dur * 0.4); play(dur * 0.5, dur * 0.4); return; }   // 두 번 찌른다
+    const span = Math.max(160, dur * 0.5);
+    play(Math.max(0, dur * hit - span * 0.45), span);   // 궤적이 다 그려지는 순간이 몬스터에 닿는 순간과 맞게
   }
   // 근접: 몬스터 위에 베는 궤적(호)이나 내리찍는 충격파를 그린다
   function arcFx(style, strong, delay) {

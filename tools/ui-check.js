@@ -424,9 +424,9 @@ const FAKE_CLOUD = `(() => {
     check('공격할 때마다 무기가 손에 나타났다 사라진다 (평소엔 숨어 있음)', sawWeapon);
     await reopen(mk(30, ['warrior', 'knight'])); await sleep(300);
     check('근접 직업은 가짜 무기를 겹쳐 그리지 않는다 (그림마다 무기 든 손이 달라서)', await ev(`document.getElementById('heroWeapon').hidden`));
-    const sawTrail = await ev(`new Promise((res) => { let seen = false; const iv = setInterval(() => { if (document.querySelector('.fx-trail')) seen = true; }, 15); setTimeout(() => { clearInterval(iv); res(seen); }, 2500); })`);
+    const sawTrail = await ev(`new Promise((res) => { let seen = false; const iv = setInterval(() => { if (document.querySelector('.fx-swing')) seen = true; }, 15); setTimeout(() => { clearInterval(iv); res(seen); }, 2500); })`);
     check('근접 공격은 몸 앞쪽에 휘두르는 궤적이 그려진다', sawTrail);
-    const trailX = await ev(`new Promise((res) => { const iv = setInterval(() => { const t = document.querySelector('.fx-trail'); if (t) { clearInterval(iv); const h = document.getElementById('heroSprite').getBoundingClientRect(), r = t.getBoundingClientRect(); res((r.left + r.width / 2 - h.left) / h.width); } }, 10); setTimeout(() => { clearInterval(iv); res(-1); }, 2500); })`);
+    const trailX = await ev(`new Promise((res) => { const iv = setInterval(() => { const t = document.querySelector('.fx-swing'); if (t) { clearInterval(iv); const h = document.getElementById('heroSprite').getBoundingClientRect(), r = t.getBoundingClientRect(); res((r.left + r.width / 2 - h.left) / h.width); } }, 10); setTimeout(() => { clearInterval(iv); res(-1); }, 2500); })`);
     check('궤적은 캐릭터의 앞쪽(몬스터 쪽 절반)에 있다', trailX > 0.5, `위치 ${trailX}`);
 
     // 스킬 바와 자동 시전 (마법사 → 화염술사: 마법 화살(연타), 점화(지속 피해))

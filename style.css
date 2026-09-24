@@ -967,13 +967,8 @@ svg { display: block; }
 .tower__daily { margin-top: 6px; padding: 5px 10px; font-size: 12px; display: inline-flex; align-items: center; gap: 4px; }
 .tower__daily .ic { width: 14px; height: 14px; }
 
-/* 근접 궤적: 몸 앞쪽에서 무기가 지나가는 자리 (오른쪽 테두리만 보이는 초승달) */
-.fx-trail { width: 78px; height: 78px; margin: -39px 0 0 -39px; border-radius: 50%; border: 5px solid transparent; border-right-color: #fff; border-top-color: rgba(255, 255, 255, 0.35); filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.85)); }
-.trail--axe { width: 92px; height: 92px; margin: -46px 0 0 -46px; border-width: 8px; border-right-color: #ffb066; border-top-color: rgba(255, 150, 60, 0.4); filter: drop-shadow(0 0 8px rgba(255, 140, 40, 0.9)); }
-.trail--holy { border-right-color: #fff2a8; border-top-color: rgba(255, 220, 90, 0.45); filter: drop-shadow(0 0 10px rgba(255, 214, 90, 1)); }
-.trail--hammer { width: 96px; height: 96px; margin: -48px 0 0 -48px; border-width: 9px; border-right-color: #d8dee8; border-top-color: rgba(200, 210, 225, 0.35); filter: drop-shadow(0 0 5px rgba(0, 0, 0, 0.5)); }
-.trail--dagger { width: 34px; height: 3px; margin: -1.5px 0 0 0; border: 0; border-radius: 2px; background: linear-gradient(90deg, transparent, #fff); transform-origin: 0 50%; filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.9)); }
-.trail-dust { border-color: rgba(210, 190, 150, 0.8) !important; }
+/* 근접 휘두름 궤적 그림 (app.js heroTrail): 회전 없이 휘두르는 방향으로 드러난다 */
+.fx-swing { filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.55)); }
 
 /* 장비 가루 · 레벨 올리기 */
 .dust-ic { display: inline-block; width: 11px; height: 11px; margin-right: 3px; vertical-align: -1px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff, #c7a6ff 40%, #7a4aff 75%); box-shadow: 0 0 5px rgba(170, 130, 255, 0.9); }

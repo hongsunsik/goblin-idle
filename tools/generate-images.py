@@ -382,6 +382,12 @@ VFX = {
     'stun_stars': 'a ring of yellow stars and swirls, dizzy effect',
     'wind_swirl': 'a cyan wind vortex swirl with leaves',
     'rage_aura': 'a red flame aura burst with angry energy',
+    # 근접 휘두름 궤적: 캐릭터 앞쪽에 고정 방향으로 잠깐 보였다 사라진다 (회전시키지 않는다 — 돌리면 로딩 스피너처럼 보였다)
+    'swing_sword': 'a single wide white sword swing trail arc sweeping from upper left down to lower right, thick bright leading edge tapering to a thin fading tail, motion blur speed lines, side view',
+    'swing_axe': 'a single heavy orange axe swing trail arc sweeping from upper left down to lower right, thick fiery leading edge with sparks, tapering tail, motion blur',
+    'swing_holy': 'a single golden holy sword swing trail arc sweeping from upper left down to lower right, radiant leading edge with light sparkles, tapering tail',
+    'swing_hammer': 'a heavy smash motion trail only, a thick curved white and grey arc swooshing down from the top right to the bottom, no weapon, no blade, a round dust cloud burst with flying rocks at the bottom',
+    'thrust_dagger': 'two short parallel horizontal white stab streaks pointing right with a small bright star flash at the tips, thin speed lines, no arrow heads, no weapon',
 }
 FX = ('game visual effect sprite, bold dark outline, glossy cel-shaded, vibrant colors, centered, square composition, '
       'no character, no text, ' + BG)
