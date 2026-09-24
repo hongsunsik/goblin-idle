@@ -1575,7 +1575,7 @@ test('그림 생성 스크립트의 스킬·이펙트 목록이 게임 데이터
   const fs = require('fs'), path = require('path');
   const py = fs.readFileSync(path.join(__dirname, 'generate-images.py'), 'utf8');
   const keysOf = (name) => { const body = py.slice(py.indexOf(name + ' = {'), py.indexOf('\n}\n', py.indexOf(name + ' = {'))); return [...body.matchAll(/^\s+'([a-z_]+)':/gm)].map((m) => m[1]); };
-  const skills = keysOf('SKILLS'), vfx = keysOf('VFX');
+  const skills = keysOf('SKILLS'), vfx = keysOf('VFX').concat(keysOf('HIT_STYLES').flatMap((k) => ['hit_' + k, 'hitx_' + k]));   // 타격 이펙트는 HIT_STYLES에서 반복문으로 만든다
   assert.deepStrictEqual(skills.slice().sort(), Object.keys(G.SKILL_NAMES).sort(), '스킬 아이콘 프롬프트가 60개 직업과 다르다');
   assert.deepStrictEqual(vfx.slice().sort(), require('../skills.js').VFX_NAMES.slice().sort(), '이펙트 이름이 skills.js와 다르다');
 });
