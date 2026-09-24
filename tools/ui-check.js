@@ -816,17 +816,22 @@ const FAKE_CLOUD = `(() => {
     check('장비 정보 창에 품질(기준 대비 편차)이 보인다', (await txt('#modalBody')).includes('품질'));
     check('장비 정보 창에 레벨 올리기·분해 버튼이 있다', !!(await ev(`document.querySelector('#modalBody [data-lvup]')`)) && !!(await ev(`document.querySelector('#modalBody [data-dismantle]')`)));
     await click('#modalBody [data-lvup]'); await sleep(250);
-    check('레벨 올리기 창에 +1·+10·최대 선택지와 최대 레벨(최고 스테이지 80)이 보인다', (await ev(`document.querySelectorAll('#modalBody .lvopt').length`)) === 3 && (await txt('#modalBody')).includes('최대 80'));
+    check('레벨 올리기 창에 +1·+10·최대 선택지와 최대 레벨(최고 스테이지 80 + 100)이 보인다', (await ev(`document.querySelectorAll('#modalBody .lvopt').length`)) === 3 && (await txt('#modalBody')).includes('최대 180'));
     await shot('levelup');
     await click('#modalBody [data-lvn="10"]'); await sleep(250);
     check('+10을 누르면 장비 레벨이 30이 되고 창이 새 값으로 다시 그려진다', (await txt('#modalBody')).includes('장비 레벨 30'));
     await click('#modalBody [data-lvn="999"]'); await sleep(250);
-    check('최대를 누르면 최고 스테이지(80)까지 오르고 더는 못 올린다', (await txt('#modalBody')).includes('최고 스테이지까지 올렸어요'));
+    check('최대를 누르면 상한(180)까지 오르고 더는 못 올린다', (await txt('#modalBody')).includes('최대 레벨까지 올렸어요'));
     await click('#modalActions .btn'); await sleep(200);
-    check('가방 칸에도 새 레벨(Lv.80)이 보인다', (await txt(`#bag [data-item="${lvItem.id}"]`)).includes('Lv.80'));
+    check('가방 칸에도 새 레벨(Lv.180)이 보인다', (await txt(`#bag [data-item="${lvItem.id}"]`)).includes('Lv.180'));
     await click(`#bag [data-item="${junk.id}"]`); await sleep(250);
     await click('#modalBody [data-dismantle]'); await sleep(300);
     check('고급 장비는 확인 없이 바로 분해되고 가방에서 빠지며 기록에 가루가 남는다', !(await ev(`document.querySelector('#bag [data-item="${junk.id}"]')`)) && (await txt('#log')).includes('분해했다'));
+    check('레벨 상한은 최고 스테이지 + 100(=180)이다', (await ev(`(() => { document.querySelector('#bag [data-item="${lvItem.id}"]').click(); return true; })()`)) && await (async () => { await sleep(200); await click('#modalBody [data-lvup]'); await sleep(200); const t = await txt('#modalBody'); await click('#modalActions .btn'); await sleep(150); return t.includes('최대 180'); })());
+    await click(`#bag [data-item="${lvItem.id}"]`); await sleep(200);
+    await click('#modalBody [data-star]'); await sleep(200);
+    check('15강이 아니면 초월할 수 없다고 알려 준다', (await txt('#modalTitle')).includes('초월할 수 없어요') && (await txt('#modalBody')).includes('15강'));
+    await click('#modalActions .btn'); await sleep(150);
     await click('#autoDust'); await sleep(150);
     check('자동 분해 설정을 켤 수 있다', await ev(`document.getElementById('autoDust').checked`));
     await click('[data-go="store"]'); await sleep(300);
@@ -837,6 +842,19 @@ const FAKE_CLOUD = `(() => {
     check('게이지가 차는 뽑기에서 신화 보장이 발동해 신화 무기가 나온다', (await txt('#modalBody')).includes('신화 보장 발동') && (await txt('#modalBody')).includes('[신화]'));
     await click('#modalActions .btn'); await sleep(200);
     check('발동 뒤 게이지는 0부터 다시 시작한다', (await txt('#pityBar')).includes('0 / '));
+
+    console.log('장비 초월');
+    const sx = mk(30, ['warrior']); sx.bestStage = 80; sx.dust = 1e6; sx.autoEquip = false;
+    const tgt = G.rollItem(sx, 40, false, 4, 'weapon'); tgt.enh = 15; sx.bag.push(tgt);
+    const smat = G.rollItem(sx, 40, false, 5, 'weapon'); sx.bag.push(smat);
+    await reopen(sx);
+    await click('[data-go="gear"]'); await sleep(300);
+    await click(`#bag [data-item="${tgt.id}"]`); await sleep(200);
+    await click('#modalBody [data-star]'); await sleep(200);
+    check('15강 장비는 초월 창에 가루와 재료(같은 칸·같은 등급 이상)가 보인다', (await txt('#modalTitle')).includes('장비 초월') && !!(await ev(`document.querySelector('#modalBody [data-starmat="${smat.id}"]')`)));
+    await shot('star');
+    await click(`#modalBody [data-starmat="${smat.id}"]`); await sleep(300);
+    check('초월하면 가방 칸에 ✦1이 붙고 재료가 사라진다', (await txt(`#bag [data-item="${tgt.id}"]`)).includes('✦1') && !(await ev(`document.querySelector('#bag [data-item="${smat.id}"]')`)));
 
     console.log('GM 모드 (관리자 계정에서만 보임)');
     const FAKE_CLOUD_GM = FAKE_CLOUD.replace('cb = f; setTimeout', 'cb = f; window.__authCb = f; setTimeout')

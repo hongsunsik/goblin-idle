@@ -635,14 +635,16 @@
   // 종류마다 올려 주는 능력(kind)과 등급별 기본 수치(%: 노말·고급·희귀·영웅·전설), 이름에 쓰는 명사
   const GEAR = {
     weapon:    { name: '무기',     icon: 'sword',  kinds: {
-      dmg:   { label: '공격력',    base: [4, 7, 11, 17, 26, 40, 62],   nouns: [['club', '몽둥이'], ['dagger', '단검'], ['hatchet', '손도끼'], ['sword', '장검'], ['staff', '지팡이']] } } },
+      dmg:   { label: '공격력',    base: [4, 7, 11, 17, 26, 40, 62],   nouns: [['club', '몽둥이'], ['dagger', '단검'], ['hatchet', '손도끼'], ['sword', '장검'], ['staff', '지팡이'],
+                                                                         ['dragonblade', '용아검', 4], ['stormspear', '폭풍의 창', 4], ['soulscythe', '영혼의 낫', 4]] } } },
     armor:     { name: '방어구',   icon: 'shield', kinds: {
-      hp:    { label: '최대 체력', base: [6, 10, 16, 24, 36, 55, 85],  nouns: [['leather', '가죽 갑옷'], ['chainmail', '쇠사슬 갑옷'], ['plate', '판금 갑옷'], ['robe', '로브']] } } },
+      hp:    { label: '최대 체력', base: [6, 10, 16, 24, 36, 55, 85],  nouns: [['leather', '가죽 갑옷'], ['chainmail', '쇠사슬 갑옷'], ['plate', '판금 갑옷'], ['robe', '로브'],
+                                                                         ['dragonplate', '용린 갑옷', 4], ['celestialrobe', '천상의 로브', 4]] } } },
     accessory: { name: '액세서리', icon: 'gem',    kinds: {
-      gold:  { label: '골드 획득', base: [6, 10, 15, 23, 34, 52, 80],  nouns: [['goldring', '황금 반지'], ['luckynecklace', '행운의 목걸이']] },
-      aps:   { label: '공격 속도', base: [2, 3.5, 5.5, 8, 12, 18, 27], nouns: [['galebracelet', '질풍의 팔찌'], ['featherearring', '깃털 귀걸이']] },
-      comp:  { label: '동료 공격', base: [5, 9, 14, 21, 32, 48, 74],   nouns: [['charm', '동료의 부적'], ['friendring', '우정의 반지']] },
-      click: { label: '직접 공격', base: [8, 14, 22, 33, 50, 76, 116],  nouns: [['glove', '강타의 장갑'], ['armband', '용사의 완장']] } } },
+      gold:  { label: '골드 획득', base: [6, 10, 15, 23, 34, 52, 80],  nouns: [['goldring', '황금 반지'], ['luckynecklace', '행운의 목걸이'], ['midasring', '미다스의 반지', 4]] },
+      aps:   { label: '공격 속도', base: [2, 3.5, 5.5, 8, 12, 18, 27], nouns: [['galebracelet', '질풍의 팔찌'], ['featherearring', '깃털 귀걸이'], ['windwing', '바람 날개 장식', 4]] },
+      comp:  { label: '동료 공격', base: [5, 9, 14, 21, 32, 48, 74],   nouns: [['charm', '동료의 부적'], ['friendring', '우정의 반지'], ['warhorn', '전쟁의 뿔나팔', 4]] },
+      click: { label: '직접 공격', base: [8, 14, 22, 33, 50, 76, 116],  nouns: [['glove', '강타의 장갑'], ['armband', '용사의 완장'], ['titangauntlet', '거인의 건틀릿', 4]] } } },
   };
   const SLOT_KEYS = Object.keys(GEAR);
   const has = (obj, key) => Object.prototype.hasOwnProperty.call(obj, key);   // 'constructor' 같은 이름을 걸러내려고 in/[] 대신 쓴다
@@ -652,7 +654,12 @@
   function setRandom(fn) { rnd = fn || Math.random; }
 
   const kindDef = (it) => GEAR[it.slot].kinds[it.kind];
-  const itemNoun = (it) => { const nouns = kindDef(it).nouns; return nouns[it.n % nouns.length]; };   // [디자인 id, 이름]
+  const itemNoun = (it) => { const nouns = kindDef(it).nouns; return nouns[it.n % nouns.length]; };   // [디자인 id, 이름, 최소 등급?]
+  // 등급 r에서 나올 수 있는 디자인 번호 하나 (세 번째 값이 있는 디자인은 그 등급 이상에서만 — 전설 이상 전용 디자인)
+  function pickNoun(def, r, rand) {
+    const ok = def.nouns.map((x, i) => i).filter((i) => (def.nouns[i][2] || 0) <= r);
+    return ok[Math.floor(rand() * ok.length)];
+  }
   const itemName = (it) => (it.sp ? St.specialOf(it.sp.k).prefix + ' ' : '') + RARITY_PREFIX[it.r] + ' ' + itemNoun(it)[1];   // 특별 옵션이 있으면 이름 앞에 붙는다 (예: 사냥꾼의 고귀한 장검)
   // 장비 그림 이름 (images/gear/<디자인 id>). 같은 이름의 장비는 같은 모양이고 등급은 테두리 색으로 구분한다.
   const itemDesign = (it) => itemNoun(it)[0];
@@ -672,7 +679,29 @@
   const ENH_MAX = 15, ENH_STEP = 0.08;   // 강화 1단계당 +8%, 최대 15단계(+120%)
   const ENH_CHANCE = [1, 1, 1, 1, 1, 0.85, 0.85, 0.7, 0.7, 0.55, 0.55, 0.4, 0.3, 0.2, 0.15];   // lv → lv+1 성공 확률 (배열 순서 = 지금 레벨)
   const enhChance = (lv) => ENH_CHANCE[Math.max(0, Math.min(ENH_CHANCE.length - 1, lv))];
-  const enhVal = (it) => it.val * (1 + ENH_STEP * (it.enh || 0));   // 실제로 적용되는 수치 (강화 반영)
+  // ---- 장비 초월(✦): 15강을 채운 장비를 한 단계 더. 단계마다 효과 +25%, 장비 레벨 상한 +100. 실패 없음. ----
+  const STAR_MAX = 5, STAR_STEP = 0.25, STAR_LV = 100;
+  const enhVal = (it) => it.val * (1 + ENH_STEP * (it.enh || 0)) * (1 + STAR_STEP * (it.star || 0));   // 실제로 적용되는 수치 (강화·초월 반영)
+  const starDust = (it) => Math.ceil(1500 * ((it.star || 0) + 1) * [0.5, 0.6, 0.8, 1, 1.3, 1.7, 2.2][it.r]);
+  // 재료: 같은 칸, 같은 등급 이상인 가방 장비 1개
+  const starMaterials = (s, it) => s.bag.filter((x) => x.id !== it.id && x.slot === it.slot && x.r >= it.r);
+  // 결과: { ok, reason? | star, dust }  reason: 'target' | 'enh' 15강이 아님 | 'max' | 'material' | 'dust'
+  function starItem(s, targetId, materialId) {
+    const it = findItem(s, targetId);
+    if (!it) return { ok: false, reason: 'target' };
+    if ((it.enh || 0) < ENH_MAX) return { ok: false, reason: 'enh' };
+    if ((it.star || 0) >= STAR_MAX) return { ok: false, reason: 'max' };
+    const mi = s.bag.findIndex((x) => x.id === materialId);
+    if (mi < 0 || !starMaterials(s, it).includes(s.bag[mi])) return { ok: false, reason: 'material' };
+    const dust = starDust(it);
+    if (s.dust < dust) return { ok: false, reason: 'dust', dust };
+    const before = maxHp(s);
+    s.dust -= dust;
+    s.bag.splice(mi, 1);
+    it.star = (it.star || 0) + 1;
+    if (SLOT_KEYS.some((k) => s.equip[k] === it)) s.hp += Math.max(0, maxHp(s) - before);
+    return { ok: true, star: it.star, dust };
+  }
   const enhCost = (it) => Math.ceil(sellValue(it) * (2 + (it.enh || 0) * 0.8));   // 강화할수록, 실패 위험이 클수록 골드가 더 든다
   const findItem = (s, id) => SLOT_KEYS.map((k) => s.equip[k]).find((x) => x && x.id === id) || s.bag.find((x) => x.id === id) || null;
   // 결과: { ok, reason? | cost, chance, success, enh }  reason: 'target' 없는 장비 | 'max' 이미 최대 강화 | 'material' 쓸 수 없는 재료 | 'gold' 골드 부족
@@ -716,7 +745,7 @@
     const def = GEAR[slot].kinds[kind];
     const val = round1(def.base[r] * (1 + stage / GEAR_SCALE_STAGE) * (1 - ITEM_SPREAD + rnd() * 2 * ITEM_SPREAD));   // ±5% 무작위
     s.itemSeq += 1;
-    return { id: s.itemSeq, slot, kind, r, ilvl: stage, val, n: Math.floor(rnd() * def.nouns.length), enh: 0 };
+    return { id: s.itemSeq, slot, kind, r, ilvl: stage, val, n: pickNoun(def, r, rnd), enh: 0 };
   }
 
   const dropChance = (s, boss) => ((boss ? BOSS_DROP_CHANCE : DROP_CHANCE) + LUCK_PER_LV * perkLv(s, 'luck') + specialV(s, 'luck')) * (1 + potionV(s, 'luck'));
@@ -827,13 +856,15 @@
   const DUST_CAP = 1e12;
   const DUST_R = [1, 2, 5, 12, 30, 80, 200];        // 등급별 기본 가루
   const LV_COST_R = [0.5, 0.6, 0.8, 1, 1.3, 1.7, 2.2];   // 등급별 레벨 올리기 비용 배율
-  const dustValue = (it) => Math.ceil(DUST_R[it.r] * (1 + it.ilvl / 50) * (1 + 0.5 * (it.enh || 0)));
-  const itemLevelCap = (s) => Math.max(1, s.bestStage);
+  const dustValue = (it) => Math.ceil(DUST_R[it.r] * (1 + it.ilvl / 50) * (1 + 0.5 * (it.enh || 0)) + 0.6 * 1500 * [0.5, 0.6, 0.8, 1, 1.3, 1.7, 2.2][it.r] * ((it.star || 0) * ((it.star || 0) + 1)) / 2);   // 초월에 쓴 가루(starDust 누적)는 60% 돌려받는다
+  // 장비 레벨 상한: 최고 스테이지 + 100, 초월 한 단계마다 +100 더 (최대 999)
+  const ITEM_LV_MAX = 999, ITEM_LV_BONUS = 100;
+  const itemLevelCap = (s, it) => Math.min(ITEM_LV_MAX, Math.max(1, s.bestStage) + ITEM_LV_BONUS + STAR_LV * ((it && it.star) || 0));
   const lvStepCost = (r, lv) => Math.ceil((2 + lv / 10) * LV_COST_R[r]);   // lv → lv+1
   function levelUpCost(it, n) { let c = 0; for (let i = 0; i < n; i++) c += lvStepCost(it.r, it.ilvl + i); return c; }
   // 지금 가루로 최대 몇 레벨까지 올릴 수 있나 (want 이하, 상한까지)
   function levelUpPlan(s, it, want) {
-    const room = Math.max(0, itemLevelCap(s) - it.ilvl);
+    const room = Math.max(0, itemLevelCap(s, it) - it.ilvl);
     let n = 0, cost = 0;
     while (n < Math.min(want, room)) { const c = lvStepCost(it.r, it.ilvl + n); if (cost + c > s.dust) break; cost += c; n += 1; }
     return { n, cost, room, next: room > 0 ? lvStepCost(it.r, it.ilvl) : 0 };
@@ -1061,7 +1092,7 @@
       const slot = SLOT_KEYS[(i + win + reroll) % SLOT_KEYS.length];   // 무기·방어구·액세서리가 2개씩 나온다
       const kinds = Object.keys(GEAR[slot].kinds), kind = kinds[Math.floor(rng() * kinds.length)], def = GEAR[slot].kinds[kind];
       const sp = St.SPECIALS[order[i % order.length]], [lo, hi] = r >= 4 ? sp.legend : sp.hero;
-      const item = { slot, kind, r, ilvl: lvl, n: Math.floor(rng() * def.nouns.length),
+      const item = { slot, kind, r, ilvl: lvl, n: pickNoun(def, r, rng),
                      val: round1(def.base[r] * (1 + lvl / GEAR_SCALE_STAGE) * (1 + rng() * ITEM_SPREAD)),   // 드롭(±5%)과 달리 기본값 이상으로 나온다
                      sp: { k: sp.k, v: Math.round((lo + rng() * (hi - lo)) * 1000) / 1000 } };
       return { i, item, price: St.GEAR_SHOP.price[r], sold: bought.includes(i) };
@@ -1782,6 +1813,8 @@
       const it = { id: clamp(Math.floor(num(x.id, 0)), 1, 1e12), slot: x.slot, kind: x.kind, r, ilvl,
                    val: clamp(num(x.val, 0), 0, maxItemVal(x.slot, x.kind, r, ilvl)), n: clamp(Math.floor(num(x.n, 0)), 0, 99),
                    enh: clamp(Math.floor(num(x.enh, 0)), 0, ENH_MAX) };
+      const star = clamp(Math.floor(num(x.star, 0)), 0, STAR_MAX);
+      if (star > 0 && it.enh >= ENH_MAX) it.star = star;   // 초월은 15강 장비에만
       const spDef = r >= 3 && x.sp && typeof x.sp === 'object' ? St.specialOf(x.sp.k) : null;   // 특별 옵션은 영웅 이상에만, 정해진 종류와 범위 안에서만
       if (spDef) it.sp = { k: spDef.k, v: clamp(num(x.sp.v, 0), 0, spDef.legend[1]) };
       return it;
@@ -1879,10 +1912,10 @@
     PATH_FIELDS, ADV_IDS, advIdsOfTier, classTier, parentOf, childrenOf, classPath, deepest, DEX_STAGES, DEX_MEDALS, MASTERY_BASE, MEDAL_BONUS, dexStages, masteryOf, dexRecord, dexTier,
     RARITIES, GEAR, SLOT_KEYS, BAG_MAX, bagLimit, DROP_CHANCE, BOSS_DROP_CHANCE, LUCK_PER_LV,
     GEAR_DESIGNS, itemDesign, setRandom, itemName, sellValue, rollItem, dropChance, isUpgrade, receiveItem, equipItem, unequipItem, sellBagItem, sellBagUpTo, sellBagItems, isWeaker, bagWeaker, gearMult,
-    ENH_MAX, ENH_STEP, enhVal, enhCost, enhChance, enhanceItem, findItem, equipPower,
+    ENH_MAX, ENH_STEP, STAR_MAX, STAR_STEP, STAR_LV, starDust, starMaterials, starItem, enhVal, enhCost, enhChance, enhanceItem, findItem, equipPower,
     claimAttend, QUEST_PERIODS, QUEST_CFG, QUEST_DEFS, periodKeys, periodSecsLeft, questSync, questBoard, questClaimable, claimQuest, claimQuestBonus,
     DUNGEON_PERIODS: Dg.DUNGEON_PERIODS, DUNGEONS: Dg.DUNGEONS, BOSS_ART: Dg.BOSS_ART, dungeonSync, dungeonInfo, dungeonClaimable, dungeonBossHp, challengeDungeon, dungeonForecast, dungeonWaveBosses, dungeonBagNeed, MG_BONUS_CAP,
-    itemQuality, ITEM_SPREAD, dustValue, itemLevelCap, levelUpCost, levelUpPlan, levelUpItem, dismantleItems,
+    itemQuality, ITEM_SPREAD, ITEM_LV_BONUS, dustValue, itemLevelCap, levelUpCost, levelUpPlan, levelUpItem, dismantleItems,
     TOWER: Dg.TOWER, towerHp, towerBoss, towerForecast, towerInfo, climbTower, claimTowerDaily,
     moleBonus, gaugeBonus, parryBonus,
     PERKS, PERK_KEYS, HEADSTART_LV, perkLv, perkCost, perkSpent, tokenBalance, perkMissing, perkUnlocked, canBuyPerk, buyPerk, respecPerks, offlineCap,

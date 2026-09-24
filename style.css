@@ -990,3 +990,7 @@ svg { display: block; }
 .pity__bar i { display: block; height: 100%; background: linear-gradient(90deg, #39f0ff, #be78ff); box-shadow: 0 0 8px rgba(57, 240, 255, 0.7); }
 .pity small { font-size: 11.5px; color: var(--muted); line-height: 1.5; }
 .pity__hit { font-weight: 900; font-size: 15px; margin-bottom: 8px; background: linear-gradient(90deg, #39f0ff, #be78ff); -webkit-background-clip: text; background-clip: text; color: transparent; }
+/* 장비 초월 */
+.gitem__star { position: absolute; right: 3px; bottom: 16px; font-style: normal; font-size: 9.5px; font-weight: 900; color: #ffd66b; text-shadow: 0 0 5px rgba(255, 180, 40, 0.9), 0 0 2px #000; }
+.itemd__star { color: #ffd66b; }
+.slot__star { color: #ffd66b; font-weight: 900; }

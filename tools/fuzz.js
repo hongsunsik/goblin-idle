@@ -26,7 +26,8 @@ function invariants(s, step, last) {
     if (ids.has(it.id)) report('같은 장비 id가 두 군데', { step, last, id: it.id });
     ids.add(it.id);
     if ((it.enh || 0) < 0 || (it.enh || 0) > 15) report('강화 단계 범위 밖', { step, last, enh: it.enh });
-    if (it.ilvl > Math.max(s.bestStage, 999)) report('장비 레벨이 범위 밖', { step, last, ilvl: it.ilvl });
+    if (it.ilvl > 999) report('장비 레벨이 범위 밖', { step, last, ilvl: it.ilvl });
+    if ((it.star || 0) > 5 || ((it.star || 0) > 0 && (it.enh || 0) < 15)) report('초월 단계가 규칙 밖', { step, last, star: it.star, enh: it.enh });
   }
   for (const [slot, it] of Object.entries(s.equip || {})) if (it && it.slot !== slot) report('다른 칸 장비를 장착', { step, last, slot, it: it.slot });
   if (s.hp > G.maxHp(s) * 1.0001) report('체력이 최대 체력 초과', { step, last, hp: s.hp, max: G.maxHp(s) });
@@ -94,6 +95,7 @@ for (let run = 0; run < RUNS; run++) {
     dismantle: () => { if (s.bag.length) G.dismantleItems(s, [pick(s.bag).id]); },
     levelUp: () => { const all = [...s.bag, ...Object.values(s.equip).filter(Boolean)]; if (all.length) { s.dust += 500; G.levelUpItem(s, pick(all).id, pick([1, 10, 999])); } },
     autoDust: () => { s.autoDust = !s.autoDust; },
+    star: () => { const all = [...s.bag, ...Object.values(s.equip).filter(Boolean)]; if (!all.length) return; const it = pick(all); if (rnd() < 0.5) it.enh = 15; const m = G.starMaterials(s, it); if (m.length) { s.dust += 1e5; G.starItem(s, it.id, pick(m).id); } },
     towerDaily: () => { G.claimTowerDaily(s, today()); },
     offline: () => { const now = 1e12 + day * 864e5; s.savedAt = now - rnd() * 864e5; G.applyOffline(s, now, now, 8 * 3600); },
     gm: () => { if (rnd() < 0.02) G.gmSetStage(s, Math.floor(rnd() * 200)); },

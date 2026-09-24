@@ -230,6 +230,16 @@ GEAR = {
     'galebracelet': 'a silver bracelet engraved with cyan wind swirls', 'featherearring': 'a pair of earrings with white feathers',
     'charm': 'a small round talisman charm with a paw print on a red string', 'friendring': 'a bronze ring with two small hearts',
     'glove': 'a leather gauntlet glove with a metal knuckle guard', 'armband': 'a red fabric armband with a gold star emblem',
+    # 전설 이상 전용 (화려하게)
+    'dragonblade': 'a legendary ornate greatsword with a dragon head crossguard, crimson blade glowing with embers, gold filigree',
+    'stormspear': 'a legendary spear with a crackling lightning-shaped silver blade, blue electric glow, wrapped in storm ribbons',
+    'soulscythe': 'a legendary dark scythe with a curved violet blade, ghostly soul flames swirling around it, bone handle',
+    'dragonplate': 'a legendary crimson dragon-scale plate armor chestpiece with horned gold pauldrons and a glowing ruby core',
+    'celestialrobe': 'a legendary white and gold celestial robe with starry night patterns and glowing constellation runes',
+    'midasring': 'a legendary radiant gold ring with a huge sparkling diamond, gold coins orbiting around it',
+    'windwing': 'a legendary silver wing-shaped ornament with cyan wind swirls and a glowing emerald',
+    'warhorn': 'a legendary ornate war horn with gold bands and glowing runes, blue light pouring out of its mouth',
+    'titangauntlet': 'a legendary massive stone and gold titan gauntlet with glowing orange cracks and rune knuckles',
 }
 SKILLS = {
     # 1차

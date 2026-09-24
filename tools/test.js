@@ -2786,9 +2786,9 @@ test('레벨 올리기: 가루를 쓰고 수치가 레벨 비율만큼 오르며
   const expect = v0 * (1 + 30 / 40) / (1 + 20 / 40);
   assert.ok(Math.abs(it.val - expect) < 0.2, `${it.val} vs ${expect}`);
 });
-test('레벨 상한은 최고 스테이지이고, 가루가 모자라면 살 수 있는 만큼만 올린다', () => {
-  const s = dsBase(); const it = G.rollItem(s, 95, false, 2); s.bag.push(it); s.dust = 1e6;
-  assert.strictEqual(G.levelUpItem(s, it.id, 999).ilvl, 100);
+test('레벨 상한은 최고 스테이지 + 100이고, 가루가 모자라면 살 수 있는 만큼만 올린다', () => {
+  const s = dsBase(); const it = G.rollItem(s, 95, false, 2); s.bag.push(it); s.dust = 1e7;
+  assert.strictEqual(G.levelUpItem(s, it.id, 999).ilvl, 200);
   assert.strictEqual(G.levelUpItem(s, it.id, 1).reason, 'cap');
   const t = G.rollItem(s, 10, false, 2); s.bag.push(t); s.dust = G.levelUpCost(t, 3) + 1;
   assert.strictEqual(G.levelUpItem(s, t.id, 50).levels, 3);
@@ -2823,6 +2823,55 @@ test('가루와 자동 분해 설정은 저장·복원되고 환생해도 남는
   const c = G.deserialize(JSON.stringify(o)); assert.strictEqual(c.dust, 0); assert.strictEqual(c.autoDust, false);
 });
 G.setRandom(null);   // 이 구역에서 고정한 난수를 되돌린다
+
+section('장비 초월 · 전설 전용 디자인');
+const stBase = () => { const s = G.createState(0); s.bestStage = 100; s.autoEquip = false; return s; };
+test('초월은 15강 장비만, 같은 칸·같은 등급 이상 재료 1개와 가루로 한다', () => {
+  const s = stBase(); const it = G.rollItem(s, 50, false, 4, 'weapon'); s.equip.weapon = it; s.dust = 1e7;
+  const low = G.rollItem(s, 50, false, 3, 'weapon'), mat = G.rollItem(s, 50, false, 4, 'weapon'), other = G.rollItem(s, 50, false, 5, 'armor');
+  s.bag.push(low, mat, other);
+  assert.strictEqual(G.starItem(s, it.id, mat.id).reason, 'enh');
+  it.enh = G.ENH_MAX;
+  assert.strictEqual(G.starItem(s, it.id, low.id).reason, 'material', '낮은 등급은 재료가 안 된다');
+  assert.strictEqual(G.starItem(s, it.id, other.id).reason, 'material', '다른 칸은 재료가 안 된다');
+  const cost = G.starDust(it), before = G.enhVal(it);
+  const r = G.starItem(s, it.id, mat.id);
+  assert.strictEqual(r.ok, true); assert.strictEqual(it.star, 1);
+  assert.strictEqual(s.dust, 1e7 - cost);
+  assert.ok(!s.bag.includes(mat));
+  assert.ok(Math.abs(G.enhVal(it) / before - (1 + G.STAR_STEP)) < 1e-9, '효과 +25%');
+});
+test('초월 한 단계마다 레벨 상한이 100 오르고, 최대 5단계, 상한 999를 넘지 않는다', () => {
+  const s = stBase(); const it = G.rollItem(s, 50, false, 4, 'weapon'); it.enh = G.ENH_MAX; s.bag.push(it);
+  assert.strictEqual(G.itemLevelCap(s, it), 200);
+  it.star = 3; assert.strictEqual(G.itemLevelCap(s, it), 500);
+  s.bestStage = 900; assert.strictEqual(G.itemLevelCap(s, it), 999);
+  it.star = G.STAR_MAX; s.dust = 1e9; s.bag.push(G.rollItem(s, 50, false, 6, 'weapon'));
+  assert.strictEqual(G.starItem(s, it.id, s.bag[1].id).reason, 'max');
+});
+test('초월 단계는 저장·복원되고, 15강이 아닌 장비의 초월 조작은 버린다; 분해하면 초월 가루 일부를 돌려받는다', () => {
+  const s = stBase(); const it = G.rollItem(s, 50, false, 4, 'weapon'); it.enh = 15; it.star = 2;
+  const junk = G.rollItem(s, 50, false, 4, 'armor'); junk.star = 3; s.bag.push(it, junk);
+  const b = G.deserialize(G.serialize(s, 1)).bag;
+  assert.strictEqual(b[0].star, 2); assert.strictEqual(b[1].star, undefined);
+  const plain = Object.assign({}, it, { star: 0 });
+  assert.ok(G.dustValue(it) > G.dustValue(plain) + 0.5 * (G.starDust(plain) + G.starDust(Object.assign({}, it, { star: 1 }))));
+});
+test('전설 이상 전용 디자인은 영웅 이하에서 나오지 않고, 전설 이상에서는 나온다', () => {
+  const s = stBase(); const epic = new Set();
+  for (const slot of G.SLOT_KEYS) for (const k of Object.keys(G.GEAR[slot].kinds)) G.GEAR[slot].kinds[k].nouns.forEach((x) => { if (x[2]) epic.add(x[0]); });
+  assert.strictEqual(epic.size, 9);
+  let low = 0, high = 0;
+  G.setRandom(seeded(7));
+  for (let i = 0; i < 4000; i++) {
+    const r = i % 7, it = G.rollItem(s, 30, false, r), d = G.itemDesign(it);
+    if (epic.has(d)) { if (r < 4) low += 1; else high += 1; }
+  }
+  G.setRandom(null);
+  assert.strictEqual(low, 0); assert.ok(high > 300, `전설 이상 전용 디자인 ${high}개`);
+  s.shop = { win: 5, reroll: 0, lvl: 30, bought: [] };
+  for (let w = 1; w < 300; w++) { s.shop.win = w; for (const o of G.shopStock(s)) if (o.item.r < 4) assert.ok(!epic.has(G.itemDesign(o.item))); }
+});
 
 section('상점: 신화 맛보기 (보장·장비 상점)');
 test('신화 보장: 상자·뽑기에 쓴 크리스탈이 2700이 되는 구매(전설 상자 3개째)에서 신화가 확정되고 게이지는 0으로 돌아간다', () => {
