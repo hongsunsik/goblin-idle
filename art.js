@@ -267,7 +267,10 @@
 
   // 회차(스테이지 61 이후)마다 색을 더 돌려서 같은 몬스터가 다른 존재처럼 보이게 한다
   const ROUND_TINT = ['', ' hue-rotate(40deg) saturate(1.15)', ' hue-rotate(-45deg) saturate(1.2)', ' hue-rotate(95deg) saturate(1.1)', ' hue-rotate(160deg) saturate(1.25) brightness(0.9)'];
-  function monster(kind, biome, boss, round) {
+  function monster(kind, biome, boss, round, art) {
+    // 몬스터 전용 그림(art, 예: mushroom)이 있으면 그걸 회차 색만 씌워 쓴다
+    const mine = art && has('monsters', art);
+    if (mine) { const rt = ROUND_TINT[Math.min(round | 0, ROUND_TINT.length - 1)] || ''; return `<img class="mon-svg mon-img" src="${src(mine)}" alt="" draggable="false"${rt ? ` style="--tint:${rt}"` : ''}>`; }
     // 지역별 그림(ogre_3.png)이 있으면 그걸, 없으면 공통 그림(ogre.png)에 지역 색을 씌워 쓴다
     const own = has('monsters', kind + '_' + (biome | 0));
     const f = own || has('monsters', kind);

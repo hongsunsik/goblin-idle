@@ -10,6 +10,7 @@ const EXT = /\.(png|webp|jpe?g|gif|svg)$/i;
 
 const monsterNames = [];
 for (const k of A.MONSTER_KINDS) { monsterNames.push(k); for (let b = 0; b < 6; b++) monsterNames.push(`${k}_${b}`); }
+for (const a of G.MONSTER_ARTS) monsterNames.push(a);   // 지역별 일반 몬스터 전용 그림 48종
 // 고블린 그림 이름: SVG로 그려 둔 13종 + 3·4차를 포함한 도감 직업 전부 (없는 직업은 윗단계 그림으로 나온다)
 const GOBLIN_IDS = [...new Set([...A.LOOK_IDS, ...G.ADV_IDS])];
 const EXPECT = {

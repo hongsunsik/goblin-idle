@@ -94,7 +94,8 @@
       const type = roll < 0.16 ? 'trap' : roll < 0.3 ? 'gold' : 'mob';
       const kind = kinds[Math.floor(Math.random() * kinds.length)];
       const inner = hole.querySelector('.mg__hole-in');
-      inner.innerHTML = type === 'trap' ? A.icon('skull') : A.monster(kind, 0, false, 0);
+      const arts = G.MONSTER_TABLE[0].normals.concat(...G.MONSTER_TABLE.slice(1).map((t) => t.normals)), m = arts[Math.floor(Math.random() * arts.length)];
+      inner.innerHTML = type === 'trap' ? A.icon('skull') : A.monster(m[0], 0, false, 0, m[2]);   // 모든 지역의 일반 몬스터가 튀어나온다
       hole.classList.add('is-up');
       hole.classList.toggle('is-gold', type === 'gold');
       hole.classList.toggle('is-trap', type === 'trap');

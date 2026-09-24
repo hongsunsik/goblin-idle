@@ -175,20 +175,29 @@
 
   // 지역은 10스테이지마다 바뀌고, 지역마다 나오는 몬스터와 보스가 다르다. [그림 종류, 이름]
   const BIOME_COUNT = 6;
+  // 지역마다 일반 몬스터 8종(모두 그 지역 전용 그림 images/monsters/<그림 id>) + 보스 2종. [기본 종류, 이름, 그림 id]
+  // 기본 종류는 그림이 없을 때의 SVG 대체 그림과 맞는 소리(물컹·딱딱·동물형)에 쓴다. 보스는 기본 종류 그림에 지역 색을 씌운다.
   const MONSTER_TABLE = [
-    { normals: [['slime', '숲 슬라임'], ['wolf', '늑대'], ['boar', '멧돼지'], ['spider', '숲거미'], ['snake', '독뱀']],
+    { normals: [['slime', '숲 슬라임', 'forest_slime'], ['wolf', '늑대', 'forest_wolf'], ['boar', '멧돼지', 'forest_boar'], ['spider', '숲거미', 'forest_spider'],
+                ['snake', '독뱀', 'forest_snake'], ['slime', '버섯 요정', 'mushroom'], ['golem', '새싹 나무정령', 'treant_sprout'], ['bat', '왕벌', 'forest_bee']],
       bosses:  [['ogre', '숲의 트롤'], ['golem', '고목 골렘']] },
-    { normals: [['bat', '박쥐'], ['spider', '동굴거미'], ['slime', '동굴 슬라임'], ['skeleton', '광부 해골'], ['ghost', '동굴 유령']],
+    { normals: [['bat', '박쥐', 'cave_bat'], ['spider', '동굴거미', 'cave_spider'], ['slime', '동굴 슬라임', 'cave_slime'], ['skeleton', '광부 해골', 'miner_skeleton'],
+                ['ghost', '동굴 유령', 'cave_ghost'], ['scorpion', '수정 게', 'crystal_crab'], ['boar', '두더지 광부', 'mole_digger'], ['snake', '빛벌레', 'glow_worm']],
       bosses:  [['spider', '거미 여왕'], ['golem', '수정 골렘']] },
-    { normals: [['scorpion', '전갈'], ['snake', '사막뱀'], ['golem', '모래 골렘'], ['slime', '모래 슬라임'], ['bat', '사막 박쥐']],
+    { normals: [['scorpion', '전갈', 'desert_scorpion'], ['snake', '사막뱀', 'desert_snake'], ['golem', '모래 골렘', 'sand_golem'], ['slime', '모래 슬라임', 'sand_slime'],
+                ['bat', '사막 박쥐', 'desert_bat'], ['skeleton', '미라', 'mummy'], ['golem', '선인장 전사', 'cactus_man'], ['bat', '독수리', 'vulture']],
       bosses:  [['scorpion', '전갈 대왕'], ['dragon', '모래 용']] },
-    { normals: [['wolf', '서리늑대'], ['slime', '얼음 슬라임'], ['golem', '얼음 골렘'], ['bat', '서리박쥐'], ['ghost', '설원 유령']],
+    { normals: [['wolf', '서리늑대', 'frost_wolf'], ['slime', '얼음 슬라임', 'ice_slime'], ['golem', '얼음 골렘', 'ice_golem'], ['bat', '서리박쥐', 'frost_bat'],
+                ['ghost', '설원 유령', 'snow_ghost'], ['boar', '펭귄 기사', 'penguin_knight'], ['ogre', '아기 설인', 'yeti_cub'], ['wolf', '얼음 여우', 'ice_fox']],
       bosses:  [['ogre', '설인'], ['dragon', '얼음 용']] },
-    { normals: [['imp', '꼬마 악마'], ['slime', '용암 슬라임'], ['golem', '용암 골렘'], ['scorpion', '불전갈'], ['bat', '화염 박쥐']],
+    { normals: [['imp', '꼬마 악마', 'lava_imp'], ['slime', '용암 슬라임', 'lava_slime'], ['golem', '용암 골렘', 'lava_golem'], ['scorpion', '불전갈', 'fire_scorpion'],
+                ['bat', '화염 박쥐', 'fire_bat'], ['snake', '샐러맨더', 'salamander'], ['wolf', '마그마 사냥개', 'magma_hound'], ['ghost', '불꽃 정령', 'fire_spirit']],
       bosses:  [['dragon', '화염 용'], ['imp', '마왕']] },
-    { normals: [['skeleton', '해골 병사'], ['ghost', '유령'], ['bat', '흡혈 박쥐'], ['imp', '가고일'], ['spider', '저주 거미']],
+    { normals: [['skeleton', '해골 병사', 'skeleton_soldier'], ['ghost', '유령', 'castle_ghost'], ['bat', '흡혈 박쥐', 'vampire_bat'], ['imp', '가고일', 'gargoyle'],
+                ['spider', '저주 거미', 'curse_spider'], ['golem', '살아있는 갑옷', 'living_armor'], ['ghost', '저주 인형', 'cursed_doll'], ['wolf', '그림자 늑대', 'shadow_wolf']],
       bosses:  [['skeleton', '해골 군주'], ['dragon', '뼈 용']] },
   ];
+  const MONSTER_ARTS = MONSTER_TABLE.flatMap((t) => t.normals.map((n) => n[2]));
 
   // ---- 업적 ----
   // val(s)이 goal에 닿으면 달성. 달성할 때마다 공격력·골드가 영구히 +0.5%이고 (환생해도 유지), 기록 탭에서 크리스탈 보상을 받을 수 있다.
@@ -1366,15 +1375,17 @@
   // 지역 안의 위치(0~9) → 그 지역의 몇 번째 일반 몬스터가 나오는지 (null은 보스 자리).
   // 예전에는 (스테이지-1) % 5로 골라서 5번째 몬스터가 보스 자리와 겹쳐 한 번도 나오지 않았다.
   // 앞쪽에서 1~4번째를 차례로 만나고, 첫 보스 뒤에 새로운 5번째가 등장해 뒷부분에서 힘을 낸다.
-  const NORMAL_SLOTS = [0, 1, 2, 3, null, 4, 2, 3, 4, null];
+  // 지역 한 바퀴(10스테이지)에 일반 자리 8칸 → 8종이 한 번씩. 회차가 오를 때마다 3칸씩 밀려서 다른 순서·조합으로 나온다.
+  const NORMAL_SLOTS = [0, 1, 2, 3, null, 4, 5, 6, 7, null];
 
   // 이 스테이지에 나오는 몬스터 { kind(그림 종류), name, boss, biome, pos(지역 안 1~10번째), round(회차) }
   function monsterInfo(stage) {
     const t = MONSTER_TABLE[biomeOf(stage)];
     const idx = (stage - 1) % BIOME_LEN;
     const boss = isBossStage(stage);
-    const pick = boss ? t.bosses[(stage / BOSS_EVERY - 1) % t.bosses.length] : t.normals[NORMAL_SLOTS[idx]];
-    return { kind: pick[0], name: pick[1], boss, biome: biomeOf(stage), pos: idx + 1, round: roundOf(stage) };
+    const round = roundOf(stage);
+    const pick = boss ? t.bosses[(stage / BOSS_EVERY - 1) % t.bosses.length] : t.normals[(NORMAL_SLOTS[idx] + 3 * round) % t.normals.length];
+    return { kind: pick[0], name: pick[1], art: pick[2] || null, boss, biome: biomeOf(stage), pos: idx + 1, round };
   }
 
   // 지금 가장 높은 단계의 직업 (없으면 null)
@@ -1980,7 +1991,7 @@
     prestigeGain, prestigeInfo, PRESTIGE_FULL_SEC, canPrestige, prestige,
     serialize, deserialize,
     TOKEN_BONUS, TOKEN_POW, maxHp, hitDmg, attacksPerSec, companionDps, totalDps, goldMult, expNeeded, tokenMult,
-    monsterAtk, monsterGold, monsterInfo, biomeOf, roundOf, BIOME_LEN, NORMAL_SLOTS, isBossStage, lookId, classTitle,
+    monsterAtk, monsterGold, monsterInfo, biomeOf, roundOf, BIOME_LEN, NORMAL_SLOTS, MONSTER_TABLE, MONSTER_ARTS, isBossStage, lookId, classTitle,
     STORE: St, potionV, dayKey, creditCrystals, buyProduct, shopSync, shopStock, buyShopItem, rerollShop, specialV, adToday, adStatus, claimAd, shopItemLevel, unownedRelics,
     SKILL_KINDS: Sk.KINDS, SKILL_NAMES: Sk.SKILLS, describeSkill: Sk.describeSkill, MELEE_STYLES: Sk.MELEE_STYLES, ATTACK_STYLE: Sk.ATTACK_STYLE,
     skillsOf, attackStyle, styleOfClass, buffV, canCast, skillFor: (id) => Sk.makeSkill(id, TIER_OF[id]),

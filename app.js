@@ -2274,10 +2274,10 @@
     const dur = Math.max(0.3, Math.min(1.4, 1 / G.attacksPerSec(s))).toFixed(2) + 's';
     if (cache.dur !== dur) { cache.dur = dur; $('heroBox').style.setProperty('--atk', dur); }
 
-    const monKey = mon.kind + '|' + mon.biome + '|' + mon.boss + '|' + mon.round;
+    const monKey = mon.kind + '|' + mon.art + '|' + mon.biome + '|' + mon.boss + '|' + mon.round;
     if (monKey !== lastMonster) {
       lastMonster = monKey;
-      $('monster').innerHTML = A.monster(mon.kind, mon.biome, mon.boss, mon.round);
+      $('monster').innerHTML = A.monster(mon.kind, mon.biome, mon.boss, mon.round, mon.art);
     }
     setText('monsterName', mon.name);
     const max = G.maxHp(s);

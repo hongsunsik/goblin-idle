@@ -189,6 +189,63 @@ MONSTERS = {
     'ogre': 'big green ogre holding a wooden club, angry expression with two tusks',
     'dragon': 'small dragon with wings spread, horns, breathing a little fire',
 }
+# 지역별 일반 몬스터 전용 그림 48종 (game.js MONSTER_TABLE의 세 번째 값과 이름이 같아야 한다)
+MONSTERS.update({
+    # 고블린 숲
+    'forest_slime': 'glossy green forest slime blob with a leaf and a small flower on top, big cute eyes',
+    'forest_wolf': 'grey-brown forest wolf, side view, growling, bushy tail, leaves stuck in its fur',
+    'forest_boar': 'brown wild boar with big white tusks and a spiky mane, charging pose, mud on its hooves',
+    'forest_spider': 'green and brown forest spider with eight legs, a leaf pattern on its back, red eyes',
+    'forest_snake': 'legless purple and green poison snake coiled on the ground, dripping green venom from its fangs, no arms, no legs',
+    'mushroom': 'cute walking mushroom creature with a big red cap with white spots, tiny legs, grumpy face',
+    'treant_sprout': 'small walking tree spirit with a bark body, leafy head, twig arms and glowing green eyes',
+    'forest_bee': 'giant chubby bumblebee with yellow and black stripes, big stinger, buzzing wings, angry eyes',
+    # 어둠의 동굴
+    'cave_bat': 'dark purple cave bat with huge ears, glowing yellow eyes and wide wings, fangs',
+    'cave_spider': 'black cave spider with glowing blue markings, eight long legs and many shining eyes',
+    'cave_slime': 'a round translucent dark blue jelly slime blob, no arms, no legs, no hair, glowing crystals floating inside the jelly, big cute eyes',
+    'miner_skeleton': 'skeleton miner wearing a helmet with a candle lamp, holding a pickaxe, glowing eye sockets',
+    'cave_ghost': 'pale blue cave ghost holding a small lantern, wavy tail, spooky big eyes',
+    'crystal_crab': 'crab with a shell made of glowing purple crystals, two big pincers, eight legs',
+    'mole_digger': 'chubby mole miner wearing tiny goggles, big digging claws, holding a small shovel',
+    'glow_worm': 'long legless cave worm with glowing cyan spots along its body, round mouth with small teeth, no legs',
+    # 불타는 사막
+    'desert_scorpion': 'sand-colored desert scorpion seen from the side, two big pincers, eight legs, curved segmented tail with a stinger',
+    'desert_snake': 'legless sand-yellow desert rattlesnake with diamond patterns coiled on the sand, rattle tail, no arms, no legs',
+    'sand_golem': 'golem made of packed sand and sandstone blocks with glowing orange eyes, sand crumbling off',
+    'sand_slime': 'sandy tan slime blob with a tiny cactus sprouting on top, big eyes',
+    'desert_bat': 'sand-colored desert bat with big ears and tattered wings, squinting eyes, fangs',
+    'mummy': 'mummy wrapped in old bandages with one glowing red eye showing, arms stretched forward',
+    'cactus_man': 'angry walking cactus warrior with spiky arms, a pink flower on its head, tiny feet',
+    'vulture': 'bald desert vulture with dark brown feathers, hunched pose, sharp hooked beak, spread wings',
+    # 얼음 산맥
+    'frost_wolf': 'white and icy blue frost wolf with frosty fur, snowflakes around it, growling, icy breath',
+    'ice_slime': 'translucent light blue ice slime blob with small icicles on top and frost sparkles, big eyes',
+    'ice_golem': 'golem made of blue ice blocks with glowing white eyes and sharp icicle shoulders',
+    'frost_bat': 'pale blue frost bat with icicle-tipped wings, frosty breath, glowing blue eyes',
+    'snow_ghost': 'white snow ghost made of swirling snowflakes, wavy tail, cold blue eyes',
+    'penguin_knight': 'small penguin knight wearing a tiny steel helmet, holding a little spear and a round shield',
+    'yeti_cub': 'fluffy white baby yeti with big blue eyes, small horns and big furry fists, angry pout',
+    'ice_fox': 'white arctic fox with glowing icy blue tail tips and frost crystals on its fur, pouncing pose',
+    # 화산 지대
+    'lava_imp': 'small red lava imp with yellow horns, bat wings, a pointed tail and a tiny fireball in its hand, grin',
+    'lava_slime': 'glowing orange molten lava slime blob with bubbling magma and small flames on top, big eyes',
+    'lava_golem': 'golem made of black volcanic rock with glowing orange lava cracks and a magma core',
+    'fire_scorpion': 'red fire scorpion with a flaming tail stinger, two big glowing pincers, eight legs, side view',
+    'fire_bat': 'a small round-bodied bat with big pointy ears and leathery bat wings edged with flames, orange fur, fangs, not a dragon, no tail, no horns',
+    'salamander': 'red and orange fire salamander lizard with flames running along its back, four short legs, long tail',
+    'magma_hound': 'black hellhound with a glowing magma-cracked body and a flaming mane, snarling',
+    'fire_spirit': 'floating fire spirit made of dancing flames with a cute angry face and small flame arms',
+    # 저주받은 성
+    'skeleton_soldier': 'skeleton soldier in rusty armor holding a notched sword and a cracked shield, glowing eye sockets',
+    'castle_ghost': 'noble ghost wearing a translucent old ruffled collar and a crown, holding a candle, wavy tail',
+    'vampire_bat': 'dark red vampire bat with a cape-like wing pattern, long fangs, glowing red eyes',
+    'gargoyle': 'grey stone gargoyle with horns, stone wings and claws, crouching, glowing purple eyes',
+    'curse_spider': 'black spider with a glowing purple skull pattern on its back, eight legs, cursed purple mist',
+    'living_armor': 'empty knight armor walking by itself with glowing blue light inside the helmet visor, holding a greatsword',
+    'cursed_doll': 'creepy cursed rag doll with button eyes, stitched mouth, holding a needle, floating slightly',
+    'shadow_wolf': 'wolf made of black shadow smoke with glowing purple eyes and wispy dark tendrils, growling',
+})
 # 던전 보스 전용 그림 (일반 몬스터보다 크고 위협적으로). dungeon.js BOSS_ART의 값과 이름이 같아야 한다.
 BOSSES = {
     'goblin_chief': 'a massive muscular goblin chieftain with a spiked bone crown, wielding a huge crude club, war paint, roaring',

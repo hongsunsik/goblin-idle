@@ -1603,11 +1603,11 @@ test('124개 직업 모두 공격 모션이 정해져 있고, 3·4·5차는 정�
 });
 
 section('스테이지·몬스터 배치');
-test('모든 지역에서 일반 몬스터 5종과 보스 2종이 빠짐없이 나온다 (예전에는 5번째 몬스터가 한 번도 안 나왔다)', () => {
+test('모든 지역에서 일반 몬스터 8종(전용 그림)과 보스 2종이 빠짐없이 나온다', () => {
   for (let b = 0; b < 6; b++) {
     const normals = new Set(), bosses = new Set();
     for (let p = 1; p <= 10; p++) { const m = G.monsterInfo(b * 10 + p); (m.boss ? bosses : normals).add(m.name); }
-    assert.strictEqual(normals.size, 5, `지역 ${b}: 일반 몬스터 ${[...normals].join(', ')}`);
+    assert.strictEqual(normals.size, 8, `지역 ${b}: 일반 몬스터 ${[...normals].join(', ')}`);
     assert.strictEqual(bosses.size, 2, `지역 ${b}: 보스 ${[...bosses].join(', ')}`);
   }
 });
@@ -1629,12 +1629,16 @@ test('지역 안 위치는 1~10이고, 스테이지 61부터 회차가 올라가
   const m61 = G.monsterInfo(61);
   assert.deepStrictEqual([m61.biome, m61.pos, m61.round], [0, 1, 1]);
   assert.strictEqual(G.monsterInfo(121).round, 2);
-  assert.strictEqual(G.monsterInfo(61).name, G.monsterInfo(1).name, '같은 몬스터가 색만 바뀌어 다시 나온다');
+  assert.notStrictEqual(G.monsterInfo(61).name, G.monsterInfo(1).name, '회차가 오르면 등장 순서가 밀려 다른 몬스터부터 나온다');
+  const r0 = new Set(), r1 = new Set();
+  for (let p = 1; p <= 10; p++) { const a = G.monsterInfo(p), b = G.monsterInfo(60 + p); if (!a.boss) r0.add(a.name); if (!b.boss) r1.add(b.name); }
+  assert.deepStrictEqual([...r1].sort(), [...r0].sort(), '같은 지역의 같은 8종이 나온다');
 });
 
-test('일반 몬스터 자리표가 지역 표의 5종을 모두 가리키고 보스 자리는 5의 배수와 일치한다', () => {
+test('일반 몬스터 자리표가 지역 표의 8종을 모두 가리키고 보스 자리는 5의 배수와 일치하며, 일반 몬스터는 모두 전용 그림 id가 있다', () => {
   const used = new Set(G.NORMAL_SLOTS.filter((x) => x !== null));
-  assert.deepStrictEqual([...used].sort(), [0, 1, 2, 3, 4]);
+  assert.deepStrictEqual([...used].sort(), [0, 1, 2, 3, 4, 5, 6, 7]);
+  assert.strictEqual(new Set(G.MONSTER_ARTS).size, 48, '그림 id가 겹치지 않는다');
   G.NORMAL_SLOTS.forEach((slot, i) => assert.strictEqual(slot === null, (i + 1) % 5 === 0, `위치 ${i + 1}`));
 });
 
