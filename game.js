@@ -742,9 +742,10 @@
     return equipPower(s, it) >= equipPower(s, cur) * (it.sp && !cur.sp ? 0.9 : 1);
   };
 
-  // 장비를 가방에 넣는다. 자동 판매 등급 이하이거나 가방이 가득 차면 판다. 결과: 'bag' | 'sold'
+  // 장비를 가방에 넣는다. 자동 판매 등급 이하이거나 가방이 가득 차면 판다(자동 분해면 가루로). 결과: 'bag' | 'sold' | 'dusted'
   function stow(s, it) {
     if ((it.r <= s.autoSell && it.r <= AUTO_SELL_MAX && !it.sp) || s.bag.length >= bagLimit(s)) {
+      if (s.autoDust) { s.dust = Math.min(DUST_CAP, s.dust + dustValue(it)); s.stats.sold += 1; return 'dusted'; }
       s.gold += sellValue(it);
       s.stats.sold += 1;
       return 'sold';
@@ -768,7 +769,7 @@
     }
     s.stats.drops += 1;
     tallyRarity(s, it);
-    ev.push({ type: 'drop', item: it, action, gold: action === 'sold' ? sellValue(it) : 0 });
+    ev.push({ type: 'drop', item: it, action, gold: action === 'sold' ? sellValue(it) : 0, dust: action === 'dusted' ? dustValue(it) : 0 });
   }
 
   function equipItem(s, id) {
@@ -814,6 +815,51 @@
     return { n, gold };
   }
   // 여러 개를 골라서 판다. 가방에 없는 번호는 무시한다. { n, gold }
+  // ---- 분해와 장비 레벨 ----
+  // 분해: 가방 장비를 가루로 바꾼다. 등급·레벨·강화 단계가 높을수록 많이 나온다.
+  // 레벨 올리기: 가루로 장비 레벨(ilvl)을 1씩 올린다. 수치는 레벨 비율만큼 오르고, 처음 굴린 무작위 편차(±15%)는 그대로 남는다.
+  // 상한은 내 최고 스테이지라서, 예전에 얻은 좋은 장비를 지금 진행도까지 끌어올려 계속 쓸 수 있다.
+  const DUST_CAP = 1e12;
+  const DUST_R = [1, 2, 5, 12, 30, 80, 200];        // 등급별 기본 가루
+  const LV_COST_R = [0.5, 0.6, 0.8, 1, 1.3, 1.7, 2.2];   // 등급별 레벨 올리기 비용 배율
+  const dustValue = (it) => Math.ceil(DUST_R[it.r] * (1 + it.ilvl / 50) * (1 + 0.5 * (it.enh || 0)));
+  const itemLevelCap = (s) => Math.max(1, s.bestStage);
+  const lvStepCost = (r, lv) => Math.ceil((2 + lv / 10) * LV_COST_R[r]);   // lv → lv+1
+  function levelUpCost(it, n) { let c = 0; for (let i = 0; i < n; i++) c += lvStepCost(it.r, it.ilvl + i); return c; }
+  // 지금 가루로 최대 몇 레벨까지 올릴 수 있나 (want 이하, 상한까지)
+  function levelUpPlan(s, it, want) {
+    const room = Math.max(0, itemLevelCap(s) - it.ilvl);
+    let n = 0, cost = 0;
+    while (n < Math.min(want, room)) { const c = lvStepCost(it.r, it.ilvl + n); if (cost + c > s.dust) break; cost += c; n += 1; }
+    return { n, cost, room, next: room > 0 ? lvStepCost(it.r, it.ilvl) : 0 };
+  }
+  // 결과: { ok, reason? | levels, cost, ilvl }  reason: 'target' | 'cap' 최고 스테이지까지 올림 | 'dust' 가루 부족
+  function levelUpItem(s, id, want = 1) {
+    const it = findItem(s, id);
+    if (!it) return { ok: false, reason: 'target' };
+    const plan = levelUpPlan(s, it, Math.max(1, Math.floor(num(want, 1))));
+    if (plan.room <= 0) return { ok: false, reason: 'cap' };
+    if (plan.n <= 0) return { ok: false, reason: 'dust', need: plan.next };
+    const before = maxHp(s);
+    const from = it.ilvl;
+    it.ilvl += plan.n;
+    it.val = Math.min(maxItemVal(it.slot, it.kind, it.r, it.ilvl) - 0.1, round1(it.val * (1 + it.ilvl / GEAR_SCALE_STAGE) / (1 + from / GEAR_SCALE_STAGE)));
+    s.dust -= plan.cost;
+    if (SLOT_KEYS.some((k) => s.equip[k] === it)) s.hp += Math.max(0, maxHp(s) - before);   // 낀 방어구면 늘어난 체력만큼 채운다
+    return { ok: true, levels: plan.n, cost: plan.cost, ilvl: it.ilvl };
+  }
+  function dismantleItems(s, ids) {
+    const set = new Set(ids);
+    let n = 0, dust = 0;
+    s.bag = s.bag.filter((it) => {
+      if (!set.has(it.id)) return true;
+      dust += dustValue(it); n += 1;
+      return false;
+    });
+    s.dust = Math.min(DUST_CAP, s.dust + dust);
+    s.stats.sold += n;
+    return { n, dust };
+  }
   function sellBagItems(s, ids) {
     const set = new Set(ids);
     let n = 0, gold = 0;
@@ -932,15 +978,24 @@
       s.relics[picked.id] = true;
       if (s.relicEq.length < St.RELIC_SLOTS) s.relicEq.push(picked.id);
     }
-    else if (box) for (let i = 0; i < box.count; i++) { const it = rollItem(s, shopItemLevel(s), false, rollFromOdds(box.odds)); giveItem(s, it); items.push(it); }
-    else if (slotDraw) { const it = rollItem(s, shopItemLevel(s), false, rollFromOdds(slotDraw.odds), slotDraw.slot); giveItem(s, it); items.push(it); }
+    let pityHit = false;
+    // 신화 보장: 쓴 크리스탈을 쌓고, 가득 차면 이번 첫 장비를 신화로 바꾼다. 신화가 나오면(보장이든 운이든) 다시 0부터.
+    const pityRarity = (odds) => {
+      if (!pityHit && s.mythPity >= St.MYTH_PITY) { pityHit = true; s.mythPity = 0; return 6; }
+      const r = rollFromOdds(odds);
+      if (r === 6) s.mythPity = 0;
+      return r;
+    };
+    if (box || slotDraw) s.mythPity = Math.min(St.MYTH_PITY, s.mythPity + product.price);
+    if (box) for (let i = 0; i < box.count; i++) { const it = rollItem(s, shopItemLevel(s), false, pityRarity(box.odds)); giveItem(s, it); items.push(it); }
+    else if (slotDraw) { const it = rollItem(s, shopItemLevel(s), false, pityRarity(slotDraw.odds), slotDraw.slot); giveItem(s, it); items.push(it); }
     else if (util) s.bagExtra += St.BAG_STEP;
     else if (starter) {
       const it = rollItem(s, shopItemLevel(s), false, starter.items.rarity); giveItem(s, it); items.push(it);
       for (const pid of starter.potions) { const p = St.byId(St.POTIONS, pid); s.potions[pid] = Math.min(St.POTION_CAP, (s.potions[pid] || 0) + p.dur); }
       s.bought.starter = true;
     }
-    return { ok: true, product, items, picked };
+    return { ok: true, product, items, picked, pityHit };
   }
 
   // ---- 광고 보상: 광고를 끝까지 보면 크리스탈 10개와 물약 1개, 하루 3번까지 ----
@@ -996,10 +1051,11 @@
     for (let i = order.length - 1; i > 0; i--) { const j = Math.floor(rs() * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; }   // 옵션이 서로 겹치지 않게 섞는다
     return Array.from({ length: St.GEAR_SHOP.count }, (_, i) => {
       const rng = seededRng(win * 9973 + reroll * 131 + i * 17 + 3);
-      const r = rng() < St.GEAR_SHOP.legendChance ? 4 : 3;
+      const roll = rng(), GS = St.GEAR_SHOP;
+      const r = roll < GS.mythChance ? 6 : roll < GS.mythChance + GS.uniqueChance ? 5 : roll < GS.mythChance + GS.uniqueChance + GS.legendChance ? 4 : 3;
       const slot = SLOT_KEYS[(i + win + reroll) % SLOT_KEYS.length];   // 무기·방어구·액세서리가 2개씩 나온다
       const kinds = Object.keys(GEAR[slot].kinds), kind = kinds[Math.floor(rng() * kinds.length)], def = GEAR[slot].kinds[kind];
-      const sp = St.SPECIALS[order[i % order.length]], [lo, hi] = r === 4 ? sp.legend : sp.hero;
+      const sp = St.SPECIALS[order[i % order.length]], [lo, hi] = r >= 4 ? sp.legend : sp.hero;
       const item = { slot, kind, r, ilvl: lvl, n: Math.floor(rng() * def.nouns.length),
                      val: round1(def.base[r] * (1 + lvl / GEAR_SCALE_STAGE) * (1 + rng() * 0.15)),   // 드롭(±15%)과 달리 기본값 이상으로 나온다
                      sp: { k: sp.k, v: Math.round((lo + rng() * (hi - lo)) * 1000) / 1000 } };
@@ -1070,6 +1126,9 @@
       bag: [],           // 가방 (환생해도 유지)
       itemSeq: 0,        // 장비 번호를 매기는 카운터
       autoEquip: true,   // 더 좋은 장비를 얻으면 자동으로 장착
+      mythPity: 0,       // 신화 보장: 상자·뽑기에 쓴 크리스탈 누적 (St.MYTH_PITY가 되면 다음 장비는 신화)
+      dust: 0,           // 장비 가루: 장비를 분해해 얻고, 장비 레벨을 올리는 데 쓴다 (환생해도 유지)
+      autoDust: false,   // 자동 판매 대신 자동 분해 (골드 대신 가루)
       autoSell: 0,       // 이 등급 이하는 얻자마자 자동 판매 (-1 없음, 0 노말, 1 고급, 2 희귀, 3 영웅, 4 전설). 특별 옵션 장비와 유니크·신화는 팔리지 않는다
       hp: 0,
       monsterHp: 0,
@@ -1558,7 +1617,7 @@
       levelFrom: before.level,
       levelTo: s.level,
       drops: drops.length,
-      dropsSold: drops.filter((e) => e.action === 'sold').length,
+      dropsSold: drops.filter((e) => e.action === 'sold' || e.action === 'dusted').length,
       dropBest: drops.reduce((m, e) => Math.max(m, e.item.r), -1),
     };
   }
@@ -1735,6 +1794,9 @@
     s.itemSeq = Math.max(maxId, clamp(Math.floor(num(o.itemSeq, 0)), 0, 1e12));
     s.autoEquip = o.autoEquip !== false;
     s.autoSell = clamp(Math.floor(num(o.autoSell, 0)), -1, AUTO_SELL_MAX);
+    s.dust = clamp(Math.floor(num(o.dust, 0)), 0, DUST_CAP);
+    s.mythPity = clamp(Math.floor(num(o.mythPity, 0)), 0, St.MYTH_PITY);
+    s.autoDust = o.autoDust === true;
     // 상점 관련 값: 이상한 값은 범위 안으로 보정하고, 없는 물약·상품은 버린다
     s.crystals = clamp(Math.floor(num(o.crystals, 0)), 0, 1e9);
     for (const p of St.POTIONS) { const t = num(o.potions && o.potions[p.id], 0); if (t > 0) s.potions[p.id] = Math.min(St.POTION_CAP, t); }
@@ -1815,6 +1877,7 @@
     ENH_MAX, ENH_STEP, enhVal, enhCost, enhChance, enhanceItem, findItem, equipPower,
     claimAttend, QUEST_PERIODS, QUEST_CFG, QUEST_DEFS, periodKeys, periodSecsLeft, questSync, questBoard, questClaimable, claimQuest, claimQuestBonus,
     DUNGEON_PERIODS: Dg.DUNGEON_PERIODS, DUNGEONS: Dg.DUNGEONS, BOSS_ART: Dg.BOSS_ART, dungeonSync, dungeonInfo, dungeonClaimable, dungeonBossHp, challengeDungeon, dungeonForecast, dungeonWaveBosses, dungeonBagNeed, MG_BONUS_CAP,
+    dustValue, itemLevelCap, levelUpCost, levelUpPlan, levelUpItem, dismantleItems,
     TOWER: Dg.TOWER, towerHp, towerBoss, towerForecast, towerInfo, climbTower, claimTowerDaily,
     moleBonus, gaugeBonus, parryBonus,
     PERKS, PERK_KEYS, HEADSTART_LV, perkLv, perkCost, perkSpent, tokenBalance, perkMissing, perkUnlocked, canBuyPerk, buyPerk, respecPerks, offlineCap,

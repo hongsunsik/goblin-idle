@@ -139,16 +139,18 @@
           <div class="relicbar" id="relicBar"></div>
           <div class="gearopts">
             <label class="check"><input type="checkbox" id="autoEquip"><span>더 좋은 장비 자동 장착</span></label>
+            <label class="check"><input type="checkbox" id="autoDust"><span>판매 대신 분해</span></label>
             <label class="sel">자동 판매
               <select id="autoSell">
                 <option value="-1">안 함</option><option value="0">노말 이하</option><option value="1">고급 이하</option><option value="2">희귀 이하</option><option value="3">영웅 이하</option><option value="4">전설 이하</option>
               </select>
             </label>
           </div>
-          <h3 class="sect"><svg class="ic"><use href="#i-pouch"/></svg>가방 <small id="bagCount"></small><span class="sect__btns"><button class="link" id="selectBtn" type="button">선택</button><button class="link" id="tidyBtn" type="button">정리</button></span></h3>
+          <h3 class="sect"><svg class="ic"><use href="#i-pouch"/></svg>가방 <small id="bagCount"></small> <small class="dustbal" id="dustBal"></small><span class="sect__btns"><button class="link" id="selectBtn" type="button">선택</button><button class="link" id="tidyBtn" type="button">정리</button></span></h3>
           <div class="selbar" id="selbar" hidden>
             <span id="selCount">0개 선택</span>
             <button class="link" id="selAll" type="button">전체 선택</button>
+            <button class="btn btn--blue selbar__sell" id="selDust" type="button" disabled>분해</button>
             <button class="btn btn--gold selbar__sell" id="selSell" type="button" disabled>선택 판매</button>
           </div>
           <div class="bag" id="bag"></div>
@@ -205,6 +207,7 @@
           <h3 class="sect"><svg class="ic"><use href="#i-gem"/></svg>칸별 뽑기 <small>원하는 칸을 골라 뽑아요</small></h3>
           <div id="slotDrawList"></div>
           <h3 class="sect"><svg class="ic"><use href="#i-crown"/></svg>장비 상자 <small>등급 확률 공개</small></h3>
+          <div class="pity card" id="pityBar"></div>
           <div id="boxList"></div>
           <h3 class="sect"><svg class="ic"><use href="#i-star"/></svg>유물 <small id="relicCount">드롭으로 얻을 수 없는 특별 옵션</small></h3>
           <div id="relicDrawList"></div>

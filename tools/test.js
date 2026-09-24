@@ -1845,7 +1845,7 @@ test('유물은 저장되고 환생해도 남지만, 조작한 저장은 걸러�
 section('장비 상점 (특별 옵션 장비, 시간마다 갱신)');
 const HOUR = 3600e3, WIN_MS = St.GEAR_SHOP.refreshSec * 1000;
 const shopUser = (win, crystals) => { const t = cash(crystals === undefined ? 99999 : crystals); t.bestStage = 40; G.shopSync(t, win * WIN_MS + 1, 0); return t; };
-test('진열은 6개이고 모두 영웅·전설이며 특별 옵션이 하나씩 붙고, 옵션 종류는 서로 겹치지 않는다', () => {
+test('진열은 6개이고 모두 영웅 이상이며 특별 옵션이 하나씩 붙고, 옵션 종류는 서로 겹치지 않는다', () => {
   const t = shopUser(500);
   const stock = G.shopStock(t);
   assert.strictEqual(stock.length, St.GEAR_SHOP.count);
@@ -1854,7 +1854,7 @@ test('진열은 6개이고 모두 영웅·전설이며 특별 옵션이 하나�
   const slots = {}; for (const o of stock) slots[o.item.slot] = (slots[o.item.slot] || 0) + 1;
   assert.deepStrictEqual(slots, { weapon: 2, armor: 2, accessory: 2 }, '무기·방어구·액세서리가 2개씩');
   for (const o of stock) {
-    const [lo, hi] = St.specialOf(o.item.sp.k)[o.item.r === 4 ? 'legend' : 'hero'];
+    const [lo, hi] = St.specialOf(o.item.sp.k)[o.item.r >= 4 ? 'legend' : 'hero'];   // 전설·유니크·신화는 전설 범위
     assert.ok(o.item.sp.v >= lo && o.item.sp.v <= hi, `${o.item.sp.k} ${o.item.sp.v}`);
     assert.strictEqual(o.price, St.GEAR_SHOP.price[o.item.r]);
     assert.strictEqual(o.item.ilvl, 40);
@@ -2750,6 +2750,105 @@ test('최고 보너스 기록은 저장·복원되고, 상한을 넘게 조작�
   assert.ok(Math.abs(G.deserialize(JSON.stringify(o)).dungeons.weekly.bestBonus - 0.3) < 1e-9);
   o.dungeons.weekly.bestBonus = 99;
   assert.strictEqual(G.deserialize(JSON.stringify(o)).dungeons.weekly.bestBonus, G.MG_BONUS_CAP.weekly);
+});
+
+section('장비 분해 · 가루 · 레벨 올리기');
+const dsBase = () => { const s = G.createState(0); s.bestStage = 100; s.autoEquip = false; G.setRandom(() => 0.5); return s; };
+test('분해 가루는 등급·레벨·강화 단계가 높을수록 많다', () => {
+  const v = (r, ilvl, enh) => G.dustValue({ r, ilvl, enh });
+  assert.ok(v(1, 10, 0) < v(2, 10, 0) && v(5, 10, 0) < v(6, 10, 0));
+  assert.ok(v(3, 10, 0) < v(3, 80, 0));
+  assert.ok(v(3, 10, 0) < v(3, 10, 3));
+});
+test('분해하면 가방에서 빠지고 가루가 는다 (장착 중인 장비는 분해되지 않는다)', () => {
+  const s = dsBase();
+  const a = G.rollItem(s, 20, false, 3), b = G.rollItem(s, 20, false, 1);
+  s.bag.push(a, b); s.equip.weapon = G.rollItem(s, 20, false, 4);
+  const r = G.dismantleItems(s, [a.id, b.id, s.equip.weapon.id]);
+  assert.strictEqual(r.n, 2);
+  assert.strictEqual(s.dust, G.dustValue(a) + G.dustValue(b));
+  assert.strictEqual(s.bag.length, 0);
+  assert.ok(s.equip.weapon);
+});
+test('레벨 올리기: 가루를 쓰고 수치가 레벨 비율만큼 오르며, 처음 굴린 편차는 유지된다', () => {
+  const s = dsBase(); const it = G.rollItem(s, 20, false, 4); s.bag.push(it);
+  const v0 = it.val; s.dust = 1e6;
+  const cost = G.levelUpCost(it, 10);
+  const r = G.levelUpItem(s, it.id, 10);
+  assert.strictEqual(r.ok, true); assert.strictEqual(r.levels, 10); assert.strictEqual(it.ilvl, 30);
+  assert.strictEqual(s.dust, 1e6 - cost);
+  const expect = v0 * (1 + 30 / 40) / (1 + 20 / 40);
+  assert.ok(Math.abs(it.val - expect) < 0.2, `${it.val} vs ${expect}`);
+});
+test('레벨 상한은 최고 스테이지이고, 가루가 모자라면 살 수 있는 만큼만 올린다', () => {
+  const s = dsBase(); const it = G.rollItem(s, 95, false, 2); s.bag.push(it); s.dust = 1e6;
+  assert.strictEqual(G.levelUpItem(s, it.id, 999).ilvl, 100);
+  assert.strictEqual(G.levelUpItem(s, it.id, 1).reason, 'cap');
+  const t = G.rollItem(s, 10, false, 2); s.bag.push(t); s.dust = G.levelUpCost(t, 3) + 1;
+  assert.strictEqual(G.levelUpItem(s, t.id, 50).levels, 3);
+  assert.strictEqual(G.levelUpItem(s, t.id, 1).reason, 'dust');
+});
+test('레벨을 올린 장비도 저장·복원 검사(수치 상한)를 통과해 그대로 돌아온다', () => {
+  const s = dsBase(); G.setRandom(() => 0.999);   // 편차 최대(+15%)로 굴린 장비
+  const it = G.rollItem(s, 5, false, 6); s.bag.push(it); s.dust = 1e7;
+  G.levelUpItem(s, it.id, 95);
+  G.setRandom(() => 0.5);
+  const back = G.deserialize(G.serialize(s, 1)).bag[0];
+  assert.strictEqual(back.ilvl, 100); assert.strictEqual(back.val, it.val);
+});
+test('장착한 방어구의 레벨을 올리면 늘어난 최대 체력만큼 체력도 찬다', () => {
+  const s = dsBase(); const it = G.rollItem(s, 10, false, 4, 'armor'); s.equip.armor = it; s.hp = G.maxHp(s); s.dust = 1e6;
+  const before = G.maxHp(s);
+  G.levelUpItem(s, it.id, 50);
+  assert.ok(G.maxHp(s) > before); assert.ok(Math.abs(s.hp - G.maxHp(s)) < 1e-6);
+});
+test('자동 분해를 켜면 자동 판매 대상이 골드 대신 가루가 된다', () => {
+  const s = dsBase(); s.autoSell = 2; s.autoDust = true;
+  const g = s.gold;
+  const ev = []; G.receiveItem(s, G.rollItem(s, 30, false, 1), ev);
+  assert.strictEqual(s.gold, g); assert.ok(s.dust > 0);
+});
+test('가루와 자동 분해 설정은 저장·복원되고 환생해도 남는다, 조작된 값은 걸러진다', () => {
+  const s = dsBase(); s.dust = 1234; s.autoDust = true; s.stage = s.runBest = 60; G.prestige(s);
+  assert.strictEqual(s.dust, 1234);
+  const o = JSON.parse(G.serialize(s, 1));
+  const b = G.deserialize(JSON.stringify(o)); assert.strictEqual(b.dust, 1234); assert.strictEqual(b.autoDust, true);
+  o.dust = -5; o.autoDust = 'yes';
+  const c = G.deserialize(JSON.stringify(o)); assert.strictEqual(c.dust, 0); assert.strictEqual(c.autoDust, false);
+});
+G.setRandom(null);   // 이 구역에서 고정한 난수를 되돌린다
+
+section('상점: 신화 맛보기 (보장·장비 상점)');
+test('신화 보장: 상자·뽑기에 쓴 크리스탈이 2700이 되는 구매(전설 상자 3개째)에서 신화가 확정되고 게이지는 0으로 돌아간다', () => {
+  const s = G.createState(0); s.bestStage = 30; s.autoEquip = false; s.crystals = 1e6; G.setRandom(() => 0.01);   // 신화가 저절로는 안 나오는 난수
+  const rs = [0, 1, 2].map(() => G.buyProduct(s, 'box_legend'));
+  assert.deepStrictEqual(rs.map((r) => r.pityHit), [false, false, true]);
+  assert.strictEqual(rs[2].items[0].r, 6);
+  assert.strictEqual(s.mythPity, 0);
+  const d = [];
+  for (let i = 0; i < 18; i++) d.push(G.buyProduct(s, 'draw_weapon'));   // 150 × 18 = 2700
+  assert.strictEqual(d.findIndex((r) => r.pityHit), 17, '칸별 뽑기도 같이 쌓인다');
+  assert.strictEqual(d[17].items[0].slot, 'weapon');
+  G.setRandom(null);
+});
+test('운 좋게 신화가 나오면 보장 게이지가 0부터 다시 쌓인다', () => {
+  const s = G.createState(0); s.bestStage = 30; s.autoEquip = false; s.crystals = 1e6; s.mythPity = 1000; G.setRandom(() => 0.9999);
+  const r = G.buyProduct(s, 'box_legend');
+  assert.strictEqual(r.items[0].r, 6); assert.strictEqual(r.pityHit, false); assert.strictEqual(s.mythPity, 0);
+  G.setRandom(null);
+});
+test('물약·가방 같은 상품은 보장 게이지를 쌓지 않고, 게이지는 저장·복원되며 조작은 걸러진다', () => {
+  const s = G.createState(0); s.crystals = 1e6; G.buyProduct(s, 'bag');
+  assert.strictEqual(s.mythPity, 0);
+  s.mythPity = 1234;
+  const o = JSON.parse(G.serialize(s, 1)); assert.strictEqual(G.deserialize(JSON.stringify(o)).mythPity, 1234);
+  o.mythPity = 1e9; assert.strictEqual(G.deserialize(JSON.stringify(o)).mythPity, St.MYTH_PITY);
+});
+test('장비 상점에 유니크·신화도 가끔 진열되고 값은 등급별 가격이다 (여러 구간 통계)', () => {
+  const s = G.createState(0); s.bestStage = 40; let n = 0, uniq = 0, myth = 0;
+  for (let w = 1; w <= 3000; w++) { s.shop = { win: w, reroll: 0, lvl: 40, bought: [] }; for (const o of G.shopStock(s)) { n += 1; if (o.item.r === 5) uniq += 1; if (o.item.r === 6) { myth += 1; assert.strictEqual(o.price, St.GEAR_SHOP.price[6]); } } }
+  assert.ok(Math.abs(myth / n - St.GEAR_SHOP.mythChance) < 0.006, `신화 ${myth / n}`);
+  assert.ok(Math.abs(uniq / n - St.GEAR_SHOP.uniqueChance) < 0.01, `유니크 ${uniq / n}`);
 });
 
 section('무한의 탑');

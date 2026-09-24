@@ -423,7 +423,11 @@ const FAKE_CLOUD = `(() => {
     const sawWeapon = await ev(`new Promise((res) => { let seen = false; const el = document.getElementById('heroWeapon'); const iv = setInterval(() => { if (parseFloat(getComputedStyle(el).opacity) > 0.5) seen = true; }, 20); setTimeout(() => { clearInterval(iv); res(seen); }, 2500); })`);
     check('공격할 때마다 무기가 손에 나타났다 사라진다 (평소엔 숨어 있음)', sawWeapon);
     await reopen(mk(30, ['warrior', 'knight'])); await sleep(300);
-    check('근접 직업은 무기 모양이 칼(hw--slash)로 바뀐다', await ev(`document.getElementById('heroWeapon').className.includes('hw--slash')`));
+    check('근접 직업은 가짜 무기를 겹쳐 그리지 않는다 (그림마다 무기 든 손이 달라서)', await ev(`document.getElementById('heroWeapon').hidden`));
+    const sawTrail = await ev(`new Promise((res) => { let seen = false; const iv = setInterval(() => { if (document.querySelector('.fx-trail')) seen = true; }, 15); setTimeout(() => { clearInterval(iv); res(seen); }, 2500); })`);
+    check('근접 공격은 몸 앞쪽에 휘두르는 궤적이 그려진다', sawTrail);
+    const trailX = await ev(`new Promise((res) => { const iv = setInterval(() => { const t = document.querySelector('.fx-trail'); if (t) { clearInterval(iv); const h = document.getElementById('heroSprite').getBoundingClientRect(), r = t.getBoundingClientRect(); res((r.left + r.width / 2 - h.left) / h.width); } }, 10); setTimeout(() => { clearInterval(iv); res(-1); }, 2500); })`);
+    check('궤적은 캐릭터의 앞쪽(몬스터 쪽 절반)에 있다', trailX > 0.5, `위치 ${trailX}`);
 
     // 스킬 바와 자동 시전 (마법사 → 화염술사: 마법 화살(연타), 점화(지속 피해))
     await reopen(mk(30, ['mage', 'pyromancer'])); await sleep(300);
@@ -800,6 +804,38 @@ const FAKE_CLOUD = `(() => {
     await click('[data-tdaily]'); await sleep(300);
     check('오늘의 탑 보상은 한 번 받으면 잠긴다', (await txt('#towerCard')).includes('오늘 보상 받음'));
     await ev(`document.getElementById('towerCard').scrollIntoView()`); await sleep(200); await shot('tower-card');
+
+    console.log('장비 분해 · 가루 · 레벨 올리기 · 신화 보장');
+    const du = mk(30, ['warrior']); du.bestStage = 80; du.dust = 20000; du.autoEquip = false; du.crystals = 3000; du.mythPity = 2600;
+    const lvItem = G.rollItem(du, 20, false, 3); du.bag.push(lvItem);
+    const junk = G.rollItem(du, 20, false, 1); du.bag.push(junk);
+    await reopen(du);
+    await click('[data-go="gear"]'); await sleep(300);
+    check('가방 옆에 가진 가루가 보인다', (await txt('#dustBal')).includes('20'));
+    await click(`#bag [data-item="${lvItem.id}"]`); await sleep(250);
+    check('장비 정보 창에 레벨 올리기·분해 버튼이 있다', !!(await ev(`document.querySelector('#modalBody [data-lvup]')`)) && !!(await ev(`document.querySelector('#modalBody [data-dismantle]')`)));
+    await click('#modalBody [data-lvup]'); await sleep(250);
+    check('레벨 올리기 창에 +1·+10·최대 선택지와 최대 레벨(최고 스테이지 80)이 보인다', (await ev(`document.querySelectorAll('#modalBody .lvopt').length`)) === 3 && (await txt('#modalBody')).includes('최대 80'));
+    await shot('levelup');
+    await click('#modalBody [data-lvn="10"]'); await sleep(250);
+    check('+10을 누르면 장비 레벨이 30이 되고 창이 새 값으로 다시 그려진다', (await txt('#modalBody')).includes('장비 레벨 30'));
+    await click('#modalBody [data-lvn="999"]'); await sleep(250);
+    check('최대를 누르면 최고 스테이지(80)까지 오르고 더는 못 올린다', (await txt('#modalBody')).includes('최고 스테이지까지 올렸어요'));
+    await click('#modalActions .btn'); await sleep(200);
+    check('가방 칸에도 새 레벨(Lv.80)이 보인다', (await txt(`#bag [data-item="${lvItem.id}"]`)).includes('Lv.80'));
+    await click(`#bag [data-item="${junk.id}"]`); await sleep(250);
+    await click('#modalBody [data-dismantle]'); await sleep(300);
+    check('고급 장비는 확인 없이 바로 분해되고 가방에서 빠지며 기록에 가루가 남는다', !(await ev(`document.querySelector('#bag [data-item="${junk.id}"]')`)) && (await txt('#log')).includes('분해했다'));
+    await click('#autoDust'); await sleep(150);
+    check('자동 분해 설정을 켤 수 있다', await ev(`document.getElementById('autoDust').checked`));
+    await click('[data-go="store"]'); await sleep(300);
+    check('상점에 신화 보장 게이지(2.60K / 2.70K)가 보인다', (await txt('#pityBar')).includes('신화 보장') && (await txt('#pityBar')).includes(G.fmt(2600) + ' / ' + G.fmt(2700)));
+    await shot('pity');
+    await click('#slotDrawList [data-buy="draw_weapon"]'); await sleep(250);
+    await click('#modalActions .btn--gold'); await sleep(350);
+    check('게이지가 차는 뽑기에서 신화 보장이 발동해 신화 무기가 나온다', (await txt('#modalBody')).includes('신화 보장 발동') && (await txt('#modalBody')).includes('[신화]'));
+    await click('#modalActions .btn'); await sleep(200);
+    check('발동 뒤 게이지는 0부터 다시 시작한다', (await txt('#pityBar')).includes('0 / '));
 
     console.log('GM 모드 (관리자 계정에서만 보임)');
     const FAKE_CLOUD_GM = FAKE_CLOUD.replace('cb = f; setTimeout', 'cb = f; window.__authCb = f; setTimeout')

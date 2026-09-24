@@ -85,7 +85,11 @@
     { k: 'token',  prefix: '왕의',     text: (v) => `환생 증표 +${pct(v)}%`,            hero: [0.03, 0.05], legend: [0.06, 0.09] },
     { k: 'revive', prefix: '불사조의', text: (v) => `부활 시간 -${pct(v)}%`,            hero: [0.15, 0.25], legend: [0.30, 0.45] },
   ];
-  const GEAR_SHOP = { count: 6, refreshSec: 4 * 3600, rerollCost: 40, rerollMax: 3, price: { 3: 450, 4: 1300 }, legendChance: 0.25 };
+  // 장비 상점: 칸마다 전설 25%, 유니크 6%, 신화 2% (나머지 영웅). 한 구간(4시간)에 신화가 하나라도 보일 확률: 새로고침 없이 약 11%, 3번 다 새로고침하면 약 38%
+  const GEAR_SHOP = { count: 6, refreshSec: 4 * 3600, rerollCost: 40, rerollMax: 3, price: { 3: 450, 4: 1300, 5: 2400, 6: 4500 }, legendChance: 0.25, uniqueChance: 0.06, mythChance: 0.02 };
+  // 신화 보장(천장): 장비 상자·칸별 뽑기에 쓴 크리스탈이 이만큼 쌓이면 다음 장비 하나는 신화 확정 (전설 상자 3개).
+  // 운 좋게 신화가 먼저 나오면 처음부터 다시 쌓는다.
+  const MYTH_PITY = 2700;
 
   // ---- 시작 패키지 (계정당 1번) ----
   const STARTER = { id: 'starter', name: '시작 패키지', price: 250, desc: '영웅 장비 1개 + 황금 물약 + 힘의 물약 (1회 한정)', items: { rarity: 3, count: 1 }, potions: ['gold', 'might'] };
@@ -102,7 +106,7 @@
   const byId = (list, id) => list.find((x) => x.id === id) || null;
   const POTION_IDS = POTIONS.map((p) => p.id);
 
-  const api = { CRYSTAL_PACKS, POTIONS, BOXES, SLOT_DRAWS, RELIC_DRAW, UTILITIES, STARTER, POTION_CAP, POTION_IDS, BAG_STEP, BAG_EXTRA_MAX, AD_DAILY_LIMIT, AD_CRYSTALS, AD_SECONDS, RELICS, RELIC_SLOTS, ATTEND_REWARDS, SPECIALS, GEAR_SHOP, specialOf, byId };
+  const api = { MYTH_PITY, CRYSTAL_PACKS, POTIONS, BOXES, SLOT_DRAWS, RELIC_DRAW, UTILITIES, STARTER, POTION_CAP, POTION_IDS, BAG_STEP, BAG_EXTRA_MAX, AD_DAILY_LIMIT, AD_CRYSTALS, AD_SECONDS, RELICS, RELIC_SLOTS, ATTEND_REWARDS, SPECIALS, GEAR_SHOP, specialOf, byId };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.GoblinStore = api;
 })(typeof window !== 'undefined' ? window : globalThis);

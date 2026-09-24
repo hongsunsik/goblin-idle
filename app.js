@@ -437,6 +437,9 @@
     const style = G.attackStyle(state);
     const [fx, fy] = HAND_SPOT[style] || [0.78, 0.42];
     el.className = 'hero-weapon hw--' + style;
+    // 근접은 무기 모양을 겹쳐 그리지 않는다: AI 그림마다 무기를 든 손·위치가 달라서(기사는 왼손, 산의 지배자는 맨손)
+    // 가짜 무기가 엉뚱한 곳(방패 앞·배)에서 휘둘러졌다. 대신 몸 앞쪽에 휘두르는 궤적(heroTrail)을 그린다.
+    el.hidden = G.MELEE_STYLES.includes(style);
     el.style.left = (fx * 100) + '%';
     el.style.top = (fy * 100) + '%';
     const wa = WEAPON_ANIM[style];
@@ -483,8 +486,37 @@
         { transform: `translate(${11 * k}px, 1px) rotate(${10 * k}deg)`, offset: 0.55, easing: 'ease-out' }, { transform: 'translate(0, 0) rotate(0deg)' }];
     }
     animHero(kf, { duration: dur });
-    animWeapon(style);
+    heroTrail(style, dur, hit, soft);
     return dur * hit;
+  }
+  // 근접 궤적: 몸 앞쪽(몬스터 쪽)에서 무기가 지나가는 자리를 초승달 모양으로 그린다. 무기를 어느 손에 들었든 자연스럽다.
+  function heroTrail(style, dur, hit, soft) {
+    const hero = $('heroSprite');
+    if (!hero) return;
+    const t0 = dur * (hit - 0.28), len = dur * 0.34, sc = soft ? 0.8 : 1;
+    if (style === 'dagger') {   // 단검: 앞으로 짧게 두 번 찌르는 선
+      for (const [i, at] of [[0, 0.1], [1, 0.52]]) {
+        const p = spot(hero, 0.84, 0.46 + i * 0.08);
+        playFx(addFx('fx-trail trail--dagger', p.x, p.y), [
+          { transform: 'translateX(-6px) scaleX(0.3)', opacity: 0 }, { transform: 'translateX(10px) scaleX(1)', opacity: 1, offset: 0.4 }, { transform: 'translateX(22px) scaleX(0.6)', opacity: 0 },
+        ], { duration: dur * 0.3, delay: dur * at, easing: 'ease-out' });
+      }
+      return;
+    }
+    if (style === 'hammer') {   // 망치: 머리 위에서 앞쪽 바닥으로 크게 내려찍는 호 + 바닥 먼지
+      const p = spot(hero, 0.8, 0.5);
+      playFx(addFx('fx-trail trail--hammer', p.x, p.y), [
+        { transform: `rotate(-150deg) scale(${0.8 * sc})`, opacity: 0 }, { transform: `rotate(-80deg) scale(${sc})`, opacity: 1, offset: 0.35 }, { transform: `rotate(-10deg) scale(${1.05 * sc})`, opacity: 0 },
+      ], { duration: len * 1.2, delay: t0, easing: 'cubic-bezier(0.5, 0, 1, 1)' });
+      const g = spot(hero, 0.98, 0.94);
+      playFx(addFx('fx-ring trail-dust', g.x, g.y), [{ transform: 'scale(0.3, 0.12)', opacity: 0.9 }, { transform: `scale(${1.6 * sc}, ${0.45 * sc})`, opacity: 0 }], { duration: 360, delay: dur * hit, easing: 'ease-out' });
+      return;
+    }
+    // 칼·도끼·성검: 위에서 앞으로 휘두르는 초승달
+    const p = spot(hero, 0.82, 0.44);
+    playFx(addFx('fx-trail trail--' + style, p.x, p.y), [
+      { transform: `rotate(-110deg) scale(${0.75 * sc})`, opacity: 0 }, { transform: `rotate(-40deg) scale(${sc})`, opacity: 1, offset: 0.4 }, { transform: `rotate(25deg) scale(${1.08 * sc})`, opacity: 0 },
+    ], { duration: len, delay: t0, easing: 'ease-out' });
   }
   // 근접: 몬스터 위에 베는 궤적(호)이나 내리찍는 충격파를 그린다
   function arcFx(style, strong, delay) {
@@ -1512,7 +1544,7 @@
   function renderGear(force) {
     const s = state;
     const ids = (it) => (it ? it.id : 0);
-    const key = [G.SLOT_KEYS.map((k) => ids(s.equip[k])).join(','), s.bag.map((x) => x.id).join(','), s.autoEquip, s.autoSell, s.relicEq.join('+'), [...gearNew].join('+'), G.perkLv(s, 'luck'), selectMode, [...picked].join('+')].join('|');
+    const key = [G.SLOT_KEYS.map((k) => ids(s.equip[k])).join(','), s.bag.map((x) => x.id).join(','), s.autoEquip, s.autoSell, s.autoDust, s.dust, s.bag.map((x) => x.ilvl).join(','), s.relicEq.join('+'), [...gearNew].join('+'), G.perkLv(s, 'luck'), selectMode, [...picked].join('+')].join('|');
     if (!force && key === gearKey) return;
     gearKey = key;
     $('gearSummary').textContent = gearSummaryText();
@@ -1524,6 +1556,8 @@
     }).join('');
     $('autoEquip').checked = s.autoEquip;
     $('autoSell').value = String(s.autoSell);
+    $('autoDust').checked = s.autoDust;
+    $('dustBal').innerHTML = `${DUST_IC} 가루 <b>${G.fmt(s.dust)}</b>`;
     const bc = $('bagCount');
     bc.textContent = `${s.bag.length} / ${G.bagLimit(s)}`;
     bc.style.color = s.bag.length >= G.bagLimit(s) ? 'var(--red)' : '';
@@ -1544,6 +1578,8 @@
     $('selCount').textContent = chosen.length ? `${chosen.length}개 선택 · ${G.fmt(chosenGold)} 골드` : '팔 장비를 눌러 고르세요';
     $('selAll').textContent = chosen.length && chosen.length === s.bag.length ? '선택 해제' : '전체 선택';
     $('selSell').disabled = chosen.length === 0;
+    $('selDust').disabled = chosen.length === 0;
+    $('selDust').textContent = chosen.length ? `분해 +${G.fmt(chosen.reduce((a, x) => a + G.dustValue(x), 0))}` : '분해';
     $('tidyBtn').disabled = s.bag.length === 0;
     $('dropInfo').innerHTML = dropInfoHtml();
   }
@@ -1566,6 +1602,58 @@
       `<div class="bag enh__mats">${materials.map((m) => `<button class="gitem r${m.r}" type="button" data-mat="${m.id}">${gearArt(m)}<div class="gitem__stat">${KIND_SHORT[m.kind]} +${fmtVal(m.val)}%</div><div class="gitem__lv">Lv.${m.ilvl}</div></button>`).join('')}</div>`,
       [{ text: '취소', onClick: () => { enhanceTarget = null; } }]);
   }
+  // ---- 장비 레벨 올리기 · 분해 ----
+  const DUST_IC = '<i class="dust-ic"></i>';
+  function askLevelUp(it) {
+    const s = state, cap = G.itemLevelCap(s);
+    const val = (lv) => G.enhVal(it) * (1 + lv / 40) / (1 + it.ilvl / 40);   // 레벨 lv일 때 예상 수치 (game.js와 같은 비율)
+    const def = G.GEAR[it.slot].kinds[it.kind];
+    const opts = [1, 10, 999].map((want) => ({ want, plan: G.levelUpPlan(s, it, want) }));
+    const row = ({ want, plan }) => {
+      const label = want === 999 ? '최대' : `+${want}`;
+      const full = want === 999 ? plan.room : Math.min(want, plan.room);
+      const ok = plan.n > 0 && (want === 999 || plan.n === full);
+      const cost = ok ? plan.cost : G.levelUpCost(it, Math.max(1, full));
+      return `<button class="lvopt ${ok ? '' : 'is-off'}" type="button" data-lvn="${want}" ${ok ? '' : 'disabled'}><b>${label}${want === 999 && ok ? ` (Lv.${it.ilvl + plan.n})` : ''}</b>` +
+        `<small>${DUST_IC}${G.fmt(cost)}</small><small>${def.label} +${fmtVal(val(it.ilvl + (ok ? plan.n : full)))}%</small></button>`;
+    };
+    lvTarget = it.id;
+    const body = `<div class="itemd__head"><div class="slot r${it.r}">${gearArt(it)}</div><div><div class="itemd__main">${G.itemName(it)}</div>` +
+      `<small>장비 레벨 <b>${it.ilvl}</b> / 최대 ${cap} (내 최고 스테이지)</small></div></div>` +
+      (it.ilvl >= cap ? '<div style="margin:10px 0">최고 스테이지까지 올렸어요. 더 높은 스테이지에 가면 더 올릴 수 있어요.</div>'
+        : `<div class="lvopts">${opts.map(row).join('')}</div>`) +
+      `<div class="dres__head">가진 가루 ${DUST_IC}<b>${G.fmt(s.dust)}</b> · 가루는 장비를 분해해서 얻어요</div>`;
+    openModal('장비 레벨 올리기', body, [{ text: '닫기', onClick: () => { lvTarget = null; } }]);
+  }
+  let lvTarget = null;
+  $('modalBody').addEventListener('click', (e) => {
+    const lv = e.target.closest('button[data-lvup]');
+    if (lv) { const it = G.findItem(state, Number(lv.dataset.lvup)); if (it) askLevelUp(it); return; }
+    const n = e.target.closest('button[data-lvn]');
+    if (n && lvTarget != null) {
+      const r = G.levelUpItem(state, lvTarget, Number(n.dataset.lvn));
+      const it = G.findItem(state, lvTarget);
+      if (!r.ok) return;
+      addLog(`${G.itemName(it)} 레벨 ${r.ilvl - r.levels} → ${r.ilvl}`, 'is-good', 'arrowup');
+      floatText(`Lv.${r.ilvl}!`, 'float--big', 'center');
+      cloudSoon(); writeSave(); render(); renderGear(true);
+      askLevelUp(it);   // 창을 새 값으로 다시 그려서 연달아 올릴 수 있게
+      return;
+    }
+    const d = e.target.closest('button[data-dismantle]');
+    if (d) {
+      const it = state.bag.find((x) => x.id === Number(d.dataset.dismantle));
+      if (!it) return;
+      const go = () => {
+        const r = G.dismantleItems(state, [it.id]);
+        closeModal();
+        addLog(`${G.itemName(it)}을(를) 분해했다 (가루 +${G.fmt(r.dust)})`, 'is-good', 'anvil');
+        cloudSoon(); writeSave(); render(); renderGear(true);
+      };
+      if (it.r >= 3) openModal('정말 분해할까요?', `<b style="color:${G.RARITIES[it.r].color}">[${G.RARITIES[it.r].name}] ${G.itemName(it)}</b><br>가루 ${G.fmt(G.dustValue(it))}이(가) 돼요.<br><small>되돌릴 수 없어요.</small>`, [{ text: '취소' }, { text: '분해', cls: 'btn--blue', onClick: go }]);
+      else go();
+    }
+  });
   $('modalBody').addEventListener('click', (e) => {
     const m = e.target.closest('button[data-mat]');
     if (!m || enhanceTarget == null) return;
@@ -1601,7 +1689,9 @@
     const body =
       `<div class="itemd__head"><div class="slot r${it.r}">${gearArt(it)}</div>` +
       `<div><span class="itemd__tag r${it.r}">${R.name}</span><div class="itemd__main">${def.label} +${fmtVal(G.enhVal(it))}%</div>${it.sp ? `<div class="itemd__sp">★ ${spText(it)}</div>` : ''}${it.enh ? `<div class="itemd__sp">⚒ 강화 Lv.${it.enh}</div>` : ''}` +
-      `<small>${G.GEAR[it.slot].name} · 드롭 스테이지 ${it.ilvl}</small></div></div>${cmp}`;
+      `<small>${G.GEAR[it.slot].name} · 장비 레벨 ${it.ilvl}</small></div></div>${cmp}` +
+      `<div class="itemd__tools"><button class="btn btn--gray" type="button" data-lvup="${it.id}">${DUST_IC}레벨 올리기</button>` +
+      (equipped ? '' : `<button class="btn btn--gray" type="button" data-dismantle="${it.id}">분해 +${G.fmt(G.dustValue(it))}</button>`) + '</div>';
     const done = (msg, icon) => { addLog(msg, 'is-good', icon); writeSave(); render(); renderGear(true); };
     if (equipped) {
       openModal(G.itemName(it), body, [
@@ -1646,6 +1736,22 @@
     showItem(it, false);
   });
   $('autoEquip').addEventListener('change', (e) => { state.autoEquip = e.target.checked; writeSave(); });
+  $('autoDust').addEventListener('change', (e) => { state.autoDust = e.target.checked; writeSave(); renderGear(true); });
+  $('selDust').addEventListener('click', () => {
+    const items = state.bag.filter((x) => picked.has(x.id));
+    if (!items.length) return;
+    const dust = items.reduce((a, x) => a + G.dustValue(x), 0);
+    const go = () => {
+      const r = G.dismantleItems(state, items.map((x) => x.id));
+      picked.clear();
+      addLog(`장비 ${r.n}개를 분해했다 (가루 +${G.fmt(r.dust)})`, 'is-gold', 'anvil');
+      writeSave(); render(); renderGear(true);
+    };
+    const rare = items.filter((x) => x.r >= 3);
+    if (!rare.length) { go(); return; }
+    openModal('정말 분해할까요?', `고른 장비 <b>${items.length}개</b> 중 <b style="color:${G.RARITIES[3].color}">영웅 이상 ${rare.length}개</b>가 있어요.<br>가루 <b>${G.fmt(dust)}</b>이(가) 돼요.<br><small>되돌릴 수 없어요.</small>`,
+      [{ text: '취소' }, { text: '분해', cls: 'btn--blue', onClick: go }]);
+  });
   $('autoSell').addEventListener('change', (e) => {
     const v = Number(e.target.value), prev = state.autoSell;
     if (v < 3) { state.autoSell = v; writeSave(); return; }
@@ -1688,10 +1794,18 @@
     if (!first) { openModal('정리할 장비가 없어요', '가방에서 팔 만한 장비를 찾지 못했어요.', [{ text: '확인' }]); return; }
     const html = '<div class="tidy">' + opts.map((o) =>
       `<label class="tidy__opt ${o.items.length ? '' : 'is-empty'}"><input type="radio" name="tidy" value="${o.id}" ${o === first ? 'checked' : ''} ${o.items.length ? '' : 'disabled'}>` +
-      `<span><b>${o.label}</b><small>${o.items.length}개 · ${COIN}${G.fmt(goldOf(o.items))}</small></span></label>`).join('') +
+      `<span><b>${o.label}</b><small>${o.items.length}개 · ${COIN}${G.fmt(goldOf(o.items))} 또는 ${DUST_IC}${G.fmt(o.items.reduce((a, x) => a + G.dustValue(x), 0))}</small></span></label>`).join('') +
       '</div><small>장착 중인 장비, 특별 옵션(★) 장비, 유니크·신화는 팔리지 않아요.</small>';
+    const pickOpt = () => { const v = document.querySelector('input[name="tidy"]:checked'); return opts.find((x) => v && x.id === v.value); };
     openModal('장비 정리', html, [
       { text: '취소' },
+      { text: '분해하기', onClick: () => {
+        const o = pickOpt();
+        if (!o || !o.items.length) return;
+        const r = G.dismantleItems(state, o.items.map((x) => x.id));
+        addLog(`장비 ${r.n}개를 분해했다 (가루 +${G.fmt(r.dust)})`, 'is-gold', 'anvil');
+        writeSave(); render(); renderGear(true);
+      } },
       { text: '판매하기', cls: 'btn--gold', onClick: () => {
         const v = document.querySelector('input[name="tidy"]:checked');
         const o = opts.find((x) => v && x.id === v.value);
@@ -1995,11 +2109,11 @@
         shakeScene(5);
       } else if (e.type === 'drop') {
         const it = e.item, R = G.RARITIES[it.r], name = G.itemName(it);
-        if (!(e.action === 'sold' && it.r === 0)) {   // 자동 판매된 노말까지 기록하면 너무 많다
-          const verb = e.action === 'equipped' ? '장착' : e.action === 'bag' ? '획득' : `판매 +${G.fmt(e.gold)} 골드`;
+        if (!((e.action === 'sold' || e.action === 'dusted') && it.r === 0)) {   // 자동 판매된 노말까지 기록하면 너무 많다
+          const verb = e.action === 'equipped' ? '장착' : e.action === 'bag' ? '획득' : e.action === 'dusted' ? `분해 +${G.fmt(e.dust)} 가루` : `판매 +${G.fmt(e.gold)} 골드`;
           addLog(`[${R.name}] ${name} ${verb}`, it.r >= 2 ? 'is-gold' : 'is-good', G.GEAR[it.slot].icon);
         }
-        if (calm() ? it.r >= 2 : (e.action !== 'sold' || it.r >= 2)) floatText(`${R.name} ${name}`, 'float--drop', 'center', R.color);
+        if (calm() ? it.r >= 2 : ((e.action !== 'sold' && e.action !== 'dusted') || it.r >= 2)) floatText(`${R.name} ${name}`, 'float--drop', 'center', R.color);
         if (it.r >= 3) rareDropFx(it.r);
         if (e.action !== 'sold') gearNew.add(it.id);
       } else if (e.type === 'achieve') {
@@ -2192,7 +2306,7 @@
     const s = state;
     const ad = G.adStatus(s, today());
     const sh = G.shopSync(s, serverNow(), Date.now());
-    const key = [s.crystals, ad.left, s.shop.win, s.shop.reroll, s.shop.bought.join(''), sh.secsLeft === null ? 'x' : Math.floor(sh.secsLeft / 60), s.bag.length, s.bagExtra, Object.keys(s.relics).join('+'), s.relicEq.join('+'), s.bought.starter ? 1 : 0, s.bag.length >= G.bagLimit(s) ? 1 : 0, paymentsMod.mode, adsMod.mode].join('|');
+    const key = [s.crystals, ad.left, s.shop.win, s.shop.reroll, s.shop.bought.join(''), sh.secsLeft === null ? 'x' : Math.floor(sh.secsLeft / 60), s.bag.length, s.bagExtra, Object.keys(s.relics).join('+'), s.relicEq.join('+'), s.bought.starter ? 1 : 0, s.mythPity, s.bag.length >= G.bagLimit(s) ? 1 : 0, paymentsMod.mode, adsMod.mode].join('|');
     if (!force && key === storeKey) return;
     storeKey = key;
     $('crystalBal').textContent = G.fmt(s.crystals);
@@ -2212,11 +2326,11 @@
     const buyBtn = (id, price, disabled, label) => `<button class="btn btn--gold prod__btn" type="button" data-buy="${id}" ${disabled ? 'disabled' : ''}>${label ? `<small>${label}</small>` : ''}<span>${GEM}${price}</span></button>`;
     const card = (icon, tone, name, desc, extra, btn) => `<div class="card prod"><div class="prod__tile" style="--tone:${tone}">${A.icon(icon)}</div><div><div class="prod__name">${name}</div><div class="prod__desc">${desc}</div>${extra || ''}</div>${btn}</div>`;
 
-    // 장비 상점: 특별 옵션이 붙은 영웅·전설 장비 (정해진 시간마다 새로 들어온다)
+    // 장비 상점: 특별 옵션이 붙은 영웅 이상 장비 (정해진 시간마다 새로 들어온다, 가끔 유니크·신화)
     $('gshopTimer').textContent = sh.secsLeft === null ? '서버 시각을 확인하지 못했어요' : `다음 갱신까지 ${clockText(sh.secsLeft)}`;
     $('gshopReroll').disabled = s.shop.reroll >= Store.GEAR_SHOP.rerollMax || s.crystals < Store.GEAR_SHOP.rerollCost;
     $('gshopReroll').innerHTML = `새로고침 ${GEM}${Store.GEAR_SHOP.rerollCost} <small>(${Store.GEAR_SHOP.rerollMax - s.shop.reroll}/${Store.GEAR_SHOP.rerollMax})</small>`;   // 아이콘은 그림이라 textContent가 아니라 innerHTML로 넣는다 (예전에는 그림 코드가 글자로 보였다)
-    $('gshopNote').innerHTML = `영웅·전설 장비에 <b>드롭에는 없는 특별 옵션</b>이 붙어 있어요. 낀 동안 효과가 적용되고, 옵션 없는 드롭에게 자리를 뺏기지 않아요. 진열은 ${Store.GEAR_SHOP.refreshSec / 3600}시간마다 새로 바뀌어요.`;
+    $('gshopNote').innerHTML = `영웅 이상 장비에 <b>드롭에는 없는 특별 옵션</b>이 붙어 있어요. 낀 동안 효과가 적용되고, 옵션 없는 드롭에게 자리를 뺏기지 않아요. 진열은 ${Store.GEAR_SHOP.refreshSec / 3600}시간마다 새로 바뀌어요.<br>칸마다 전설 ${Math.round(Store.GEAR_SHOP.legendChance * 100)}% · <b style="color:${G.RARITIES[5].color}">유니크 ${Math.round(Store.GEAR_SHOP.uniqueChance * 100)}%</b> · <b style="color:${G.RARITIES[6].color}">신화 ${Math.round(Store.GEAR_SHOP.mythChance * 100)}%</b> 확률로 진열돼요.`;
     $('gearShop').innerHTML = G.shopStock(s).map((o) => {
       const it = o.item, R = G.RARITIES[it.r], cur = s.equip[it.slot];
       const cmp = !cur ? '<span class="cmp-plus">칸이 비어 있어요</span>' : cur.kind === it.kind ? (() => { const d = Math.round((it.val - cur.val) * 10) / 10; return `<span class="${d >= 0 ? 'cmp-plus' : 'cmp-minus'}">낀 장비보다 ${d >= 0 ? '▲ +' : '▼ '}${d}%p</span>`; })() : '';
@@ -2227,6 +2341,11 @@
         `<div class="relic__opts" style="--rc:${R.color}"><b>${spText(it)}</b></div></div>${btn}</div>`;
     }).join('');
 
+    // 신화 보장 게이지: 상자·칸별 뽑기에 쓴 크리스탈이 가득 차면 다음 장비가 신화
+    const P = Store.MYTH_PITY, pv = Math.min(P, s.mythPity), myth = G.RARITIES[6];
+    $('pityBar').innerHTML = `<div class="pity__head"><b style="color:${myth.color}">신화 보장</b><span>${GEM}${G.fmt(pv)} / ${G.fmt(P)}</span></div>` +
+      `<div class="pity__bar"><i style="width:${(pv / P) * 100}%"></i></div>` +
+      `<small>장비 상자·칸별 뽑기에 크리스탈을 ${G.fmt(P)}개 쓰면 그 구매의 첫 장비가 <b style="color:${myth.color}">신화 확정</b>이에요 (전설 상자 3개째). 지금 ${G.fmt(P - pv)}개 남았어요.</small>`;
     $('boxList').innerHTML = Store.BOXES.map((b) =>
       card('gem', '#7a4aff99', b.name, b.desc, `<div class="prod__odds">${oddsHtml(b.odds)}</div>`, buyBtn(b.id, b.price, s.crystals < b.price))).join('');
 
@@ -2305,6 +2424,7 @@
   function showBought(res) {
     const p = res.product;
     let body = `<div style="font-weight:900;font-size:16px;margin-bottom:8px">${p.name}</div>`;
+    if (res.pityHit) body += `<div class="pity__hit">신화 보장 발동!</div>`;
     if (res.items && res.items.length) {
       body += res.items.map((it) => `<div class="got" style="--rc:${G.RARITIES[it.r].color}">${gearArt(it)}<div><b>[${G.RARITIES[it.r].name}] ${G.itemName(it)}</b><small>${KIND_SHORT[it.kind]} +${fmtVal(it.val)}% · Lv.${it.ilvl}</small></div></div>`).join('');
       body += '<small>가방에서 확인하고, 더 좋으면 자동으로 장착됐어요.</small>';
