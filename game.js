@@ -684,7 +684,7 @@
   const enhVal = (it) => it.val * (1 + ENH_STEP * (it.enh || 0)) * (1 + STAR_STEP * (it.star || 0));   // 실제로 적용되는 수치 (강화·초월 반영)
   const starDust = (it) => Math.ceil(1500 * ((it.star || 0) + 1) * [0.5, 0.6, 0.8, 1, 1.3, 1.7, 2.2][it.r]);
   // 재료: 같은 칸, 같은 등급 이상인 가방 장비 1개
-  const starMaterials = (s, it) => s.bag.filter((x) => x.id !== it.id && x.slot === it.slot && x.r >= it.r);
+  const starMaterials = (s, it) => s.bag.filter((x) => x.id !== it.id && x.slot === it.slot && x.r >= it.r && !x.lock);
   // 결과: { ok, reason? | star, dust }  reason: 'target' | 'enh' 15강이 아님 | 'max' | 'material' | 'dust'
   function starItem(s, targetId, materialId) {
     const it = findItem(s, targetId);
@@ -711,7 +711,7 @@
     const lv = target.enh || 0;
     if (lv >= ENH_MAX) return { ok: false, reason: 'max' };
     const mi = s.bag.findIndex((x) => x.id === materialId);
-    if (mi < 0 || s.bag[mi].id === targetId || s.bag[mi].slot !== target.slot) return { ok: false, reason: 'material' };
+    if (mi < 0 || s.bag[mi].id === targetId || s.bag[mi].slot !== target.slot || s.bag[mi].lock) return { ok: false, reason: 'material' };
     const cost = enhCost(target);
     if (s.gold < cost) return { ok: false, reason: 'gold', cost };
     const chance = enhChance(lv);
@@ -827,9 +827,16 @@
     return true;
   }
   // 가방의 장비 하나를 판다. 받은 골드를 돌려준다 (없으면 -1)
+  // ---- 장비 잠금: 잠근 장비는 판매·분해·정리·강화/초월 재료에서 빠진다 (언제든 풀 수 있다) ----
+  function toggleLock(s, id) {
+    const it = findItem(s, id);
+    if (!it) return null;
+    if (it.lock) delete it.lock; else it.lock = true;
+    return !!it.lock;
+  }
   function sellBagItem(s, id) {
     const i = s.bag.findIndex((x) => x.id === id);
-    if (i < 0) return -1;
+    if (i < 0 || s.bag[i].lock) return -1;
     const g = sellValue(s.bag[i]);
     s.gold += g;
     s.stats.sold += 1;
@@ -840,7 +847,7 @@
   function sellBagUpTo(s, maxRarity) {
     let n = 0, gold = 0;
     s.bag = s.bag.filter((it) => {
-      if (it.r > maxRarity) return true;
+      if (it.r > maxRarity || it.lock) return true;
       gold += sellValue(it); n += 1;
       return false;
     });
@@ -888,7 +895,7 @@
     const set = new Set(ids);
     let n = 0, dust = 0;
     s.bag = s.bag.filter((it) => {
-      if (!set.has(it.id)) return true;
+      if (!set.has(it.id) || it.lock) return true;
       dust += dustValue(it); n += 1;
       return false;
     });
@@ -900,7 +907,7 @@
     const set = new Set(ids);
     let n = 0, gold = 0;
     s.bag = s.bag.filter((it) => {
-      if (!set.has(it.id)) return true;
+      if (!set.has(it.id) || it.lock) return true;
       gold += sellValue(it); n += 1;
       return false;
     });
@@ -910,7 +917,7 @@
   }
   // 지금 낀 장비(같은 칸·같은 능력)보다 수치가 같거나 낮아서 쓸모없어진 가방 장비. 다른 능력의 장비는 비교할 수 없어서 포함하지 않는다.
   const isWeaker = (s, it) => { const cur = s.equip[it.slot]; return !it.sp && !!cur && cur.kind === it.kind && enhVal(it) <= enhVal(cur); };   // 특별 옵션 장비는 정리 대상이 아니다
-  const bagWeaker = (s) => s.bag.filter((it) => isWeaker(s, it));
+  const bagWeaker = (s) => s.bag.filter((it) => !it.lock && isWeaker(s, it));
   // 장착한 장비가 kind 능력에 주는 배율 (1 = 효과 없음, 강화 반영)
   const gearMult = (s, kind) => {
     let v = 0;
@@ -1815,6 +1822,7 @@
                    enh: clamp(Math.floor(num(x.enh, 0)), 0, ENH_MAX) };
       const star = clamp(Math.floor(num(x.star, 0)), 0, STAR_MAX);
       if (star > 0 && it.enh >= ENH_MAX) it.star = star;   // 초월은 15강 장비에만
+      if (x.lock === true) it.lock = true;
       const spDef = r >= 3 && x.sp && typeof x.sp === 'object' ? St.specialOf(x.sp.k) : null;   // 특별 옵션은 영웅 이상에만, 정해진 종류와 범위 안에서만
       if (spDef) it.sp = { k: spDef.k, v: clamp(num(x.sp.v, 0), 0, spDef.legend[1]) };
       return it;
@@ -1912,7 +1920,7 @@
     PATH_FIELDS, ADV_IDS, advIdsOfTier, classTier, parentOf, childrenOf, classPath, deepest, DEX_STAGES, DEX_MEDALS, MASTERY_BASE, MEDAL_BONUS, dexStages, masteryOf, dexRecord, dexTier,
     RARITIES, GEAR, SLOT_KEYS, BAG_MAX, bagLimit, DROP_CHANCE, BOSS_DROP_CHANCE, LUCK_PER_LV,
     GEAR_DESIGNS, itemDesign, setRandom, itemName, sellValue, rollItem, dropChance, isUpgrade, receiveItem, equipItem, unequipItem, sellBagItem, sellBagUpTo, sellBagItems, isWeaker, bagWeaker, gearMult,
-    ENH_MAX, ENH_STEP, STAR_MAX, STAR_STEP, STAR_LV, starDust, starMaterials, starItem, enhVal, enhCost, enhChance, enhanceItem, findItem, equipPower,
+    toggleLock, ENH_MAX, ENH_STEP, STAR_MAX, STAR_STEP, STAR_LV, starDust, starMaterials, starItem, enhVal, enhCost, enhChance, enhanceItem, findItem, equipPower,
     claimAttend, QUEST_PERIODS, QUEST_CFG, QUEST_DEFS, periodKeys, periodSecsLeft, questSync, questBoard, questClaimable, claimQuest, claimQuestBonus,
     DUNGEON_PERIODS: Dg.DUNGEON_PERIODS, DUNGEONS: Dg.DUNGEONS, BOSS_ART: Dg.BOSS_ART, dungeonSync, dungeonInfo, dungeonClaimable, dungeonBossHp, challengeDungeon, dungeonForecast, dungeonWaveBosses, dungeonBagNeed, MG_BONUS_CAP,
     itemQuality, ITEM_SPREAD, ITEM_LV_BONUS, dustValue, itemLevelCap, levelUpCost, levelUpPlan, levelUpItem, dismantleItems,

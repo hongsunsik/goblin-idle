@@ -997,3 +997,8 @@ svg { display: block; }
 
 /* 배경음 음량 */
 .vol { width: 140px; accent-color: var(--gold); }
+/* 장비 잠금 */
+.gitem__lock { position: absolute; left: 3px; top: 15px; font-style: normal; font-size: 10px; filter: drop-shadow(0 0 2px #000); }
+.slot__lock { position: absolute; right: 5px; top: 18px; font-style: normal; font-size: 11px; filter: drop-shadow(0 0 2px #000); }
+.itemd__lock { width: 100%; margin-top: 6px; padding: 7px; font-size: 12.5px; }
+.itemd__locknote { display: block; margin-top: 4px; color: var(--muted); font-size: 11.5px; }

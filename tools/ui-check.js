@@ -843,6 +843,27 @@ const FAKE_CLOUD = `(() => {
     await click('#modalActions .btn'); await sleep(200);
     check('발동 뒤 게이지는 0부터 다시 시작한다', (await txt('#pityBar')).includes('0 / '));
 
+    console.log('장비 잠금');
+    const lk = mk(30, ['warrior']); lk.autoEquip = false;
+    const keep = G.rollItem(lk, 20, false, 1, 'weapon'), junk2 = G.rollItem(lk, 20, false, 1, 'armor'); lk.bag.push(keep, junk2);
+    await reopen(lk);
+    await click('[data-go="gear"]'); await sleep(300);
+    await click(`#bag [data-item="${keep.id}"]`); await sleep(200);
+    await click('#modalBody [data-lock]'); await sleep(250);
+    check('잠그면 장비 창이 다시 그려지고 판매·분해 버튼이 사라지며 해제 버튼이 보인다', (await txt('#modalBody')).includes('잠금 해제') && !(await ev(`document.querySelector('#modalBody [data-dismantle]')`)) && !(await txt('#modalActions')).includes('판매'));
+    await click('#modalActions .btn'); await sleep(200);
+    check('가방 칸에 🔒 표시가 붙는다', (await txt(`#bag [data-item="${keep.id}"]`)).includes('🔒'));
+    await shot('lock');
+    await click('#selectBtn'); await sleep(150); await click('#selAll'); await sleep(150);
+    check('전체 선택해도 잠긴 장비는 고르지 않는다', !(await ev(`document.querySelector('#bag [data-item="${keep.id}"]').classList.contains('is-sel')`)) && (await ev(`document.querySelector('#bag [data-item="${junk2.id}"]').classList.contains('is-sel')`)));
+    await click('#selSell'); await sleep(300);
+    check('선택 판매 뒤에도 잠긴 장비는 남는다', !!(await ev(`document.querySelector('#bag [data-item="${keep.id}"]')`)) && !(await ev(`document.querySelector('#bag [data-item="${junk2.id}"]')`)));
+    await click('#selectBtn'); await sleep(150);
+    await click(`#bag [data-item="${keep.id}"]`); await sleep(200);
+    await click('#modalBody [data-lock]'); await sleep(250);
+    check('잠금 해제하면 다시 판매 버튼이 생긴다', (await txt('#modalActions')).includes('판매') && (await txt('#modalBody')).includes('잠그기'));
+    await click('#modalActions .btn'); await sleep(150);
+
     console.log('장비 초월');
     const sx = mk(30, ['warrior']); sx.bestStage = 80; sx.dust = 1e6; sx.autoEquip = false;
     const tgt = G.rollItem(sx, 40, false, 4, 'weapon'); tgt.enh = 15; sx.bag.push(tgt);

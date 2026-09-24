@@ -2935,6 +2935,34 @@ test('모든 직업에 속성이 있고, 부모·자식과 형제 직업끼리�
   }
 });
 
+section('장비 잠금');
+const lkBase = () => { const s = G.createState(0); s.bestStage = 50; s.autoEquip = false; const a = G.rollItem(s, 20, false, 1, 'weapon'), b = G.rollItem(s, 20, false, 1, 'weapon'); s.bag.push(a, b); return { s, a, b }; };
+test('잠근 장비는 하나씩·골라서·등급별로 팔거나 분해해도 남는다', () => {
+  const { s, a, b } = lkBase();
+  assert.strictEqual(G.toggleLock(s, a.id), true);
+  assert.strictEqual(G.sellBagItem(s, a.id), -1);
+  assert.strictEqual(G.sellBagItems(s, [a.id, b.id]).n, 1);
+  assert.deepStrictEqual(s.bag.map((x) => x.id), [a.id]);
+  s.bag.push(b); assert.strictEqual(G.dismantleItems(s, [a.id, b.id]).n, 1);
+  s.bag.push(b); G.sellBagUpTo(s, 4);
+  assert.deepStrictEqual(s.bag.map((x) => x.id), [a.id]);
+});
+test('잠근 장비는 강화·초월 재료가 되지 않고, 약한 장비 정리에서도 빠진다', () => {
+  const { s, a, b } = lkBase(); s.gold = 1e12; s.dust = 1e9;
+  G.toggleLock(s, b.id);
+  assert.strictEqual(G.enhanceItem(s, a.id, b.id).reason, 'material');
+  a.enh = 15; assert.deepStrictEqual(G.starMaterials(s, a), []);
+  s.equip.weapon = G.rollItem(s, 90, false, 6, 'weapon');
+  assert.ok(!G.bagWeaker(s).includes(b));
+});
+test('잠금은 언제든 풀 수 있고, 저장·복원된다', () => {
+  const { s, a } = lkBase();
+  G.toggleLock(s, a.id);
+  assert.strictEqual(G.deserialize(G.serialize(s, 1)).bag.find((x) => x.id === a.id).lock, true);
+  assert.strictEqual(G.toggleLock(s, a.id), false);
+  assert.ok(G.sellBagItem(s, a.id) >= 0);
+});
+
 section('무한의 탑');
 const twBase = (lv) => { const s = G.createState(0); s.bestStage = 5; s.level = 60; for (const k of G.UPGRADE_KEYS) s.upgrades[k] = lv; return s; };
 test('층이 오를수록 보스 체력이 늘고, 보스 스테이지 배율 때문에 튀지 않는다', () => {

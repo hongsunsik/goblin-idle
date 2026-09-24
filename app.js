@@ -1552,7 +1552,7 @@
     if (!it) {
       return `<div class="slot is-empty" data-slot="${slot}"><div class="slot__cap">${G.GEAR[slot].name}</div>${A.icon(G.GEAR[slot].icon)}<div class="slot__name" style="color:var(--muted)">비어 있음</div></div>`;
     }
-    return `<button class="slot r${it.r}" type="button" data-slot="${slot}"><div class="slot__cap">${G.GEAR[slot].name}</div>${gearArt(it)}${it.enh ? `<i class="slot__enh">⚒${it.enh}</i>` : ''}` +
+    return `<button class="slot r${it.r}" type="button" data-slot="${slot}"><div class="slot__cap">${G.GEAR[slot].name}</div>${gearArt(it)}${it.enh ? `<i class="slot__enh">⚒${it.enh}</i>` : ''}${it.lock ? '<i class="slot__lock">🔒</i>' : ''}` +
       `<div class="slot__name">${G.itemName(it)}</div><div class="slot__stat">${itemStat(it)}</div>${it.sp ? `<div class="slot__sp">★ ${spText(it)}</div>` : ''}<div class="slot__lv">Lv.${it.ilvl}${it.star ? ` <span class="slot__star">✦${it.star}</span>` : ''}</div></button>`;
   }
 
@@ -1569,7 +1569,7 @@
   function renderGear(force) {
     const s = state;
     const ids = (it) => (it ? it.id : 0);
-    const key = [G.SLOT_KEYS.map((k) => ids(s.equip[k])).join(','), s.bag.map((x) => x.id).join(','), s.autoEquip, s.autoSell, s.autoDust, s.dust, s.bag.map((x) => x.ilvl + ':' + (x.star || 0)).join(','), G.SLOT_KEYS.map((k) => (s.equip[k] ? s.equip[k].ilvl + ':' + (s.equip[k].star || 0) : '')).join(','), s.relicEq.join('+'), [...gearNew].join('+'), G.perkLv(s, 'luck'), selectMode, [...picked].join('+')].join('|');
+    const key = [G.SLOT_KEYS.map((k) => ids(s.equip[k])).join(','), s.bag.map((x) => x.id).join(','), s.autoEquip, s.autoSell, s.autoDust, s.dust, s.bag.map((x) => x.ilvl + ':' + (x.star || 0) + (x.lock ? 'L' : '')).join(','), G.SLOT_KEYS.map((k) => (s.equip[k] ? s.equip[k].ilvl + ':' + (s.equip[k].star || 0) : '')).join(','), s.relicEq.join('+'), [...gearNew].join('+'), G.perkLv(s, 'luck'), selectMode, [...picked].join('+')].join('|');
     if (!force && key === gearKey) return;
     gearKey = key;
     $('gearSummary').textContent = gearSummaryText();
@@ -1589,7 +1589,7 @@
     for (const id of [...picked]) if (!s.bag.some((x) => x.id === id)) picked.delete(id);   // 이미 팔린 장비는 선택에서 뺀다
     let html = '';
     s.bag.forEach((it) => {
-      html += `<button class="gitem r${it.r} ${gearNew.has(it.id) ? 'is-new' : ''} ${picked.has(it.id) ? 'is-sel' : ''}" type="button" data-item="${it.id}">${gearArt(it)}${it.sp ? '<i class="gitem__sp">★</i>' : ''}${it.enh ? `<i class="gitem__enh">⚒${it.enh}</i>` : ''}${it.star ? `<i class="gitem__star">✦${it.star}</i>` : ''}` +
+      html += `<button class="gitem r${it.r} ${gearNew.has(it.id) ? 'is-new' : ''} ${picked.has(it.id) ? 'is-sel' : ''}" type="button" data-item="${it.id}">${gearArt(it)}${it.sp ? '<i class="gitem__sp">★</i>' : ''}${it.enh ? `<i class="gitem__enh">⚒${it.enh}</i>` : ''}${it.star ? `<i class="gitem__star">✦${it.star}</i>` : ''}${it.lock ? '<i class="gitem__lock">🔒</i>' : ''}` +
         `<div class="gitem__stat">${KIND_SHORT[it.kind]} +${fmtVal(G.enhVal(it))}%</div><div class="gitem__lv">Lv.${it.ilvl}</div></button>`;
     });
     for (let i = s.bag.length; i < G.bagLimit(s); i++) html += '<div class="gitem is-empty"></div>';
@@ -1601,7 +1601,7 @@
     const chosen = s.bag.filter((x) => picked.has(x.id));
     const chosenGold = chosen.reduce((a, x) => a + G.sellValue(x), 0);
     $('selCount').textContent = chosen.length ? `${chosen.length}개 선택 · ${G.fmt(chosenGold)} 골드` : '팔 장비를 눌러 고르세요';
-    $('selAll').textContent = chosen.length && chosen.length === s.bag.length ? '선택 해제' : '전체 선택';
+    $('selAll').textContent = chosen.length && chosen.length === s.bag.filter((x) => !x.lock).length ? '선택 해제' : '전체 선택';
     $('selSell').disabled = chosen.length === 0;
     $('selDust').disabled = chosen.length === 0;
     $('selDust').textContent = chosen.length ? `분해 +${G.fmt(chosen.reduce((a, x) => a + G.dustValue(x), 0))}` : '분해';
@@ -1612,7 +1612,7 @@
   // 장비 강화(재련): 같은 칸의 다른 장비를 재료로 써서 수치를 올린다
   function askEnhance(it) {
     if ((it.enh || 0) >= G.ENH_MAX) { openModal('이미 최대로 강화했어요', `${G.itemName(it)}은(는) 이미 최대 강화(${G.ENH_MAX}단계)예요.`, [{ text: '확인' }]); return; }
-    const materials = state.bag.filter((x) => x.slot === it.slot && x.id !== it.id);
+    const materials = state.bag.filter((x) => x.slot === it.slot && x.id !== it.id && !x.lock);
     if (!materials.length) { openModal('강화할 재료가 없어요', `가방에 같은 칸(<b>${G.GEAR[it.slot].name}</b>)의 다른 장비가 하나 더 있어야 강화할 수 있어요. 재료로 쓴 장비는 사라져요.`, [{ text: '확인' }]); return; }
     const cost = G.enhCost(it);
     const chance = G.enhChance(it.enh || 0);
@@ -1667,6 +1667,15 @@
       [{ text: '취소', onClick: () => { starTarget = null; } }]);
   }
   $('modalBody').addEventListener('click', (e) => {
+    const lk = e.target.closest('button[data-lock]');
+    if (lk) {
+      const id = Number(lk.dataset.lock), locked = G.toggleLock(state, id);
+      if (locked === null) return;
+      const it = G.findItem(state, id);
+      writeSave(); renderGear(true);
+      showItem(it, G.SLOT_KEYS.some((k) => state.equip[k] === it));   // 새 상태로 다시 그린다
+      return;
+    }
     const st = e.target.closest('button[data-star]');
     if (st) { const it = G.findItem(state, Number(st.dataset.star)); if (it) askStar(it); return; }
     const sm = e.target.closest('button[data-starmat]');
@@ -1752,7 +1761,9 @@
       `<small>${G.GEAR[it.slot].name} · 장비 레벨 ${it.ilvl} · ${qualityText(it)}</small></div></div>${cmp}` +
       `<div class="itemd__tools"><button class="btn btn--gray" type="button" data-lvup="${it.id}">${DUST_IC}레벨 올리기</button>` +
       `<button class="btn btn--gray" type="button" data-star="${it.id}">✦ 초월</button>` +
-      (equipped ? '' : `<button class="btn btn--gray" type="button" data-dismantle="${it.id}">분해 +${G.fmt(G.dustValue(it))}</button>`) + '</div>';
+      (equipped || it.lock ? '' : `<button class="btn btn--gray" type="button" data-dismantle="${it.id}">분해 +${G.fmt(G.dustValue(it))}</button>`) + '</div>' +
+      `<button class="btn ${it.lock ? 'btn--gold' : 'btn--gray'} itemd__lock" type="button" data-lock="${it.id}">${it.lock ? '🔓 잠금 해제' : '🔒 잠그기'}</button>` +
+      (it.lock ? '<small class="itemd__locknote">잠긴 장비는 판매·분해·정리·강화 재료에서 빠져요.</small>' : '');
     const done = (msg, icon) => { addLog(msg, 'is-good', icon); writeSave(); render(); renderGear(true); };
     if (equipped) {
       openModal(G.itemName(it), body, [
@@ -1773,12 +1784,12 @@
     openModal(G.itemName(it), body, [
       { text: '닫기' },
       { text: '강화하기', onClick: () => askEnhance(it) },
-      { text: `판매 +${G.fmt(price)}`, cls: 'btn--blue', onClick: () => {
+      ...(it.lock ? [] : [{ text: `판매 +${G.fmt(price)}`, cls: 'btn--blue', onClick: () => {
         if (it.r >= 3) {   // 귀한 장비는 한 번 더 확인
           openModal('정말 팔까요?', `<b style="color:${R.color}">[${R.name}] ${G.itemName(it)}</b><br>${COIN} 골드 ${G.fmt(price)}을(를) 받고 팔아요.<br><small>되돌릴 수 없어요.</small>`,
             [{ text: '취소' }, { text: '판매', cls: 'btn--blue', onClick: sell }]);
         } else sell();
-      } },
+      } }]),
       { text: '장착하기', cls: 'btn--gold', onClick: () => {
         if (!G.equipItem(state, it.id)) return;
         done(`${G.itemName(it)}을(를) 장착했다`, G.GEAR[it.slot].icon);
@@ -1793,7 +1804,11 @@
     const b = e.target.closest('button[data-item]');
     const it = b && state.bag.find((x) => x.id === Number(b.dataset.item));
     if (!it) return;
-    if (selectMode) { if (picked.has(it.id)) picked.delete(it.id); else picked.add(it.id); renderGear(true); return; }
+    if (selectMode) {
+      if (it.lock) { floatText('잠긴 장비예요', 'float--drop', 'center'); return; }
+      if (picked.has(it.id)) picked.delete(it.id); else picked.add(it.id);
+      renderGear(true); return;
+    }
     showItem(it, false);
   });
   $('autoEquip').addEventListener('change', (e) => { state.autoEquip = e.target.checked; writeSave(); });
@@ -1823,8 +1838,9 @@
   // 선택 모드: 팔 장비를 여러 개 눌러 고른 뒤 한 번에 판다
   $('selectBtn').addEventListener('click', () => { selectMode = !selectMode; picked.clear(); renderGear(true); });
   $('selAll').addEventListener('click', () => {
-    if (picked.size && picked.size === state.bag.length) picked.clear();
-    else state.bag.forEach((x) => picked.add(x.id));
+    const free = state.bag.filter((x) => !x.lock);
+    if (picked.size && picked.size === free.length) picked.clear();
+    else free.forEach((x) => picked.add(x.id));
     renderGear(true);
   });
   $('selSell').addEventListener('click', () => {
@@ -1847,7 +1863,7 @@
   $('tidyBtn').addEventListener('click', () => {
     const s = state;
     const opts = [
-      ...[[0, '노말 이하'], [1, '고급 이하'], [2, '희귀 이하'], [3, '영웅 이하'], [4, '전설 이하']].map(([r, label]) => ({ id: 'r' + r, label, r, items: s.bag.filter((x) => x.r <= r && !x.sp) })),   // 특별 옵션 장비와 유니크·신화는 넣지 않는다
+      ...[[0, '노말 이하'], [1, '고급 이하'], [2, '희귀 이하'], [3, '영웅 이하'], [4, '전설 이하']].map(([r, label]) => ({ id: 'r' + r, label, r, items: s.bag.filter((x) => x.r <= r && !x.sp && !x.lock) })),   // 특별 옵션 장비와 유니크·신화는 넣지 않는다
       { id: 'weak', label: '장착 중인 장비보다 약한 것', items: G.bagWeaker(s) },
     ];
     const goldOf = (items) => items.reduce((a, x) => a + G.sellValue(x), 0);
@@ -1856,7 +1872,7 @@
     const html = '<div class="tidy">' + opts.map((o) =>
       `<label class="tidy__opt ${o.items.length ? '' : 'is-empty'}"><input type="radio" name="tidy" value="${o.id}" ${o === first ? 'checked' : ''} ${o.items.length ? '' : 'disabled'}>` +
       `<span><b>${o.label}</b><small>${o.items.length}개 · ${COIN}${G.fmt(goldOf(o.items))} 또는 ${DUST_IC}${G.fmt(o.items.reduce((a, x) => a + G.dustValue(x), 0))}</small></span></label>`).join('') +
-      '</div><small>장착 중인 장비, 특별 옵션(★) 장비, 유니크·신화는 팔리지 않아요.</small>';
+      '</div><small>장착 중인 장비, 잠긴(🔒) 장비, 특별 옵션(★) 장비, 유니크·신화는 팔리지 않아요.</small>';
     const pickOpt = () => { const v = document.querySelector('input[name="tidy"]:checked'); return opts.find((x) => v && x.id === v.value); };
     openModal('장비 정리', html, [
       { text: '취소' },
