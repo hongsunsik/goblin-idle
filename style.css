@@ -1051,3 +1051,13 @@ svg { display: block; }
 /* 달리는 동안: 고블린이 통통 뛴다 (숨쉬기 대신) */
 .actor--hero.is-running .actor__sprite { animation: runBob 0.34s ease-in-out infinite; }
 @keyframes runBob { 0%, 100% { transform: translateY(0) rotate(0deg); } 25% { transform: translateY(-7px) rotate(-3deg); } 50% { transform: translateY(0) rotate(0deg); } 75% { transform: translateY(-5px) rotate(2deg); } }
+
+/* ---- 층별 배경 (패럴랙스): 멀수록 느리게 흐른다. 층마다 원본·반전본 4장을 이어 붙여 이음새가 없다 ---- */
+.plx { position: absolute; inset: 0; display: none; }
+.plx__l { position: absolute; left: 0; width: 400%; display: flex; will-change: transform; }
+.plx__l i { flex: 0 0 25%; height: 100%; background: center bottom / cover no-repeat; }
+.plx__l i:nth-child(even) { transform: scaleX(-1); }
+.plx--sky { top: 0; bottom: 0; }
+.plx--far { bottom: 26%; height: 62%; filter: saturate(0.85) brightness(1.03); }
+.plx--mid { bottom: 9%; height: 58%; }
+.plx--near { bottom: -2%; height: 46%; }

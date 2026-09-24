@@ -5,7 +5,7 @@
   // images/manifest.js(tools/make-manifest.js가 만든다)에 적힌 파일이 있으면 그 이미지를 쓰고, 없으면 아래의 SVG 그림을 그대로 쓴다.
   // manifest 형식: { v, goblins: { knight: 'knight.png' }, monsters: {...}, icons: {...}, backgrounds: { biome0: '...' } }
   const IMG_DIR = 'images/';
-  const M = Object.assign({ v: 0, goblins: {}, monsters: {}, icons: {}, backgrounds: {}, gear: {}, skills: {}, vfx: {}, bosses: {} }, root.ART_MANIFEST || {});
+  const M = Object.assign({ v: 0, goblins: {}, monsters: {}, icons: {}, backgrounds: {}, gear: {}, skills: {}, vfx: {}, bosses: {}, layers: {} }, root.ART_MANIFEST || {});
   const has = (cat, name) => (M[cat] && M[cat][name]) || '';
   // manifest 값은 images/ 기준 경로 (예: 'goblins/knight.png'). ?v= 는 그림을 바꿨을 때 브라우저 캐시를 피하려는 값.
   const src = (file) => IMG_DIR + file + (M.v ? '?v=' + M.v : '');
@@ -611,10 +611,17 @@
       css += `.stage[data-biome='${b}'] .stage__scroll i { background-image: url('${src(f)}'); }\n.stage[data-biome='${b}'] .stage__scroll { display: flex; }\n` +
              `.stage[data-biome='${b}'] :is(.stage__art, .stage__sun, .stage__rays) { display: none; }\n`;
     }
+    // 층별 배경(하늘·먼 산·중간·가까운 땅)이 다 있으면 그걸로 층마다 다른 속도로 흘리고, 한 장짜리 배경은 숨긴다
+    for (let b = 0; b < 6; b++) {
+      const L = ['sky', 'far', 'mid', 'near'].map((l) => [l, has('layers', `biome${b}_${l}`)]);
+      if (L.some(([, f]) => !f)) continue;
+      css += L.map(([l, f]) => `.stage[data-biome='${b}'] .plx--${l} i { background-image: url('${src(f)}'); }`).join('\n') +
+             `\n.stage[data-biome='${b}'] .plx { display: block; }\n.stage[data-biome='${b}'] .stage__scroll { display: none; }\n.stage[data-biome='${b}'] :is(.stage__art, .stage__sun, .stage__rays) { display: none; }\n`;
+    }
     if (css) { const st = doc.createElement('style'); st.textContent = css; doc.head.appendChild(st); }
     // 처음 화면에 나올 때 깜빡이지 않도록 미리 내려받아 둔다
     if (typeof Image !== 'undefined') {
-      for (const cat of ['goblins', 'monsters', 'icons', 'backgrounds']) {
+      for (const cat of ['goblins', 'monsters', 'icons', 'backgrounds', 'layers']) {
         for (const k of Object.keys(M[cat] || {})) new Image().src = src(M[cat][k]);
       }
     }

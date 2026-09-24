@@ -246,6 +246,22 @@ MONSTERS.update({
     'cursed_doll': 'creepy cursed rag doll with button eyes, stitched mouth, holding a needle, floating slightly',
     'shadow_wolf': 'wolf made of black shadow smoke with glowing purple eyes and wispy dark tendrils, growling',
 })
+# 옆으로 흐르는 층별 배경 (지역마다 하늘·먼 산·중간·가까운 땅 4겹). 하늘 말고는 마젠타 배경을 지워 투명하게 만든다.
+LAYER = 'side-scrolling 2D mobile game parallax background layer, cartoon style, cel-shaded, soft vibrant colors, wide horizontal panorama, no characters, no text, no border'
+LAYER_BIOMES = [
+    dict(sky='bright blue sky with fluffy white clouds and a warm sun', far='distant blue-green mountains', mid='green pine forest treeline and rolling grassy hills', near='grassy dirt ground with grass tufts, small flowers and pebbles'),
+    dict(sky='dark purple cave ceiling with glowing crystals and hanging stalactites', far='distant dark purple rock pillars and crystal formations', mid='glowing purple and cyan crystal clusters and big rocks', near='dark cave floor with small glowing crystals and pebbles'),
+    dict(sky='hot orange desert sky with a big sun and hazy clouds', far='distant sand dunes and flat-topped mesas', mid='tall cacti, sand dunes and desert rocks', near='sandy ground with small rocks, old bones and dry grass'),
+    dict(sky='pale blue winter sky with soft clouds and falling snowflakes', far='distant snowy mountain peaks', mid='snow-covered pine trees and snowy hills', near='snowy ground with ice chunks and snow drifts'),
+    dict(sky='dark red smoky volcanic sky with ash clouds and glowing embers', far='distant erupting volcano silhouettes', mid='black volcanic rocks with glowing orange lava cracks', near='cracked black ground with small lava pools and embers'),
+    dict(sky='dark purple night sky with a big full moon and small bats', far='distant haunted castle towers silhouettes', mid='dead twisted trees, tombstones and iron fences', near='cursed stone ground with cracked tiles, small skulls and purple mist'),
+]
+LAYERS = {}
+for _b, _d in enumerate(LAYER_BIOMES):
+    LAYERS[f'biome{_b}_sky'] = f'sky only: {_d["sky"]}, no ground, no mountains, fills the whole image'
+    LAYERS[f'biome{_b}_far'] = f'a row of {_d["far"]} along the bottom half of the image, the top half is empty, {BG}'
+    LAYERS[f'biome{_b}_mid'] = f'{_d["mid"]} along the bottom third of the image, everything above is empty, {BG}'
+    LAYERS[f'biome{_b}_near'] = f'a close-up strip of {_d["near"]} along the very bottom quarter of the image, everything above is empty, {BG}'
 # 던전 보스 전용 그림 (일반 몬스터보다 크고 위협적으로). dungeon.js BOSS_ART의 값과 이름이 같아야 한다.
 BOSSES = {
     'goblin_chief': 'a massive muscular goblin chieftain with a spiked bone crown, wielding a huge crude club, war paint, roaring',
@@ -526,6 +542,7 @@ SPECS = {
     'gear':        dict(items=GEAR,        prompt=lambda d: f'{ICON}, {d}', gen=(512, 512), out=(128, 128), pad=0.06, keyed=True),
     'skills':      dict(items=SKILLS,      prompt=lambda d: f'{ICON}, {d}', gen=(512, 512), out=(128, 128), pad=0.06, keyed=True),
     'vfx':         dict(items=VFX,         prompt=lambda d: f'{FX}, {d}', gen=(512, 512), out=(256, 256), pad=0.03, keyed=True),
+    'layers':      dict(items=LAYERS,      prompt=lambda d: f'{LAYER}, {d}', gen=(1280, 640), out=(1280, 640), pad=0, keyed=True, layer=True),
     'backgrounds': dict(items=BACKGROUNDS, prompt=lambda d: f'{SCENE}, {d}', gen=(1280, 960), out=(1280, 960), pad=0, keyed=False),
 }
 
@@ -630,7 +647,11 @@ def make(kind, name, retry, force, key, reprocess=False):
         with open(raw_path, 'wb') as f:
             f.write(data)
     im = Image.open(raw_path)
-    if spec['keyed']:
+    if spec.get('layer') and name.endswith('_sky'):   # 하늘 층은 배경을 지우지 않는다
+        im.convert('RGB').resize(spec['out'], Image.LANCZOS).save(dest, 'WEBP', quality=85, method=6)
+    elif spec.get('layer'):   # 층 그림: 마젠타만 지우고 가로 전체를 그대로 둔다 (가운데로 자르지 않는다)
+        remove_magenta(im).resize(spec['out'], Image.LANCZOS).save(dest, 'WEBP', quality=88, method=6)
+    elif spec['keyed']:
         im = fit(remove_magenta(im), spec['out'], spec['pad'])
         im.save(dest, 'WEBP', quality=90, method=6)
     else:

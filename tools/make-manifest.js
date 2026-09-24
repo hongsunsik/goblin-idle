@@ -13,9 +13,12 @@ for (const k of A.MONSTER_KINDS) { monsterNames.push(k); for (let b = 0; b < 6; 
 for (const a of G.MONSTER_ARTS) monsterNames.push(a);   // 지역별 일반 몬스터 전용 그림 48종
 // 고블린 그림 이름: SVG로 그려 둔 13종 + 3·4차를 포함한 도감 직업 전부 (없는 직업은 윗단계 그림으로 나온다)
 const GOBLIN_IDS = [...new Set([...A.LOOK_IDS, ...G.ADV_IDS])];
+const LAYER_NAMES = [];
+for (let b = 0; b < 6; b++) for (const l of ['sky', 'far', 'mid', 'near']) LAYER_NAMES.push(`biome${b}_${l}`);
 const EXPECT = {
   goblins: [...GOBLIN_IDS, ...GOBLIN_IDS.map((id) => id + '_head')],
   monsters: monsterNames,
+  layers: LAYER_NAMES,
   icons: A.ICON_NAMES,
   gear: G.GEAR_DESIGNS,
   skills: Object.keys(G.SKILL_NAMES),
@@ -25,10 +28,10 @@ const EXPECT = {
 };
 // 꼭 있어야 하는 이름 (나머지는 선택: 얼굴 전용 그림, 지역별 몬스터 그림)
 const REQUIRED = {
-  goblins: A.LOOK_IDS, monsters: A.MONSTER_KINDS, icons: A.ICON_NAMES, backgrounds: EXPECT.backgrounds, gear: [], skills: [], vfx: [], bosses: [],
+  goblins: A.LOOK_IDS, monsters: A.MONSTER_KINDS, icons: A.ICON_NAMES, backgrounds: EXPECT.backgrounds, gear: [], skills: [], vfx: [], bosses: [], layers: [],
 };
 
-const manifest = { v: Date.now(), goblins: {}, monsters: {}, icons: {}, backgrounds: {}, gear: {}, skills: {}, vfx: {}, bosses: {} };
+const manifest = { v: Date.now(), goblins: {}, monsters: {}, icons: {}, backgrounds: {}, gear: {}, skills: {}, vfx: {}, bosses: {}, layers: {} };
 let problems = 0;
 for (const cat of Object.keys(EXPECT)) {
   const dir = path.join(ROOT, cat);

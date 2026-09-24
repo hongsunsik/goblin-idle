@@ -927,10 +927,15 @@ const FAKE_CLOUD = `(() => {
     await reopen(mk(20, ['warrior']));
     const ranSeen = await ev(`new Promise((res) => { let seen = false; const iv = setInterval(() => { if (document.getElementById('heroBox').classList.contains('is-running')) seen = true; }, 30); setTimeout(() => { clearInterval(iv); res(seen); }, 6000); })`);
     check('몬스터를 잡으면 고블린이 달리는 구간이 생긴다', ranSeen);
-    const x0 = await ev(`new DOMMatrix(getComputedStyle(document.getElementById('bgScroll')).transform).m41`); await sleep(1500);
-    const x1 = await ev(`new DOMMatrix(getComputedStyle(document.getElementById('bgScroll')).transform).m41`);
+    const x0 = await ev(`new DOMMatrix(getComputedStyle(document.querySelector('.plx--near')).transform).m41`); await sleep(1500);
+    const x1 = await ev(`new DOMMatrix(getComputedStyle(document.querySelector('.plx--near')).transform).m41`);
     check('배경이 옆으로 흐른다 (왼쪽으로 이동)', x1 < x0, `${x0} → ${x1}`);
-    check('배경 띠는 원본·반전본 4장이다', (await ev(`document.querySelectorAll('#bgScroll i').length`)) === 4);
+    check('층별 배경(하늘·먼 산·중간·가까운 땅)이 보이고, 가까운 층이 먼 층보다 빨리 흐른다', await ev(`(async () => {
+      const x = (l) => new DOMMatrix(getComputedStyle(document.querySelector('.plx--' + l)).transform).m41 / document.querySelector('.plx--' + l).offsetWidth;
+      if (getComputedStyle(document.getElementById('plx')).display === 'none') return false;
+      const a = { far: x('far'), near: x('near') }; await new Promise((r) => setTimeout(r, 1500));
+      return Math.abs(x('near') - a.near) > Math.abs(x('far') - a.far);
+    })()`));
 
     console.log('GM 모드 (관리자 계정에서만 보임)');
     const FAKE_CLOUD_GM = FAKE_CLOUD.replace('cb = f; setTimeout', 'cb = f; window.__authCb = f; setTimeout')

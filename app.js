@@ -214,7 +214,10 @@
   const scrollAnims = [];
   (function setupScroll() {
     const bg = $('bgScroll'), gr = $('groundScroll');
-    if (bg && bg.animate) scrollAnims.push(bg.animate([{ transform: 'translateX(0)' }, { transform: 'translateX(-50%)' }], { duration: 36000, iterations: Infinity }));
+    const loop = (el, ms) => { if (el && el.animate) scrollAnims.push(el.animate([{ transform: 'translateX(0)' }, { transform: 'translateX(-50%)' }], { duration: ms, iterations: Infinity })); };
+    loop(bg, 36000);
+    // 층별 배경: 멀수록 느리게 (하늘 240초 · 먼 산 90초 · 중간 40초 · 가까운 땅 14초에 한 주기)
+    for (const [l, ms] of [['sky', 240000], ['far', 90000], ['mid', 40000], ['near', 14000]]) loop(document.querySelector('.plx--' + l), ms);
     if (gr && gr.animate) scrollAnims.push(gr.animate([{ transform: 'translateX(0)' }, { transform: 'translateX(-50%)' }], { duration: 5200, iterations: Infinity }));
     for (const a of scrollAnims) a.playbackRate = SCROLL_IDLE;
   })();
