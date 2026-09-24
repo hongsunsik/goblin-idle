@@ -416,6 +416,34 @@ HIT_STYLES = {
     'fire': 'a fireball impact explosion with flames and embers',
     'dark': 'a dark necromancy impact with a purple and green skull smoke burst',
 }
+# 직업 속성 이펙트: 공격 방식 타격 그림 위에 겹쳐 터진다 (skills.js CLASS_ELEMENT)
+ELEMENT_FX = {
+    'fire': 'an orange fire burst with licking flames and embers flying outward',
+    'hellfire': 'a crimson and black hellfire burst with dark red flames and ash',
+    'ice': 'an icy blue frost burst with sharp ice crystal shards and snowflakes',
+    'lightning': 'a crackling yellow lightning burst with branching electric arcs',
+    'poison': 'a toxic green poison splash burst with bubbling droplets',
+    'holy': 'a white and gold holy light burst with feathers and a halo ring',
+    'shadow': 'a black and deep purple shadow smoke burst with wisps',
+    'blood': 'a crimson blood splash burst with sharp red slash streaks',
+    'wind': 'a pale cyan wind gust burst with swirling air currents and leaves',
+    'earth': 'a brown rock and earth burst with flying stones and dust',
+    'water': 'a blue water splash burst with droplets and a ripple ring',
+    'nature': 'a green nature burst with spinning leaves, vines and flower petals',
+    'gold': 'a shiny gold treasure burst with gold coins and gems flying outward',
+    'soul': 'a ghostly teal soul flame burst with wispy spirit faces',
+    'void': 'a dark purple void rift burst with a swirling black hole center and violet sparks',
+    'star': 'a cosmic starlight burst with twinkling white and blue stars',
+    'rune': 'a glowing blue arcane rune circle burst with floating glyphs',
+    'bone': 'a pale bone shard burst with small skulls and green ghost fire',
+    'sun': 'a radiant golden sun burst with long light rays',
+    'beast': 'a wild beast claw burst with three torn claw marks and fur tufts',
+    'steel': 'a silver steel spark burst with metal shards and bright sparks',
+    'moon': 'a silver crescent moon burst with pale blue moonlight glow',
+    'storm': 'a dark storm burst with grey clouds, rain streaks and lightning flashes',
+}
+for _k, _d in ELEMENT_FX.items():
+    VFX['el_' + _k] = _d
 for _k, _d in HIT_STYLES.items():
     VFX['hit_' + _k] = _d
     VFX['hitx_' + _k] = ('an epic legendary ' + re.sub(r'^an? ', '', _d) +

@@ -670,11 +670,16 @@
     const n = (ex ? 'hitx_' : 'hit_') + style;
     return A.vfx(n) ? n : (IMPACT_SPRITE[style] || 'impact_burst');
   }
+  // 직업 속성(skills.js CLASS_ELEMENT): 같은 계통이어도 직업마다 다른 속성 그림(el_*)이 공격 방식 그림 뒤에 깔려 터진다
+  const heroElement = () => { const id = G.deepest(state); const Sk = window.GoblinSkills; return id && Sk && Sk.CLASS_ELEMENT[id]; };
   function impactSprite(style, strong, delay) {
     const p = targetPos(), tier = heroTier(), ex = tier >= 4;
     const size = (strong ? 140 : 88) * (1 + 0.08 * tier) * (ex ? 1.15 : 1);
     const x = p.x + rand(-10, 10), y = p.y + rand(-10, 10);
-    sprite(hitSpriteName(style, ex), x, y, { size, delay, dur: ex ? 420 : 360, from: 0.3, to: strong ? 1.3 : 1.0 });
+    const el = heroElement();
+    // 공격 모양이 먼저 조금 작게 번쩍이고, 곧바로 직업 속성이 그 위로 크게 피어난다 (속성이 직업 차이를 가장 잘 보여 준다)
+    sprite(hitSpriteName(style, ex), x, y, { size: size * (el ? 0.8 : 1), delay, dur: ex ? 420 : 360, from: 0.3, to: strong ? 1.3 : 1.0 });
+    if (el) sprite('el_' + el, x + rand(-6, 6), y + rand(-6, 6), { size: size * (1.1 + 0.05 * tier), delay: delay + 45, dur: ex ? 480 : 400, from: 0.35, to: strong ? 1.35 : 1.1, rot: rand(-25, 25) });
     if (tier >= 5 && (!calm() || strong)) sprite(hitSpriteName(style, false), x + rand(-14, 14), y + rand(-12, 12), { size: size * 0.6, delay: delay + 70, dur: 320, from: 0.4, to: 1.1 });
     if (ex && strong) ringFx(x, y, HIT_RING[style] || '#fff', 2.6 + 0.3 * (tier - 4), 480, delay);
   }

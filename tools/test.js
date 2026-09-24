@@ -1575,7 +1575,7 @@ test('그림 생성 스크립트의 스킬·이펙트 목록이 게임 데이터
   const fs = require('fs'), path = require('path');
   const py = fs.readFileSync(path.join(__dirname, 'generate-images.py'), 'utf8');
   const keysOf = (name) => { const body = py.slice(py.indexOf(name + ' = {'), py.indexOf('\n}\n', py.indexOf(name + ' = {'))); return [...body.matchAll(/^\s+'([a-z_]+)':/gm)].map((m) => m[1]); };
-  const skills = keysOf('SKILLS'), vfx = keysOf('VFX').concat(keysOf('HIT_STYLES').flatMap((k) => ['hit_' + k, 'hitx_' + k]));   // 타격 이펙트는 HIT_STYLES에서 반복문으로 만든다
+  const skills = keysOf('SKILLS'), vfx = keysOf('VFX').concat(keysOf('HIT_STYLES').flatMap((k) => ['hit_' + k, 'hitx_' + k]), keysOf('ELEMENT_FX').map((k) => 'el_' + k));   // 타격 이펙트는 HIT_STYLES에서 반복문으로 만든다
   assert.deepStrictEqual(skills.slice().sort(), Object.keys(G.SKILL_NAMES).sort(), '스킬 아이콘 프롬프트가 60개 직업과 다르다');
   assert.deepStrictEqual(vfx.slice().sort(), require('../skills.js').VFX_NAMES.slice().sort(), '이펙트 이름이 skills.js와 다르다');
 });
@@ -2919,6 +2919,20 @@ test('예전 ±15% 장비도 복원할 때 깎이지 않는다', () => {
   const s = G.createState(0); const it = G.rollItem(s, 40, false, 4, 'weapon');
   it.val = Math.round(G.GEAR.weapon.kinds[it.kind].base[4] * 2 * 1.14 * 10) / 10; s.bag.push(it);
   assert.strictEqual(G.deserialize(G.serialize(s, 1)).bag[0].val, it.val);
+});
+
+section('직업 속성 타격 이펙트');
+test('모든 직업에 속성이 있고, 부모·자식과 형제 직업끼리는 속성이 겹치지 않는다', () => {
+  const Sk = require('../skills.js');
+  for (const id of Object.keys(G.NODES)) {
+    assert.ok(Sk.ELEMENTS.includes(Sk.CLASS_ELEMENT[id]), `${id} 속성 없음`);
+    const p = G.parentOf(id);
+    if (p) assert.notStrictEqual(Sk.CLASS_ELEMENT[id], Sk.CLASS_ELEMENT[p], `${id}가 부모 ${p}와 같다`);
+  }
+  for (const id of [...Object.keys(G.NODES), null]) {
+    const kids = id ? G.childrenOf(id) : Object.keys(G.CLASSES);
+    assert.strictEqual(new Set(kids.map((k) => Sk.CLASS_ELEMENT[k])).size, kids.length, `${id || '1차'}의 자식끼리 겹친다`);
+  }
 });
 
 section('무한의 탑');

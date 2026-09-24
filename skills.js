@@ -124,13 +124,36 @@
     flameemperor: 'fire', phoenixlord: 'fire', lichking: 'dark', boneemperor: 'dark',
   };
 
+  // 직업 속성: 타격 때 공격 방식 그림(hit_*) 위에 겹쳐 터지는 속성 그림(el_*). 같은 계통이어도 직업마다 다르게 보이도록
+  // 부모·자식, 형제 직업끼리는 속성이 겹치지 않게 정했다 (tools/test.js가 검사한다).
+  const ELEMENTS = ['fire', 'hellfire', 'ice', 'lightning', 'poison', 'holy', 'shadow', 'blood', 'wind', 'earth', 'water', 'nature', 'gold', 'soul', 'void', 'star', 'rune', 'bone', 'sun', 'beast', 'steel', 'moon', 'storm'];
+  const CLASS_ELEMENT = {
+    warrior: 'steel', archer: 'wind', mage: 'rune', rogue: 'poison', knight: 'ice', berserker: 'blood', sniper: 'star', ranger: 'nature',
+    pyromancer: 'fire', necromancer: 'bone', assassin: 'shadow', pirate: 'water', paladin: 'holy', crusader: 'sun', warlord: 'steel', destroyer: 'void',
+    deadeye: 'moon', piercer: 'lightning', windwalker: 'wind', beastmaster: 'beast', infernomage: 'hellfire', phoenixmage: 'sun', lich: 'ice', soulreaper: 'soul',
+    shade: 'void', nightblade: 'blood', captain: 'storm', buccaneer: 'gold', seraph: 'star', holyking: 'gold', inquisitor: 'lightning', templarlord: 'holy',
+    conqueror: 'gold', hordelord: 'earth', avatarofruin: 'hellfire', titan: 'earth', godeye: 'sun', hawkeye: 'wind', siegearcher: 'earth', dragonslayer: 'fire',
+    stormarcher: 'storm', windsage: 'nature', wolfking: 'moon', forestwarden: 'nature', flameemperor: 'fire', meteormage: 'star', phoenixlord: 'fire', sunpriest: 'holy',
+    lichking: 'bone', soulbinder: 'rune', grimreaper: 'shadow', boneemperor: 'bone', voidwalker: 'shadow', phantom: 'soul', bloodblade: 'hellfire', ninjamaster: 'wind',
+    seaking: 'water', ghostcaptain: 'soul', treasureking: 'star', raiderlord: 'fire', archangel: 'holy', redeemer: 'sun', sunmonarch: 'sun', heavenlord: 'star',
+    condemner: 'hellfire', judgment: 'holy', grandduke: 'steel', immortalknight: 'earth', earthconqueror: 'earth', tyrant: 'blood', legionfather: 'steel', allarmyking: 'gold',
+    apocalypse: 'void', chaoslord: 'storm', colossus: 'rune', mountainlord: 'storm', farsight: 'star', judgearrow: 'holy', skyhawk: 'lightning', stormsniper: 'storm',
+    wallbreaker: 'steel', siegemaster: 'fire', dragonbane: 'blood', legendhunter: 'gold', thunderavatar: 'lightning', galeforce: 'wind', windarchsage: 'rune', stormjudge: 'lightning',
+    primalwolf: 'beast', packlord: 'blood', ancientspirit: 'soul', naturejudge: 'poison', firegod: 'sun', infernolord: 'void', doomstar: 'hellfire', celestialbreaker: 'void',
+    eternalflame: 'hellfire', rebirthlord: 'nature', sungodpriest: 'sun', dawnsaint: 'star', deathgrandduke: 'shadow', eternalking: 'ice', soullord: 'soul', thousandsouls: 'star',
+    endscythe: 'void', judgereaper: 'holy', skeletonking: 'steel', tomblord: 'earth', voidlord: 'void', dimensionslayer: 'rune', thousandphantom: 'wind', phantomlord: 'moon',
+    bloodlord: 'moon', slaughterer: 'blood', shadowgrandmaster: 'moon', tenthousandninja: 'star', abysslord: 'ice', stormseaking: 'storm', cursedfleetlord: 'poison', deathvoyager: 'shadow',
+    goldenlord: 'sun', infinitehoard: 'gold', raidavatar: 'blood', doomraider: 'hellfire',
+  };
+
   // 전투 이펙트 스프라이트 이름 (images/vfx/이름.webp). tools/generate-images.py의 VFX와 같아야 한다.
   const VFX_NAMES = ['slash_white', 'slash_gold', 'slash_fire', 'slash_dark', 'claw_slash', 'impact_burst', 'explosion_fire', 'explosion_magic', 'lightning',
     'heal_light', 'shield_bubble', 'magic_circle', 'summon_circle', 'coin_burst', 'poison_cloud', 'stun_stars', 'wind_swirl', 'rage_aura',
     'swing_sword', 'swing_axe', 'swing_holy', 'swing_hammer', 'thrust_dagger',
-    ...['slash', 'axe', 'hammer', 'holy', 'dagger', 'arrow', 'bolt', 'bullet', 'shuriken', 'coin', 'orb', 'fire', 'dark'].flatMap((k) => ['hit_' + k, 'hitx_' + k])];   // 타격 이펙트 (기본 / 4차 이상)
+    ...['slash', 'axe', 'hammer', 'holy', 'dagger', 'arrow', 'bolt', 'bullet', 'shuriken', 'coin', 'orb', 'fire', 'dark'].flatMap((k) => ['hit_' + k, 'hitx_' + k]),   // 타격 이펙트 (기본 / 4차 이상)
+    ...ELEMENTS.map((e) => 'el_' + e)];   // 직업 속성 이펙트
 
-  const api = { VFX_NAMES, KINDS, TIER_POWER, SKILLS, makeSkill, describeSkill, ATTACK_STYLE, MELEE_STYLES };
+  const api = { VFX_NAMES, ELEMENTS, CLASS_ELEMENT, KINDS, TIER_POWER, SKILLS, makeSkill, describeSkill, ATTACK_STYLE, MELEE_STYLES };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.GoblinSkills = api;
 })(typeof window !== 'undefined' ? window : globalThis);
