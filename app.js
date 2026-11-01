@@ -99,6 +99,7 @@
   // 움직임은 Web Animations(el.animate)로 넣는다. transform·opacity·filter만 움직여서 휴대폰에서도 부드럽다.
   // '동작 줄이기' 설정을 켠 사람에게는 움직임을 넣지 않는다 (숫자와 상태는 그대로 보인다).
   const reduceMotion = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const LOCK_ICON = '<svg class="lock-ic" viewBox="0 0 24 24" aria-label="잠김" role="img"><path fill="currentColor" d="M17 9V7A5 5 0 0 0 7 7v2H5v13h14V9h-2ZM9 7a3 3 0 0 1 6 0v2H9V7Z"/></svg>';
   const layer = $('floatLayer');
   const sceneEl = $('scene');
   // 전투 효과 강도: 'full'(기본, 화려하게) / 'calm'(차분하게: 꼭 필요한 움직임만). 설정 창에서 바꾸고 기기에 기억한다.
@@ -154,7 +155,7 @@
   const rand = (a, b) => a + Math.random() * (b - a);
 
   // ---- 화면에 떠오르는 숫자: 살짝 튀어 오르며 옆으로 흩어진다 ----
-  const FLOAT_AREA = { hero: [10, 14, 56, 10], center: [34, 16, 34, 14], enemy: [56, 16, 44, 12], hit: [58, 12, 62, 8], gold: [72, 12, 52, 8], comp: [44, 12, 60, 8] };
+  const FLOAT_AREA = { hero: [10, 14, 56, 10], center: [34, 16, 44, 12], enemy: [56, 16, 44, 12], hit: [58, 12, 62, 8], gold: [72, 12, 52, 8], comp: [44, 12, 60, 8] };
   function floatText(text, cls, where, color) {
     if (layer.children.length > MAX_FX) return;
     const el = document.createElement('div');
@@ -1249,11 +1250,30 @@
 
   // ---- 메뉴 ----
   let currentTab = 'upgrade';
+  const NAV_GROUPS = { upgrade: ['upgrade'], gear: ['gear'], grow: ['class', 'prestige', 'shop'], play: ['dungeon', 'log'], store: ['store'] };
+  const lastInGroup = {};
+  const groupOf = (tab) => Object.keys(NAV_GROUPS).find((g) => NAV_GROUPS[g].includes(tab));
+  function syncNav(tab) {
+    const group = groupOf(tab), tabs = NAV_GROUPS[group];
+    lastInGroup[group] = tab;
+    document.querySelectorAll('.mainnav__btn').forEach((b) => {
+      const on = b.dataset.group === group;
+      b.classList.toggle('is-on', on);
+      if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+    });
+    document.querySelectorAll('.tabnav__btn').forEach((b) => {
+      const on = b.dataset.go === tab;
+      b.classList.toggle('is-on', on);
+      if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+      b.hidden = !tabs.includes(b.dataset.go);
+    });
+    $('nav').hidden = tabs.length < 2;
+  }
   function goTab(name) {
     if (currentTab === 'gear' && name !== 'gear') gearNew.clear();   // 장비 탭을 떠나면 NEW 표시를 지운다
     currentTab = name;
     document.querySelectorAll('.tab').forEach((t) => { t.hidden = t.dataset.tab !== name; });
-    document.querySelectorAll('.tabnav__btn').forEach((b) => b.classList.toggle('is-on', b.dataset.go === name));
+    syncNav(name);
     document.querySelector('.tabs').scrollTop = 0;
     if (name === 'class') renderClass(true);
     if (name === 'gear') renderGear(true);
@@ -1267,6 +1287,12 @@
     const b = e.target.closest('.tabnav__btn');
     if (b) goTab(b.dataset.go);
   });
+  // 아래 메뉴 묶음을 누르면 그 묶음에서 마지막으로 보던 탭으로 간다
+  $('mainNav').addEventListener('click', (e) => {
+    const b = e.target.closest('.mainnav__btn');
+    if (b) goTab(lastInGroup[b.dataset.group] || NAV_GROUPS[b.dataset.group][0]);
+  });
+  syncNav(currentTab);
 
   // ---- 강화 목록 (한 번만 만들고 이후에는 값만 갱신) ----
   const upRefs = {};
@@ -1623,7 +1649,7 @@
     if (!it) {
       return `<div class="slot is-empty" data-slot="${slot}"><div class="slot__cap">${G.GEAR[slot].name}</div>${A.icon(G.GEAR[slot].icon)}<div class="slot__name" style="color:var(--muted)">비어 있음</div></div>`;
     }
-    return `<button class="slot r${it.r}" type="button" data-slot="${slot}"><div class="slot__cap">${G.GEAR[slot].name}</div>${gearArt(it)}${it.enh ? `<i class="slot__enh">⚒${it.enh}</i>` : ''}${it.lock ? '<i class="slot__lock">🔒</i>' : ''}` +
+    return `<button class="slot r${it.r}" type="button" data-slot="${slot}"><div class="slot__cap">${G.GEAR[slot].name}</div>${gearArt(it)}${it.enh ? `<i class="slot__enh">⚒${it.enh}</i>` : ''}${it.lock ? `<i class="slot__lock">${LOCK_ICON}</i>` : ''}` +
       `<div class="slot__name">${G.itemName(it)}</div><div class="slot__stat">${itemStat(it)}</div>${it.sp ? `<div class="slot__sp">★ ${spText(it)}</div>` : ''}<div class="slot__lv">Lv.${it.ilvl}${it.star ? ` <span class="slot__star">✦${it.star}</span>` : ''}</div></button>`;
   }
 
@@ -1660,7 +1686,7 @@
     for (const id of [...picked]) if (!s.bag.some((x) => x.id === id)) picked.delete(id);   // 이미 팔린 장비는 선택에서 뺀다
     let html = '';
     s.bag.forEach((it) => {
-      html += `<button class="gitem r${it.r} ${gearNew.has(it.id) ? 'is-new' : ''} ${picked.has(it.id) ? 'is-sel' : ''}" type="button" data-item="${it.id}">${gearArt(it)}${it.sp ? '<i class="gitem__sp">★</i>' : ''}${it.enh ? `<i class="gitem__enh">⚒${it.enh}</i>` : ''}${it.star ? `<i class="gitem__star">✦${it.star}</i>` : ''}${it.lock ? '<i class="gitem__lock">🔒</i>' : ''}` +
+      html += `<button class="gitem r${it.r} ${gearNew.has(it.id) ? 'is-new' : ''} ${picked.has(it.id) ? 'is-sel' : ''}" type="button" data-item="${it.id}">${gearArt(it)}${it.sp ? '<i class="gitem__sp">★</i>' : ''}${it.enh ? `<i class="gitem__enh">⚒${it.enh}</i>` : ''}${it.star ? `<i class="gitem__star">✦${it.star}</i>` : ''}${it.lock ? `<i class="gitem__lock">${LOCK_ICON}</i>` : ''}` +
         `<div class="gitem__stat">${KIND_SHORT[it.kind]} +${fmtVal(G.enhVal(it))}%</div><div class="gitem__lv">Lv.${it.ilvl}</div></button>`;
     });
     for (let i = s.bag.length; i < G.bagLimit(s); i++) html += '<div class="gitem is-empty"></div>';
@@ -1827,7 +1853,7 @@
       `<div class="itemd__tools"><button class="btn btn--gray" type="button" data-lvup="${it.id}">${DUST_IC}레벨 올리기</button>` +
       `<button class="btn btn--gray" type="button" data-star="${it.id}">✦ 초월</button>` +
       (equipped || it.lock ? '' : `<button class="btn btn--gray" type="button" data-dismantle="${it.id}">분해 +${G.fmt(G.dustGain(state, it))}</button>`) + '</div>' +
-      `<button class="btn ${it.lock ? 'btn--gold' : 'btn--gray'} itemd__lock" type="button" data-lock="${it.id}">${it.lock ? '🔓 잠금 해제' : '🔒 잠그기'}</button>` +
+      `<button class="btn ${it.lock ? 'btn--gold' : 'btn--gray'} itemd__lock" type="button" data-lock="${it.id}">${it.lock ? '잠금 해제' : '잠그기'}</button>` +
       (it.lock ? '<small class="itemd__locknote">잠긴 장비는 판매·분해·정리·강화 재료에서 빠져요.</small>' : '');
     const done = (msg, icon) => { addLog(msg, 'is-good', icon); writeSave(); render(); renderGear(true); };
     if (equipped) {
@@ -1937,7 +1963,7 @@
     const html = '<div class="tidy">' + opts.map((o) =>
       `<label class="tidy__opt ${o.items.length ? '' : 'is-empty'}"><input type="radio" name="tidy" value="${o.id}" ${o === first ? 'checked' : ''} ${o.items.length ? '' : 'disabled'}>` +
       `<span><b>${o.label}</b><small>${o.items.length}개 · ${COIN}${G.fmt(goldOf(o.items))} 또는 ${DUST_IC}${G.fmt(o.items.reduce((a, x) => a + G.dustGain(state, x), 0))}</small></span></label>`).join('') +
-      '</div><small>장착 중인 장비, 잠긴(🔒) 장비, 특별 옵션(★) 장비, 유니크·신화는 팔리지 않아요.</small>';
+      '</div><small>장착 중인 장비, 잠긴 장비, 특별 옵션(★) 장비, 유니크·신화는 팔리지 않아요.</small>';
     const pickOpt = () => { const v = document.querySelector('input[name="tidy"]:checked'); return opts.find((x) => v && x.id === v.value); };
     openModal('장비 정리', html, [
       { text: '취소' },
@@ -2432,6 +2458,11 @@
       G.PERK_KEYS.some((id) => G.canBuyPerk(s, id)) && currentTab !== 'shop', G.adStatus(s, today()).left > 0 && adsMod.available && currentTab !== 'store',
       (G.dungeonClaimable(s) > 0 || G.towerInfo(s, today()).dailyReady) && currentTab !== 'dungeon', (G.unclaimedAchievements(s).length > 0 || G.questClaimable(s) > 0) && currentTab !== 'log'];
     dots.forEach((d, i) => { if (d.hidden === want[i]) d.hidden = !want[i]; });
+    document.querySelectorAll('.mainnav__btn').forEach((b) => {   // 묶음 안의 탭 중 하나라도 알림이 있으면 묶음에 점 하나
+      const on = NAV_GROUPS[b.dataset.group].some((t) => !document.querySelector(`.tabnav__btn[data-go="${t}"] .dot`).hidden);
+      const d = b.querySelector('.dot');
+      if (d.hidden === on) d.hidden = !on;
+    });
     // 배경음: 보스 스테이지나 던전·탑 전투 중이면 긴장감 있는 곡
     if (window.GoblinAudio) window.GoblinAudio.setSong(window.GoblinAudio.songFor(biome, boss, !$('mgModal').hidden));   // 지역마다 다른 곡, 보스·던전 전투 곡
   }

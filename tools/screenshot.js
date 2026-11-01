@@ -97,7 +97,7 @@ async function main() {
     ws.addEventListener('message', (e) => onError(JSON.parse(e.data)));
     await send('Runtime.enable');
     await send('Page.enable');
-    await send('Emulation.setDeviceMetricsOverride', { width: 420, height: 900, deviceScaleFactor: 2, mobile: true });
+    await send('Emulation.setDeviceMetricsOverride', { width: +process.env.SHOT_W || 420, height: +process.env.SHOT_H || 900, deviceScaleFactor: 2, mobile: true });
     const url = 'file://' + path.join(ROOT, 'index.html');
 
     // 게임은 페이지를 떠날 때 자동 저장하므로, 게임 페이지에서 저장 데이터를 넣으면 덮어써진다.

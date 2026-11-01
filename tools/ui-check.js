@@ -866,7 +866,7 @@ const FAKE_CLOUD = `(() => {
     await click('#modalBody [data-lock]'); await sleep(250);
     check('잠그면 장비 창이 다시 그려지고 판매·분해 버튼이 사라지며 해제 버튼이 보인다', (await txt('#modalBody')).includes('잠금 해제') && !(await ev(`document.querySelector('#modalBody [data-dismantle]')`)) && !(await txt('#modalActions')).includes('판매'));
     await click('#modalActions .btn'); await sleep(200);
-    check('가방 칸에 🔒 표시가 붙는다', (await txt(`#bag [data-item="${keep.id}"]`)).includes('🔒'));
+    check('가방 칸에 잠금 표시가 붙는다', await ev(`!!document.querySelector('#bag [data-item="${keep.id}"] .lock-ic')`));
     await shot('lock');
     await click('#selectBtn'); await sleep(150); await click('#selAll'); await sleep(150);
     check('전체 선택해도 잠긴 장비는 고르지 않는다', !(await ev(`document.querySelector('#bag [data-item="${keep.id}"]').classList.contains('is-sel')`)) && (await ev(`document.querySelector('#bag [data-item="${junk2.id}"]').classList.contains('is-sel')`)));

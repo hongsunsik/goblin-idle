@@ -3,13 +3,16 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#070d1c">
+  <meta name="theme-color" content="#181222">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
   <title>고블린 키우기</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css">
-  <link rel="stylesheet" href="style.css?v=202609250013">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&display=swap">
+  <link rel="stylesheet" href="style.css?v=202611011231">
 </head>
 <body>
   <div class="app">
@@ -113,7 +116,7 @@
 
     <!-- ===== 아래: 스테이터스 창 ===== -->
     <section class="panel">
-      <nav class="tabnav" id="nav" aria-label="메뉴">
+      <nav class="tabnav" id="nav" aria-label="세부 메뉴">
         <button class="tabnav__btn is-on" data-go="upgrade" type="button"><svg class="ic"><use href="#i-anvil"/></svg><span>강화</span><i class="dot" hidden></i></button>
         <button class="tabnav__btn" data-go="gear" type="button"><svg class="ic"><use href="#i-shield"/></svg><span>장비</span><i class="dot" hidden></i></button>
         <button class="tabnav__btn" data-go="class" type="button"><svg class="ic"><use href="#i-cap"/></svg><span>전직</span><i class="dot" hidden></i></button>
@@ -253,6 +256,15 @@
           </div>
         </section>
       </main>
+
+      <!-- 아래 메뉴 5개: 탭 8개를 묶었다. 묶음에 탭이 여럿이면 위 세부 메뉴(#nav)가 나타난다 -->
+      <nav class="mainnav" id="mainNav" aria-label="메인 메뉴">
+        <button class="mainnav__btn is-on" data-group="upgrade" type="button" aria-current="page"><svg class="ic" aria-hidden="true"><use href="#i-anvil"/></svg><span>강화</span><i class="dot" hidden></i></button>
+        <button class="mainnav__btn" data-group="gear" type="button"><svg class="ic" aria-hidden="true"><use href="#i-shield"/></svg><span>장비</span><i class="dot" hidden></i></button>
+        <button class="mainnav__btn" data-group="grow" type="button"><svg class="ic" aria-hidden="true"><use href="#i-cap"/></svg><span>성장</span><i class="dot" hidden></i></button>
+        <button class="mainnav__btn" data-group="play" type="button"><svg class="ic" aria-hidden="true"><use href="#i-gate"/></svg><span>모험</span><i class="dot" hidden></i></button>
+        <button class="mainnav__btn" data-group="store" type="button"><svg class="ic" aria-hidden="true"><use href="#i-gem"/></svg><span>상점</span><i class="dot" hidden></i></button>
+      </nav>
     </section>
   </div>
 
@@ -290,7 +302,7 @@
           <button class="btn btn--gray" id="resetBtn2" type="button">처음부터 다시</button>
         </div>
         <div id="gmSection" hidden>
-          <h3 class="sect">🛠 GM 모드 <small>이 계정에서만 보여요</small></h3>
+          <h3 class="sect">GM 모드 <small>이 계정에서만 보여요</small></h3>
           <div class="gmgrid" id="gmGrid">
             <button class="btn btn--gray" type="button" data-gm="crystal1000">크리스탈 +1,000</button>
             <button class="btn btn--gray" type="button" data-gm="crystal10000">크리스탈 +10,000</button>
@@ -338,24 +350,24 @@
     // 웹 앱 설치·안드로이드 앱(TWA)용 서비스 워커. https에서만 등록하고, 등록에 실패해도 게임은 그대로 동작한다.
     if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(function () {});
   </script>
-  <script src="images/manifest.js?v=202609250013"></script>
-  <script src="images/goblin-fit.js?v=202609250013"></script>
-  <script src="art.js?v=202609250013"></script>
-  <script src="classes.js?v=202609250013"></script>
-  <script src="skills.js?v=202609250013"></script>
-  <script src="store.js?v=202609250013"></script>
-  <script src="dungeon.js?v=202609250013"></script>
-  <script src="social.js?v=202609250013"></script>
-  <script src="game.js?v=202609250013"></script>
-  <script src="minigame.js?v=202609250013"></script>
-  <script src="sync.js?v=202609250013"></script>
-  <script src="cloud.js?v=202609250013"></script>
-  <script src="cloud-firebase.js?v=202609250013"></script>
-  <script src="firebase-config.js?v=202609250013"></script>
-  <script src="payments.js?v=202609250013"></script>
-  <script src="ads.js?v=202609250013"></script>
-  <script src="payments-config.js?v=202609250013"></script>
-  <script src="audio.js?v=202609250013"></script>
-  <script src="app.js?v=202609250013"></script>
+  <script src="images/manifest.js?v=202611011231"></script>
+  <script src="images/goblin-fit.js?v=202611011231"></script>
+  <script src="art.js?v=202611011231"></script>
+  <script src="classes.js?v=202611011231"></script>
+  <script src="skills.js?v=202611011231"></script>
+  <script src="store.js?v=202611011231"></script>
+  <script src="dungeon.js?v=202611011231"></script>
+  <script src="social.js?v=202611011231"></script>
+  <script src="game.js?v=202611011231"></script>
+  <script src="minigame.js?v=202611011231"></script>
+  <script src="sync.js?v=202611011231"></script>
+  <script src="cloud.js?v=202611011231"></script>
+  <script src="cloud-firebase.js?v=202611011231"></script>
+  <script src="firebase-config.js?v=202611011231"></script>
+  <script src="payments.js?v=202611011231"></script>
+  <script src="ads.js?v=202611011231"></script>
+  <script src="payments-config.js?v=202611011231"></script>
+  <script src="audio.js?v=202611011231"></script>
+  <script src="app.js?v=202611011231"></script>
 </body>
 </html>
